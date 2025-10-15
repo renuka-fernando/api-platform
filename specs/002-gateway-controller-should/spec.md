@@ -5,6 +5,17 @@
 **Status**: Draft
 **Input**: User description: "Gateway Controller should connect to Platform API to get API deployment events and fetch APIs via REST API. There should be a config to on/off gateway connection to platform API, if off the gateway operates independently."
 
+## Clarifications
+
+### Session 2025-10-14
+
+- Q: How should the Gateway Controller discover which APIs changed during disconnection when reconnecting to Platform API? → A: Gateway requests full sync (complete list of current APIs) from Platform API and reconciles with local state
+- Q: When both local and Platform API have APIs configured, which source should be authoritative? → A: Gateway maintains both sources separately and deploys both. Latest update from either local REST API or Platform API is applied using last-write-wins semantics. Gateway Controller syncs bidirectionally to Platform API based on latest changes using Platform API's REST API for updates
+
+### Session 2025-10-15
+
+- Q: How should conflicts be resolved when the same API is updated from both Platform API and local REST API? → A: Add configurable conflict resolution policy with three options: 1) "timestamp" (default) - latest update wins based on timestamps, 2) "platform-api" - Platform API always wins, 3) "local" - local REST API always wins. This allows different deployment models to choose appropriate conflict handling.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Gateway Receives Deployment Notifications in Real-Time (Priority: P1)
@@ -70,7 +81,7 @@ If the Gateway Controller loses connection to the Platform API due to network is
 
 1. **Given** a connected Gateway Controller, **When** the Platform API becomes unreachable, **Then** the Gateway detects the disconnection within 30 seconds
 2. **Given** a disconnected Gateway Controller, **When** attempting to reconnect, **Then** it uses exponential backoff (1s, 2s, 4s, 8s, up to 60s maximum)
-3. **Given** a Gateway Controller reconnects after a disconnection, **When** the connection is re-established, **Then** it fetches any API configurations that changed during the downtime
+3. **Given** a Gateway Controller reconnects after a disconnection, **When** the connection is re-established, **Then** it requests a full sync of all current APIs from Platform API and reconciles with local state to detect additions, updates, and deletions
 4. **Given** a Gateway Controller is in reconnection mode, **When** reconnection attempts continue, **Then** it retries indefinitely using the maximum backoff interval (60 seconds) to ensure eventual consistency when Platform API recovers
 
 ---
@@ -93,7 +104,26 @@ Administrators must be able to configure the Gateway Controller to run in standa
 
 ---
 
-### User Story 6 - Administrators Monitor Gateway Connection Status (Priority: P3)
+### User Story 6 - Administrators Configure Conflict Resolution Policy (Priority: P1)
+
+When the same API (name/version) is updated from both Platform API and local REST API, administrators must be able to configure how the Gateway Controller resolves conflicts to ensure predictable behavior that matches their deployment model.
+
+**Why this priority**: Conflict resolution is fundamental to bidirectional synchronization. Different deployment models require different policies - cloud-managed gateways need Platform API authority, edge gateways need local authority, and hybrid deployments need timestamp-based resolution.
+
+**Independent Test**: Can be fully tested by configuring each conflict resolution policy, creating the same API via both sources with different configurations, and verifying the correct policy is applied, delivering predictable conflict handling.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Gateway Controller configured with "timestamp" conflict resolution policy, **When** the same API is updated from both Platform API (timestamp: 10:00:00) and local REST API (timestamp: 10:00:05), **Then** the local REST API version is applied (most recent timestamp wins)
+2. **Given** a Gateway Controller configured with "platform-api" conflict resolution policy, **When** the same API is updated from both sources, **Then** the Platform API version is always applied regardless of timestamps
+3. **Given** a Gateway Controller configured with "local" conflict resolution policy, **When** the same API is updated from both sources, **Then** the local REST API version is always applied regardless of timestamps
+4. **Given** a Gateway Controller with "timestamp" policy, **When** both sources update the same API with identical timestamps, **Then** the Platform API version is applied as the default tie-breaker
+5. **Given** a Gateway Controller configuration, **When** an invalid conflict resolution policy is specified, **Then** the Gateway fails to start with a clear error message listing valid policy options
+6. **Given** a Gateway Controller with Platform API integration disabled, **When** the conflict resolution policy is set to "platform-api", **Then** the Gateway logs a warning at startup but operates normally (policy has no effect in standalone mode)
+
+---
+
+### User Story 7 - Administrators Monitor Gateway Connection Status (Priority: P3)
 
 Operators need visibility into whether the Gateway Controller is successfully connected to the Platform API and receiving events to troubleshoot synchronization issues.
 
@@ -122,7 +152,12 @@ Operators need visibility into whether the Gateway Controller is successfully co
 - What happens when the Gateway Controller's local storage (bbolt) fails during API configuration persistence after a fetch?
 - How does the Gateway behave if Platform API integration is enabled but required configuration (URL or API key) is missing?
 - What happens when an administrator changes the Platform API integration setting (enabled/disabled) without restarting the Gateway Controller?
-- How does the Gateway handle APIs deployed via local REST API when Platform API integration is later enabled?
+- What happens when the same API (name/version) is updated simultaneously via local REST API and Platform API event?
+- How does the Gateway determine which timestamp to use when local and Platform API clocks are not synchronized?
+- What happens when the conflict resolution policy is changed while the Gateway Controller is running with active API configurations from both sources?
+- How does the Gateway behave if the "timestamp" policy is selected but an API configuration lacks a valid timestamp?
+- What happens when an API is deleted locally but still exists in Platform API with "platform-api" conflict resolution policy?
+- How does the system handle conflicts when the "local" policy is selected but the Gateway reconnects after extended Platform API disconnection?
 
 ## Requirements *(mandatory)*
 
@@ -132,7 +167,7 @@ Operators need visibility into whether the Gateway Controller is successfully co
 
 - **FR-001**: Gateway Controller MUST support a configuration flag to enable/disable Platform API integration (default: disabled for backward compatibility)
 - **FR-002**: Gateway Controller MUST NOT attempt any Platform API connections when integration is disabled
-- **FR-003**: Gateway Controller MUST continue accepting API configurations via its local REST API when running in standalone mode
+- **FR-003**: Gateway Controller MUST continue accepting API configurations via its local REST API in both standalone and connected modes
 - **FR-004**: Gateway Controller MUST operate all existing features (API management, xDS, storage) independently when Platform API integration is disabled
 - **FR-005**: Gateway Controller MUST indicate "disabled" status for Platform API connection in health endpoint when integration is disabled
 
@@ -152,12 +187,29 @@ Operators need visibility into whether the Gateway Controller is successfully co
 - **FR-017**: Gateway Controller MUST gracefully handle Platform API unavailability at startup by entering retry mode
 - **FR-018**: Gateway Controller MUST validate API key format and presence before attempting Platform API connection when integration is enabled
 - **FR-019**: Gateway Controller MUST fail fast at startup if Platform API integration is enabled but required configuration (URL or API key) is missing
+- **FR-023**: Gateway Controller MUST request full API inventory from Platform API upon successful reconnection and reconcile with local state to identify added, updated, and deleted APIs
+- **FR-024**: Gateway Controller MUST maintain timestamps for all API configurations to support timestamp-based conflict resolution between local and Platform API sources
+- **FR-025**: Gateway Controller MUST push locally-created or locally-updated APIs to Platform API via Platform API's REST API when Platform API integration is enabled
+
+#### Conflict Resolution Requirements
+
+- **FR-026**: Gateway Controller MUST support a configurable conflict resolution policy that determines which API configuration is applied when the same API (name/version) is updated from both Platform API and local REST API sources
+- **FR-027**: Gateway Controller MUST support three conflict resolution policies:
+  - **"timestamp"** (default): Apply the most recent API configuration based on timestamp comparison, with Platform API as tie-breaker when timestamps are identical
+  - **"platform-api"**: Always apply the Platform API version, ignoring local REST API updates for conflicting APIs
+  - **"local"**: Always apply the local REST API version, ignoring Platform API updates for conflicting APIs
+- **FR-028**: Gateway Controller MUST validate the configured conflict resolution policy at startup and fail fast if an invalid policy value is provided
+- **FR-029**: Gateway Controller MUST log a warning at startup if conflict resolution policy is set to "platform-api" when Platform API integration is disabled (policy has no effect in standalone mode)
+- **FR-030**: Gateway Controller MUST apply the configured conflict resolution policy consistently for all API conflicts during initial sync, reconnection, and runtime updates
+- **FR-031**: Gateway Controller MUST record which conflict resolution policy was applied in logs when resolving API conflicts (debug level)
+- **FR-032**: Gateway Controller MUST handle missing or invalid timestamps gracefully when "timestamp" policy is selected by treating the API configuration as having the oldest possible timestamp (ensuring valid configurations take precedence)
 
 #### Common Requirements
 
 - **FR-020**: System MUST handle concurrent deployment events without race conditions or data corruption (applicable when Platform API is enabled)
 - **FR-021**: Gateway Controller MUST support configuration of all Platform API settings via config file, environment variables (with `GC_` prefix), and command-line flags
 - **FR-022**: Gateway Controller MUST gracefully close Platform API connections when transitioning from enabled to disabled mode (if runtime configuration changes are supported)
+- **FR-033**: Gateway Controller MUST track the source (local REST API or Platform API) for each API configuration for observability and troubleshooting
 
 ### Configuration Requirements
 
@@ -167,6 +219,7 @@ The Gateway Controller configuration will be extended to include Platform API co
 - **Platform API integration enabled flag** (boolean, default: `false` for backward compatibility with existing standalone deployments)
 - Platform API base URL (required when integration enabled)
 - API key for authentication (required when integration enabled)
+- **Conflict resolution policy** (string, default: `"timestamp"`, allowed values: `"timestamp"`, `"platform-api"`, `"local"`)
 - WebSocket endpoint path (default: `/internal/api/v1/gateways/connect`)
 - REST API endpoint path (default: `/internal/api/v1/deployments`)
 - Connection timeout
@@ -175,11 +228,13 @@ The Gateway Controller configuration will be extended to include Platform API co
 **Configuration validation**:
 - When Platform API integration is enabled, both URL and API key must be provided (fail fast at startup if missing)
 - When Platform API integration is disabled, URL and API key are optional and ignored if present
+- Conflict resolution policy must be one of the three allowed values (fail fast at startup if invalid)
+- If conflict resolution policy is set to "platform-api" and Platform API integration is disabled, log a warning (configuration has no effect but is not an error)
 
 ### Key Entities *(include if feature involves data)*
 
 - **Deployment Event**: Represents a notification from Platform API about an API lifecycle change, containing event type (deploy/update/delete), API identifier (name/version), and timestamp (only applicable when Platform API integration is enabled)
-- **API Configuration**: The complete API.yaml specification, either fetched from Platform API or submitted via local REST API, including all operations, policies, upstream targets, and metadata
+- **API Configuration**: The complete API.yaml specification, either fetched from Platform API or submitted via local REST API, including all operations, policies, upstream targets, metadata, last-modified timestamp, and source indicator (local or Platform API)
 - **Connection State**: Tracks the Gateway Controller's connection status to Platform API, including connection status (enabled/disabled/connected/disconnected), last successful connection time, retry count, and last error
 
 ## Success Criteria *(mandatory)*
@@ -204,7 +259,22 @@ The Gateway Controller configuration will be extended to include Platform API co
 - **SC-011**: Authentication failures (invalid API key) are detected and logged within 3 seconds of connection attempt
 - **SC-012**: Zero configuration drift occurs when 50 API deployments are pushed to Platform API in rapid succession
 
+#### Bidirectional Sync Success Criteria
+
+- **SC-015**: APIs created via local REST API are pushed to Platform API within 5 seconds when Platform API integration is enabled
+- **SC-016**: Gateway Controller successfully reconciles 50 local APIs with 50 Platform API APIs on initial connection, applying configured conflict resolution policy correctly
+
+#### Conflict Resolution Success Criteria
+
+- **SC-017**: With "timestamp" policy, the most recent API configuration is applied correctly in 100% of conflicts when timestamps differ by at least 1 second
+- **SC-018**: With "platform-api" policy, Platform API version is applied in 100% of conflicts regardless of timestamps or update order
+- **SC-019**: With "local" policy, local REST API version is applied in 100% of conflicts regardless of timestamps or update order
+- **SC-020**: When "timestamp" policy encounters identical timestamps, Platform API version is applied as tie-breaker in 100% of cases
+- **SC-021**: Gateway Controller processes 50 simultaneous API conflicts using the configured policy without errors or inconsistent results
+
 #### Configuration Validation Success Criteria
 
 - **SC-013**: Gateway Controller startup fails within 3 seconds with clear error message when Platform API integration is enabled but URL is missing
 - **SC-014**: Gateway Controller startup fails within 3 seconds with clear error message when Platform API integration is enabled but API key is missing
+- **SC-022**: Gateway Controller startup fails within 3 seconds with clear error message when an invalid conflict resolution policy value is provided
+- **SC-023**: Gateway Controller logs a warning within 2 seconds of startup when conflict resolution policy is "platform-api" but Platform API integration is disabled
