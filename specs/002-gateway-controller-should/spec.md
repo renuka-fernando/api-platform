@@ -15,6 +15,7 @@
 ### Session 2025-10-15
 
 - Q: How should conflicts be resolved when the same API is updated from both Platform API and local REST API? → A: Add configurable conflict resolution policy with three options: 1) "timestamp" (default) - latest update wins based on timestamps, 2) "platform-api" - Platform API always wins, 3) "local" - local REST API always wins. This allows different deployment models to choose appropriate conflict handling.
+- Q: Should locally updated APIs be synchronized to Platform API? → A: Yes, when an API is updated via the Gateway Controller's local REST API and Platform API integration is enabled, the Gateway should push the updated API to Platform API to maintain bidirectional synchronization. This ensures Platform API has a complete view of all deployed APIs across all gateways.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -104,7 +105,27 @@ Administrators must be able to configure the Gateway Controller to run in standa
 
 ---
 
-### User Story 6 - Administrators Configure Conflict Resolution Policy (Priority: P1)
+### User Story 6 - Gateway Synchronizes Local API Updates to Platform API (Priority: P1)
+
+When an API is created, updated, or deleted via the Gateway Controller's local REST API, the Gateway must synchronize these changes to Platform API to maintain a consistent view of all deployed APIs across the distributed system.
+
+**Why this priority**: Bidirectional synchronization is essential for the GitOps model and centralized API management. Without local-to-Platform API sync, the control plane would have incomplete visibility into gateway configurations, breaking monitoring, analytics, and governance capabilities.
+
+**Independent Test**: Can be fully tested by creating/updating/deleting an API via local REST API with Platform API integration enabled, then verifying Platform API receives the changes within 5 seconds, delivering complete bidirectional synchronization.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Gateway Controller with Platform API integration enabled, **When** a new API is created via local REST API, **Then** the Gateway pushes the API configuration to Platform API within 5 seconds
+2. **Given** a Gateway Controller with an existing API, **When** the API is updated via local REST API (e.g., new policy added), **Then** the Gateway pushes the updated configuration to Platform API within 5 seconds
+3. **Given** a Gateway Controller with an existing API, **When** the API is deleted via local REST API, **Then** the Gateway notifies Platform API of the deletion within 5 seconds
+4. **Given** a Gateway Controller with Platform API integration enabled but disconnected, **When** an API is updated locally, **Then** the Gateway queues the update and syncs it to Platform API upon reconnection
+5. **Given** a Gateway Controller with Platform API integration disabled, **When** an API is updated via local REST API, **Then** no synchronization to Platform API occurs
+6. **Given** a Gateway Controller pushing a local update to Platform API, **When** the Platform API request fails, **Then** the Gateway retries with exponential backoff (up to 3 attempts) and logs the failure if all attempts fail
+7. **Given** a Gateway Controller with "local" conflict resolution policy, **When** a local API update is pushed to Platform API, **Then** the Platform API stores the update but the Gateway continues to apply its local version for conflicts
+
+---
+
+### User Story 7 - Administrators Configure Conflict Resolution Policy (Priority: P1)
 
 When the same API (name/version) is updated from both Platform API and local REST API, administrators must be able to configure how the Gateway Controller resolves conflicts to ensure predictable behavior that matches their deployment model.
 
@@ -123,7 +144,7 @@ When the same API (name/version) is updated from both Platform API and local RES
 
 ---
 
-### User Story 7 - Administrators Monitor Gateway Connection Status (Priority: P3)
+### User Story 8 - Administrators Monitor Gateway Connection Status (Priority: P3)
 
 Operators need visibility into whether the Gateway Controller is successfully connected to the Platform API and receiving events to troubleshoot synchronization issues.
 
@@ -158,6 +179,11 @@ Operators need visibility into whether the Gateway Controller is successfully co
 - How does the Gateway behave if the "timestamp" policy is selected but an API configuration lacks a valid timestamp?
 - What happens when an API is deleted locally but still exists in Platform API with "platform-api" conflict resolution policy?
 - How does the system handle conflicts when the "local" policy is selected but the Gateway reconnects after extended Platform API disconnection?
+- What happens when a local API update fails to push to Platform API after all retry attempts are exhausted?
+- How does the Gateway handle queued local updates if the queue grows too large during extended Platform API disconnection?
+- What happens when an API is updated locally multiple times before Platform API sync completes?
+- How does the system handle the case where a local API update is pushed to Platform API but the Platform API rejects it due to validation errors?
+- What happens when the Gateway reconnects to Platform API with queued local updates and receives conflicting Platform API updates during the same sync?
 
 ## Requirements *(mandatory)*
 
@@ -189,7 +215,14 @@ Operators need visibility into whether the Gateway Controller is successfully co
 - **FR-019**: Gateway Controller MUST fail fast at startup if Platform API integration is enabled but required configuration (URL or API key) is missing
 - **FR-023**: Gateway Controller MUST request full API inventory from Platform API upon successful reconnection and reconcile with local state to identify added, updated, and deleted APIs
 - **FR-024**: Gateway Controller MUST maintain timestamps for all API configurations to support timestamp-based conflict resolution between local and Platform API sources
-- **FR-025**: Gateway Controller MUST push locally-created or locally-updated APIs to Platform API via Platform API's REST API when Platform API integration is enabled
+- **FR-025**: Gateway Controller MUST push locally-created APIs to Platform API via Platform API's REST API within 5 seconds when Platform API integration is enabled and connected
+- **FR-034**: Gateway Controller MUST push locally-updated APIs to Platform API via Platform API's REST API within 5 seconds when Platform API integration is enabled and connected
+- **FR-035**: Gateway Controller MUST push locally-deleted API notifications to Platform API via Platform API's REST API within 5 seconds when Platform API integration is enabled and connected
+- **FR-036**: Gateway Controller MUST queue local API changes (create/update/delete) when Platform API integration is enabled but the Gateway is disconnected, and sync queued changes upon reconnection
+- **FR-037**: Gateway Controller MUST retry failed Platform API sync operations with exponential backoff (starting at 1 second, up to 3 attempts) before logging a failure
+- **FR-038**: Gateway Controller MUST NOT attempt to push local API changes to Platform API when Platform API integration is disabled
+- **FR-039**: Gateway Controller MUST handle Platform API rejection of local updates (e.g., validation errors) by logging the error and keeping the local configuration unchanged
+- **FR-040**: Gateway Controller MUST coalesce multiple local updates to the same API before syncing to Platform API (send only the latest version if multiple updates occur before sync completes)
 
 #### Conflict Resolution Requirements
 
@@ -261,8 +294,13 @@ The Gateway Controller configuration will be extended to include Platform API co
 
 #### Bidirectional Sync Success Criteria
 
-- **SC-015**: APIs created via local REST API are pushed to Platform API within 5 seconds when Platform API integration is enabled
-- **SC-016**: Gateway Controller successfully reconciles 50 local APIs with 50 Platform API APIs on initial connection, applying configured conflict resolution policy correctly
+- **SC-015**: APIs created via local REST API are pushed to Platform API within 5 seconds when Platform API integration is enabled and connected
+- **SC-016**: APIs updated via local REST API are pushed to Platform API within 5 seconds when Platform API integration is enabled and connected
+- **SC-024**: APIs deleted via local REST API trigger deletion notifications to Platform API within 5 seconds when Platform API integration is enabled and connected
+- **SC-025**: Gateway Controller successfully reconciles 50 local APIs with 50 Platform API APIs on initial connection, applying configured conflict resolution policy correctly
+- **SC-026**: When disconnected from Platform API, 100 local API updates are queued and successfully synced to Platform API within 30 seconds of reconnection
+- **SC-027**: Zero local API changes are pushed to Platform API during 24-hour operation when Platform API integration is disabled
+- **SC-028**: When 10 rapid local updates occur to the same API, only the latest version is synced to Platform API (update coalescing works correctly)
 
 #### Conflict Resolution Success Criteria
 
