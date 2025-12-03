@@ -21,7 +21,7 @@ serviceAccount:
 gateway:
   controller:
     image:
-      repository: ghcr.io/wso2/api-platform/gateway-controller
+      repository: ghcr.io/renuka-fernando/api-platform/api-platform/gateway-controller
       tag: 0.0.1
       pullPolicy: IfNotPresent
     imagePullSecrets: []
@@ -222,7 +222,7 @@ gateway:
 
   router:
     image:
-      repository: ghcr.io/wso2/api-platform/gateway-router
+      repository: ghcr.io/renuka-fernando/api-platform/api-platform/gateway-router
       tag: 0.0.1
       pullPolicy: IfNotPresent
     imagePullSecrets: []
@@ -279,7 +279,7 @@ gateway:
 
   policyEngine:
     image:
-      repository: ghcr.io/wso2/api-platform/policy-engine
+      repository: ghcr.io/renuka-fernando/api-platform/api-platform/policy-engine
       tag: 0.0.1
       pullPolicy: IfNotPresent
     imagePullSecrets: []
