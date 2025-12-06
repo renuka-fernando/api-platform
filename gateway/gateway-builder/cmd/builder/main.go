@@ -23,11 +23,9 @@ const (
 	DefaultOutputDir       = "output"
 	DefaultPolicyEngineSrc = "policy-engine"
 
-	// Gateway Controller (extends base image)
-	DefaultGatewayControllerBaseImage = "wso2/api-platform/gateway-controller:v1.0.0-m4" // TODO (renuka): check the usage
-
-	// Router (uses base image)
-	DefaultRouterBaseImage = "wso2/api-platform/gateway-router:v1.0.0-m4" // TODO (renuka): check the usage
+	// Base images
+	DefaultGatewayControllerBaseImage = "ghcr.io/wso2/api-platform/gateway-controller:latest"
+	DefaultRouterBaseImage            = "ghcr.io/wso2/api-platform/gateway-router:latest"
 
 	BuilderVersion = "v1.0.0"
 )

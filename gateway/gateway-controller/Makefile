@@ -24,17 +24,23 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS := -X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildDate=$(BUILD_DATE)
 
+# Detect local architecture
+LOCAL_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
 # Docker image configuration
 DOCKER_REGISTRY ?= ghcr.io/renuka-fernando/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-controller
 
-.PHONY: help generate build test generate-listener-certs push
+.PHONY: help generate test generate-listener-certs build-base build-base-amd64 build-base-arm64
 
 help: ## Show this help message
-	@echo 'Usage: make [target]'
+	@echo 'Gateway Controller (Version: $(VERSION))'
 	@echo ''
-	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo 'Note: Final gateway-controller images are built via gateway-builder.'
+	@echo 'For production multi-arch builds, use: make -C .. build-and-push-multiarch'
+	@echo ''
+	@echo 'Development Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-25s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 generate: ## Generate API server code from OpenAPI spec
 	@echo "Generating API server code from OpenAPI spec..."
@@ -44,32 +50,42 @@ test: ## Run unit and integration tests
 	@echo "Running tests..."
 	@go test -v ./... -cover
 
-build: generate ## Build Docker image
-	@echo "Building Docker image ($(VERSION))..."
+build-base: generate ## Build gateway-controller base image for local architecture
+	@echo "Building gateway-controller base image for local architecture ($(LOCAL_ARCH))..."
 	@docker buildx build -f Dockerfile \
 		--build-context sdk=../../sdk \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
+		-t $(DOCKER_REGISTRY)/gateway-controller-base:$(VERSION)-$(LOCAL_ARCH) \
+		-t $(DOCKER_REGISTRY)/gateway-controller-base:$(VERSION) \
+		-t $(DOCKER_REGISTRY)/gateway-controller-base:latest \
+		--load \
+		.
+	@echo "Base image built: $(DOCKER_REGISTRY)/gateway-controller-base:$(VERSION)"
+
+# Internal targets - called by parent gateway/Makefile only
+# These build architecture-specific base images for gateway-builder to extend
+
+build-base-amd64: generate ## Build gateway-controller base image for amd64 (internal use)
+	@echo "Building gateway-controller base image for amd64 ($(VERSION))..."
+	@docker buildx build -f Dockerfile \
+		--build-context sdk=../../sdk \
+		--platform linux/amd64 \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+		-t $(DOCKER_REGISTRY)/gateway-controller-base:$(VERSION)-amd64 \
 		--load \
 		.
 
-push: ## Push Docker image to registry
-	@echo "Pushing Docker images..."
-	docker push $(IMAGE_NAME):$(VERSION)
-	docker push $(IMAGE_NAME):latest
-
-build-and-push-multiarch: ## Build and push multi-architecture Docker image (linux/amd64, linux/arm64)
-	@echo "Building and pushing multi-arch Docker image: $(IMAGE_NAME):$(VERSION)"
-	docker buildx build -f Dockerfile \
+build-base-arm64: generate ## Build gateway-controller base image for arm64 (internal use)
+	@echo "Building gateway-controller base image for arm64 ($(VERSION))..."
+	@docker buildx build -f Dockerfile \
 		--build-context sdk=../../sdk \
-		--platform linux/amd64,linux/arm64 \
+		--platform linux/arm64 \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
-		--push \
+		-t $(DOCKER_REGISTRY)/gateway-controller-base:$(VERSION)-arm64 \
+		--load \
 		.
 
 generate-listener-certs: ## Generate listener certificates

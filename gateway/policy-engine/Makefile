@@ -1,4 +1,8 @@
 # Makefile for Envoy Policy Engine
+#
+# NOTE: Policy Engine Docker images are built via gateway-builder.
+# This Makefile only contains runtime and testing targets.
+# To build policy-engine, use: make -C .. build
 
 # Variables
 VERSION ?= $(shell cat ../VERSION 2>/dev/null || echo "0.0.1-SNAPSHOT")
@@ -22,25 +26,19 @@ GOMOD := $(GOCMD) mod
 # Binary name
 BINARY_NAME := policy-engine
 
-.PHONY: all build test clean docker-clean help push \
-	run stop tidy lint logs ps restart rebuild dev-build dev-run check-deps \
-	build-sample-setheader test-integration test-envoy clean-all version build-and-push-multiarch
+.PHONY: all test clean docker-clean help \
+	run stop tidy lint logs ps restart rebuild check-deps \
+	build-sample-setheader test-integration test-envoy clean-all version
 
 # Default target
 all: help
 
 ## help: Display this help message
 help:
-	@echo "Envoy Policy Engine - Build Targets (Version: $(VERSION))"
+	@echo "Envoy Policy Engine (Version: $(VERSION))"
 	@echo ""
-	@echo "Build Targets:"
-	@echo "  make build                - Build the Policy Engine Docker image"
-	@echo ""
-	@echo "Multi-arch Build and Push Targets:"
-	@echo "  make build-and-push-multiarch - Build and push image for multiple architectures (amd64, arm64)"
-	@echo ""
-	@echo "Push Targets:"
-	@echo "  make push                 - Push image to registry"
+	@echo "Note: Policy Engine Docker images are built via gateway-builder."
+	@echo "To build policy-engine, use: make -C .. build"
 	@echo ""
 	@echo "Runtime Targets:"
 	@echo "  make run                  - Run the Policy Engine with docker-compose"
@@ -59,43 +57,6 @@ help:
 	@echo "  make logs                 - View docker-compose logs"
 	@echo "  make ps                   - Show running services"
 	@echo ""
-
-## build: Build the Policy Engine Docker image
-build:
-	@echo "Building Policy Engine image: $(RUNTIME_TAG)"
-	docker buildx build -f Dockerfile \
-		--build-context sdk=../../sdk \
-		--build-context gateway-builder=../gateway-builder \
-		--build-context policy-engine=. \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(RUNTIME_TAG) \
-		-t $(RUNTIME_IMAGE):latest \
-		--load \
-		.
-	@echo "Image built successfully: $(RUNTIME_TAG)"
-
-## push: Push image to registry
-push:
-	@echo "Pushing $(RUNTIME_TAG)..."
-	docker push $(RUNTIME_TAG)
-	docker push $(RUNTIME_IMAGE):latest
-
-## build-and-push-multiarch: Build and push the Policy Engine Docker image for multiple architectures (amd64, arm64)
-build-and-push-multiarch:
-	@echo "Building and pushing multi-arch Policy Engine image: $(RUNTIME_TAG)"
-	docker buildx build -f Dockerfile \
-		--build-context sdk=../../sdk \
-		--build-context gateway-builder=../gateway-builder \
-		--build-context policy-engine=. \
-		--platform linux/amd64,linux/arm64 \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(RUNTIME_TAG) \
-		-t $(RUNTIME_IMAGE):latest \
-		--push \
-		.
-	@echo "Multi-arch image built and pushed: $(RUNTIME_TAG)"
 
 ## run: Start the Policy Engine with docker-compose
 run:
@@ -165,8 +126,8 @@ ps:
 ## restart: Restart all services
 restart: stop run
 
-## rebuild: Rebuild and restart
-rebuild: build restart
+## rebuild: Rebuild and restart (Note: Run 'make -C .. build' first to rebuild images)
+rebuild: restart
 
 # Development helpers
 

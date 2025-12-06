@@ -21,42 +21,55 @@
 # Version management
 VERSION ?= $(shell cat ../VERSION 2>/dev/null || echo "0.0.1-SNAPSHOT")
 
+# Detect local architecture
+LOCAL_ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
 # Docker image configuration
 DOCKER_REGISTRY ?= ghcr.io/renuka-fernando/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-router
 
-.PHONY: help build push clean build-and-push-multiarch
+.PHONY: help clean build-base build-base-amd64 build-base-arm64
 
 help: ## Show this help message
-	@echo 'Gateway Router Build (Version: $(VERSION))'
+	@echo 'Gateway Router (Version: $(VERSION))'
 	@echo ''
-	@echo 'Available targets:'
+	@echo 'Note: Final gateway-router images are built via gateway-builder.'
+	@echo 'For production multi-arch builds, use: make -C .. build-and-push-multiarch'
+	@echo ''
+	@echo 'Development Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build Router Docker image
-	@echo "Building Router Docker image ($(VERSION))..."
-	@docker build \
-		--build-arg VERSION=$(VERSION) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
-		.
-	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
-
-push: ## Push Docker image to registry
-	@echo "Pushing Docker images..."
-	docker push $(IMAGE_NAME):$(VERSION)
-	docker push $(IMAGE_NAME):latest
-
-build-and-push-multiarch: ## Build and push Router Docker image for multiple architectures (amd64, arm64)
-	@echo "Building and pushing multi-arch Router Docker image ($(VERSION))..."
+build-base: ## Build router base image for local architecture
+	@echo "Building router base image for local architecture ($(LOCAL_ARCH))..."
 	@docker buildx build \
-		--platform linux/amd64,linux/arm64 \
 		--build-arg VERSION=$(VERSION) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
-		--push \
+		-t $(DOCKER_REGISTRY)/gateway-router-base:$(VERSION)-$(LOCAL_ARCH) \
+		-t $(DOCKER_REGISTRY)/gateway-router-base:$(VERSION) \
+		-t $(DOCKER_REGISTRY)/gateway-router-base:latest \
+		--load \
 		.
-	@echo "Multi-arch Docker image built and pushed: $(IMAGE_NAME):$(VERSION)"
+	@echo "Base image built: $(DOCKER_REGISTRY)/gateway-router-base:$(VERSION)"
+
+# Internal targets - called by parent gateway/Makefile only
+# These build architecture-specific base images for gateway-builder to extend
+
+build-base-amd64: ## Build router base image for amd64 (internal use)
+	@echo "Building router base image for amd64 ($(VERSION))..."
+	@docker buildx build \
+		--platform linux/amd64 \
+		--build-arg VERSION=$(VERSION) \
+		-t $(DOCKER_REGISTRY)/gateway-router-base:$(VERSION)-amd64 \
+		--load \
+		.
+
+build-base-arm64: ## Build router base image for arm64 (internal use)
+	@echo "Building router base image for arm64 ($(VERSION))..."
+	@docker buildx build \
+		--platform linux/arm64 \
+		--build-arg VERSION=$(VERSION) \
+		-t $(DOCKER_REGISTRY)/gateway-router-base:$(VERSION)-arm64 \
+		--load \
+		.
 
 clean: ## Clean Docker images
 	@echo "Cleaning Docker images..."
