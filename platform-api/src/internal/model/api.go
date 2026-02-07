@@ -42,6 +42,17 @@ type API struct {
 	Operations      []Operation      `json:"operations,omitempty"`
 	Channels        []Channel        `json:"channels,omitempty"`
 	Upstream        *UpstreamConfig  `json:"upstream,omitempty" db:"-"`
+	Configuration   RestAPIConfig    `json:"configuration" db:"-"`
+}
+
+type RestAPIConfig struct {
+	Name       string         `json:"name,omitempty"`
+	Version    string         `json:"version,omitempty"`
+	Context    *string        `json:"context,omitempty"`
+	Vhost      *string        `json:"vhost,omitempty"`
+	Upstream   UpstreamConfig `json:"upstream,omitempty"`
+	Policies   []Policy       `json:"policies,omitempty"`
+	Operations []Operation    `json:"operations,omitempty"`
 }
 
 // TableName returns the table name for the API model

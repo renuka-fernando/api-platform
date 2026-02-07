@@ -54,16 +54,14 @@ CREATE TABLE IF NOT EXISTS artifacts (
 -- APIs table
 CREATE TABLE IF NOT EXISTS apis (
     uuid VARCHAR(40) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
     description VARCHAR(1023),
-    context VARCHAR(255) NOT NULL,
-    version VARCHAR(30) NOT NULL,
     created_by VARCHAR(200),
+    project_uuid VARCHAR(40) NOT NULL,
     lifecycle_status VARCHAR(20) DEFAULT 'CREATED',
-    type VARCHAR(20) DEFAULT 'HTTP',
     transport VARCHAR(255), -- JSON array as TEXT
-    policies JSONB DEFAULT '[]'::jsonb, -- JSON array as JSONB
+    configuration JSONB,
     FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE
 );
 
 -- Backend Services table

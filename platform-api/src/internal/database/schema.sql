@@ -56,12 +56,11 @@ CREATE TABLE IF NOT EXISTS artifacts (
 CREATE TABLE IF NOT EXISTS apis (
     uuid VARCHAR(40) PRIMARY KEY,
     description VARCHAR(1023),
-    context VARCHAR(255) NOT NULL,
     created_by VARCHAR(200),
     project_uuid VARCHAR(40) NOT NULL,
     lifecycle_status VARCHAR(20) DEFAULT 'CREATED',
     transport VARCHAR(255), -- JSON array as TEXT
-    policies TEXT DEFAULT '[]', -- JSON array as TEXT
+    configuration TEXT,
     FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
     FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
 );

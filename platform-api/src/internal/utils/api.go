@@ -65,6 +65,7 @@ func (u *APIUtil) DTOToModel(dto *dto.API) *model.API {
 		Operations:      u.OperationsDTOToModel(dto.Operations),
 		Channels:        u.ChannelsDTOToModel(dto.Channels),
 		Upstream:        u.UpstreamConfigDTOToModel(dto.Upstream),
+		Configuration:   *u.dtoToRestApiConfig(dto),
 	}
 }
 
@@ -91,10 +92,10 @@ func (u *APIUtil) ModelToDTO(model *model.API) *dto.API {
 		LifeCycleStatus: model.LifeCycleStatus,
 		Transport:       model.Transport,
 		BackendServices: u.BackendServicesModelToDTO(model.BackendServices),
-		Policies:        u.PoliciesModelToDTO(model.Policies),
-		Operations:      u.OperationsModelToDTO(model.Operations),
+		Policies:        u.PoliciesModelToDTO(model.Configuration.Policies),
+		Operations:      u.OperationsModelToDTO(model.Configuration.Operations),
 		Channels:        u.ChannelsModelToDTO(model.Channels),
-		Upstream:        u.UpstreamConfigModelToDTO(model.Upstream),
+		Upstream:        u.UpstreamConfigModelToDTO(&model.Configuration.Upstream),
 	}
 }
 
@@ -603,6 +604,20 @@ func (u *APIUtil) UpstreamConfigDTOToModel(dto *dto.UpstreamConfig) *model.Upstr
 		}
 	}
 	return out
+}
+
+func (u *APIUtil) dtoToRestApiConfig(dto *dto.API) *model.RestAPIConfig {
+	if dto == nil {
+		return nil
+	}
+	return &model.RestAPIConfig{
+		Name:       dto.Name,
+		Version:    dto.Version,
+		Context:    &dto.Context,
+		Upstream:   *u.UpstreamConfigDTOToModel(dto.Upstream),
+		Policies:   u.PoliciesDTOToModel(dto.Policies),
+		Operations: u.OperationsDTOToModel(dto.Operations),
+	}
 }
 
 // UpstreamConfigModelToDTO converts UpstreamConfig Model to DTO

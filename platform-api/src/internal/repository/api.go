@@ -62,7 +62,7 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 
 	// Convert transport slice to JSON
 	transportJSON, _ := json.Marshal(api.Transport)
-	policiesJSON, err := serializePolicies(api.Policies)
+	configurationJSON, err := serializeAPIConfigurations(api.Configuration)
 	if err != nil {
 		return err
 	}
@@ -86,13 +86,13 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 	}
 
 	apiQuery := `
-		INSERT INTO apis (uuid, description, context, created_by, project_uuid, lifecycle_status, transport, policies)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO apis (uuid, description, created_by, project_uuid, lifecycle_status, transport, configuration)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = tx.Exec(r.db.Rebind(apiQuery), api.ID, api.Description,
-		api.Context, api.CreatedBy, api.ProjectID, api.LifeCycleStatus,
-		string(transportJSON), policiesJSON)
+		api.CreatedBy, api.ProjectID, api.LifeCycleStatus,
+		string(transportJSON), configurationJSON)
 	if err != nil {
 		return err
 	}
@@ -119,20 +119,20 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 	api := &model.API{}
 
 	query := `
-		SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+		SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, a.lifecycle_status,
-			a.transport, a.policies, art.created_at, art.updated_at
-		FROM apis a INNER JOIN artifacts art 
+			a.transport, a.configuration, art.created_at, art.updated_at
+		FROM apis a INNER JOIN artifacts art
 		ON a.uuid = art.uuid
 		WHERE a.uuid = ? AND art.organization_uuid = ?
 	`
 
 	var transportJSON string
-	var policiesJSON sql.NullString
+	var configJSON sql.NullString
 	err := r.db.QueryRow(r.db.Rebind(query), apiUUID, orgUUID).Scan(
-		&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description, &api.Context,
+		&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description,
 		&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID, &api.LifeCycleStatus,
-		&transportJSON, &policiesJSON,
+		&transportJSON, &configJSON,
 		&api.CreatedAt, &api.UpdatedAt)
 
 	if err != nil {
@@ -146,10 +146,10 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 	if transportJSON != "" {
 		json.Unmarshal([]byte(transportJSON), &api.Transport)
 	}
-	if policies, err := deserializePolicies(policiesJSON); err != nil {
+	if config, err := deserializeAPIConfigurations(configJSON); err != nil {
 		return nil, err
-	} else {
-		api.Policies = policies
+	} else if config != nil {
+		api.Configuration = *config
 	}
 
 	// Load related configurations
@@ -182,10 +182,10 @@ func (r *APIRepo) GetAPIMetadataByHandle(handle, orgUUID string) (*model.APIMeta
 // GetAPIsByProjectUUID retrieves all APIs for a project
 func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+		SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, a.lifecycle_status,
-			a.transport, a.policies, art.created_at, art.updated_at
-		FROM apis a INNER JOIN artifacts art 
+			a.transport, a.configuration, art.created_at, art.updated_at
+		FROM apis a INNER JOIN artifacts art
 		ON a.uuid = art.uuid
 		WHERE a.project_uuid = ? AND art.organization_uuid = ?
 		ORDER BY art.created_at DESC
@@ -201,11 +201,11 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 	for rows.Next() {
 		api := &model.API{}
 		var transportJSON string
-		var policiesJSON sql.NullString
+		var configJSON sql.NullString
 		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description,
-			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.LifeCycleStatus,
-			&transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
+			&transportJSON, &configJSON, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -214,10 +214,10 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 		if transportJSON != "" {
 			json.Unmarshal([]byte(transportJSON), &api.Transport)
 		}
-		if policies, err := deserializePolicies(policiesJSON); err != nil {
+		if config, err := deserializeAPIConfigurations(configJSON); err != nil {
 			return nil, err
-		} else {
-			api.Policies = policies
+		} else if config != nil {
+			api.Configuration = *config
 		}
 
 		// Load related configurations
@@ -239,10 +239,10 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 	if projectUUID != nil && *projectUUID != "" {
 		// Filter by specific project within the organization
 		query = `
-			SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+			SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 				a.project_uuid, art.organization_uuid, a.lifecycle_status,
-				a.transport, a.policies, art.created_at, art.updated_at
-			FROM apis a INNER JOIN artifacts art 
+				a.transport, a.configuration, art.created_at, art.updated_at
+			FROM apis a INNER JOIN artifacts art
 			ON a.uuid = art.uuid
 			WHERE art.organization_uuid = ? AND a.project_uuid = ?
 			ORDER BY art.created_at DESC
@@ -251,10 +251,10 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 	} else {
 		// Get all APIs for the organization
 		query = `
-			SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+			SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 				a.project_uuid, art.organization_uuid, a.lifecycle_status,
-				a.transport, a.policies, art.created_at, art.updated_at
-			FROM apis a INNER JOIN artifacts art 
+				a.transport, a.configuration, art.created_at, art.updated_at
+			FROM apis a INNER JOIN artifacts art
 			ON a.uuid = art.uuid
 			WHERE art.organization_uuid = ?
 			ORDER BY art.created_at DESC
@@ -272,11 +272,11 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 	for rows.Next() {
 		api := &model.API{}
 		var transportJSON string
-		var policiesJSON sql.NullString
+		var configJSON sql.NullString
 		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description,
-			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.LifeCycleStatus,
-			&transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
+			&transportJSON, &configJSON, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -285,10 +285,10 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 		if transportJSON != "" {
 			json.Unmarshal([]byte(transportJSON), &api.Transport)
 		}
-		if policies, err := deserializePolicies(policiesJSON); err != nil {
+		if config, err := deserializeAPIConfigurations(configJSON); err != nil {
 			return nil, err
-		} else {
-			api.Policies = policies
+		} else if config != nil {
+			api.Configuration = *config
 		}
 
 		// Load related configurations
@@ -305,7 +305,7 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 // GetDeployedAPIsByGatewayUUID retrieves all APIs deployed to a specific gateway
 func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT a.uuid, art.name, a.description, a.context, art.version, a.created_by,
+		SELECT a.uuid, art.name, a.description, art.version, a.created_by,
 		       a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
 		FROM apis a INNER JOIN artifacts art ON a.uuid = art.uuid
 		INNER JOIN deployment_status ad ON art.uuid = ad.artifact_uuid
@@ -323,7 +323,7 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 	for rows.Next() {
 		api := &model.API{}
 		err := rows.Scan(&api.ID, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.Kind, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan API row: %w", err)
@@ -337,7 +337,7 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 // GetAPIsByGatewayUUID retrieves all APIs associated with a specific gateway
 func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT a.uuid, art.name, a.description, a.context, art.version, a.created_by,
+		SELECT a.uuid, art.name, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
 		FROM apis a
 		INNER JOIN artifacts art ON a.uuid = art.uuid
@@ -356,7 +356,7 @@ func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.AP
 	for rows.Next() {
 		api := &model.API{}
 		err := rows.Scan(&api.ID, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.Kind, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan API row: %w", err)
@@ -379,7 +379,7 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 
 	// Convert transport slice to JSON
 	transportJSON, _ := json.Marshal(api.Transport)
-	policiesJSON, err := serializePolicies(api.Policies)
+	configurationJSON, err := serializeAPIConfigurations(api.Configuration)
 	if err != nil {
 		return err
 	}
@@ -397,12 +397,12 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 	query := `
 		UPDATE apis SET description = ?,
 			created_by = ?, lifecycle_status = ?,
-			transport = ?, policies = ?
+			transport = ?, configuration = ?
 		WHERE uuid = ?
 	`
 	_, err = tx.Exec(r.db.Rebind(query), api.Description,
 		api.CreatedBy, api.LifeCycleStatus,
-		string(transportJSON), policiesJSON,
+		string(transportJSON), configurationJSON,
 		api.ID)
 	if err != nil {
 		return err
@@ -790,6 +790,28 @@ func deserializePolicies(policiesJSON sql.NullString) ([]model.Policy, error) {
 	}
 
 	return policies, nil
+}
+
+func serializeAPIConfigurations(config model.RestAPIConfig) (any, error) {
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return string(configJSON), nil
+}
+
+func deserializeAPIConfigurations(configJSON sql.NullString) (*model.RestAPIConfig, error) {
+	if !configJSON.Valid || configJSON.String == "" {
+		return nil, fmt.Errorf("Null configuration")
+	}
+
+	var config model.RestAPIConfig
+	if err := json.Unmarshal([]byte(configJSON.String), &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
 
 // Helper method to delete all API configurations (used in Update)
