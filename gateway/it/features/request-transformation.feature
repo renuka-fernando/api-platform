@@ -134,7 +134,7 @@ Feature: Request Transformation Policy Integration Tests
                       substitution: "\\2/instance/\\1"
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/req-transform-regex-capture/v1.0/service/foo/v1/api" to be ready
+    And I wait for the endpoint "http://localhost:8080/req-transform-regex-capture/v1.0/health" to be ready
     And I set header "Content-Type" to "application/json"
     When I send a GET request to "http://localhost:8080/req-transform-regex-capture/v1.0/service/foo/v1/api"
     Then the response status code should be 200
@@ -169,7 +169,7 @@ Feature: Request Transformation Policy Integration Tests
                       substitution: "/yyy/"
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/req-transform-regex-ci/v1.0/aaa/XxX/bbb" to be ready
+    And I wait for the endpoint "http://localhost:8080/req-transform-regex-ci/v1.0/health" to be ready
     And I set header "Content-Type" to "application/json"
     When I send a GET request to "http://localhost:8080/req-transform-regex-ci/v1.0/aaa/XxX/bbb"
     Then the response status code should be 200
@@ -204,7 +204,7 @@ Feature: Request Transformation Policy Integration Tests
                       substitution: "two"
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/req-transform-regex-multi/v1.0/xxx/one/yyy/one/zzz" to be ready
+    And I wait for the endpoint "http://localhost:8080/req-transform-regex-multi/v1.0/health" to be ready
     And I set header "Content-Type" to "application/json"
     When I send a GET request to "http://localhost:8080/req-transform-regex-multi/v1.0/xxx/one/yyy/one/zzz"
     Then the response status code should be 200
@@ -244,7 +244,7 @@ Feature: Request Transformation Policy Integration Tests
                         name: debug
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/req-transform-query/v1.0/search?q=old-value&debug=true" to be ready
+    And I wait for the endpoint "http://localhost:8080/req-transform-query/v1.0/search" to be ready
     And I set header "Content-Type" to "application/json"
     When I send a GET request to "http://localhost:8080/req-transform-query/v1.0/search?q=old-value&debug=true"
     Then the response status code should be 200
@@ -276,9 +276,73 @@ Feature: Request Transformation Policy Integration Tests
                   methodRewrite: POST
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/req-transform-method/v1.0/test/hello" to be ready
+    And I wait for the endpoint "http://localhost:8080/req-transform-method/v1.0/test/health" to be ready
     And I set header "Content-Type" to "application/json"
     When I send a GET request to "http://localhost:8080/req-transform-method/v1.0/test/hello"
+    Then the response status code should be 200
+    And the JSON response field "method" should be "POST"
+
+  Scenario: API-level policy rewrites the path prefix
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: request-transformation-api-level-prefix
+      spec:
+        displayName: Request Transformation API Level Prefix
+        version: v1.0
+        context: /req-transform-api-prefix/$version
+        upstream:
+          main:
+            url: http://echo-backend:80/anything
+        policies:
+          - name: request-transformation
+            version: v0.1.0
+            params:
+              pathRewrite:
+                type: ReplacePrefixMatch
+                replacePrefixMatch: "/api/v2"
+        operations:
+          - method: GET
+            path: /api/v1
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/req-transform-api-prefix/v1.0/api/v1" to be ready
+    And I set header "Content-Type" to "application/json"
+    When I send a GET request to "http://localhost:8080/req-transform-api-prefix/v1.0/api/v1"
+    Then the response status code should be 200
+    And the JSON response field "url" should contain "/anything/api/v2"
+
+  Scenario: API-level policy rewrites the method
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: request-transformation-api-level-method
+      spec:
+        displayName: Request Transformation API Level Method
+        version: v1.0
+        context: /req-transform-api-method/$version
+        upstream:
+          main:
+            url: http://echo-backend:80/anything
+        policies:
+          - name: request-transformation
+            version: v0.1.0
+            params:
+              methodRewrite: POST
+        operations:
+          - method: GET
+            path: /test/*
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/req-transform-api-method/v1.0/test/hello" to be ready
+    And I set header "Content-Type" to "application/json"
+    When I send a GET request to "http://localhost:8080/req-transform-api-method/v1.0/test/hello"
     Then the response status code should be 200
     And the JSON response field "method" should be "POST"
 
