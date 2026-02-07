@@ -67,8 +67,10 @@ const DefaultGatewayFunctionalityType = GatewayFunctionalityTypeRegular
 
 // Kinds of artifacts
 const (
-	RestApi = "RestApi"
-	WebSub  = "WebSubApi"
+	RestApi     = "RestApi"
+	WebSub      = "WebSubApi"
+	LLMProvider = "LlmProvider"
+	LLMProxy    = "LlmProxy"
 )
 
 // API Type Constants

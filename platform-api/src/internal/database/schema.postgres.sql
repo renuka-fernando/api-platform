@@ -295,12 +295,8 @@ CREATE TABLE IF NOT EXISTS llm_provider_templates (
 -- LLM Providers table
 CREATE TABLE IF NOT EXISTS llm_providers (
     uuid VARCHAR(40) PRIMARY KEY,
-    organization_uuid VARCHAR(40) NOT NULL,
-    handle VARCHAR(255) NOT NULL,
-    name VARCHAR(100) NOT NULL,
     description VARCHAR(1023),
     created_by VARCHAR(255),
-    version VARCHAR(30) NOT NULL,
     context VARCHAR(200) DEFAULT '/',
     vhost VARCHAR(253),
     template VARCHAR(255) NOT NULL,
@@ -312,35 +308,25 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     access_control TEXT,
     policies TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'CREATED',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (organization_uuid, template) REFERENCES llm_provider_templates(organization_uuid, handle) ON UPDATE CASCADE ON DELETE RESTRICT,
-    UNIQUE(organization_uuid, handle)
+    FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (template) REFERENCES llm_provider_templates(handle) ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 -- LLM Proxies table
 CREATE TABLE IF NOT EXISTS llm_proxies (
     uuid VARCHAR(40) PRIMARY KEY,
-    organization_uuid VARCHAR(40) NOT NULL,
     project_uuid VARCHAR(40) NOT NULL,
-    handle VARCHAR(255) NOT NULL,
-    name VARCHAR(253) NOT NULL,
     description VARCHAR(1023),
     created_by VARCHAR(255),
-    version VARCHAR(30) NOT NULL,
     context VARCHAR(200) DEFAULT '/',
     vhost VARCHAR(253),
     provider VARCHAR(255) NOT NULL,
     openapi_spec TEXT,
     policies TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'CREATED',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
     FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (organization_uuid, provider) REFERENCES llm_providers(organization_uuid, handle) ON UPDATE CASCADE ON DELETE RESTRICT,
-    UNIQUE(organization_uuid, handle)
+    FOREIGN KEY (provider) REFERENCES llm_providers(handle) ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 -- Indexes for better performance

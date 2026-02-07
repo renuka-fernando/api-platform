@@ -447,7 +447,8 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
 		`DELETE FROM api_operations WHERE api_uuid = ?`,
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`,
-		// Finally delete the artifact record (drives cascading delete for kind tables)
+		// Delete from apis table first, then artifacts
+		`DELETE FROM apis WHERE uuid = ?`,
 		`DELETE FROM artifacts WHERE uuid = ? AND organization_uuid = ?`,
 	}
 

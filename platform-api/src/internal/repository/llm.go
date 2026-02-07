@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"platform-api/src/internal/constants"
 	"platform-api/src/internal/database"
 	"platform-api/src/internal/model"
 
@@ -253,8 +254,9 @@ func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 		return err
 	}
 	p.UUID = u.String()
-	p.CreatedAt = time.Now()
-	p.UpdatedAt = time.Now()
+	now := time.Now()
+	p.CreatedAt = now
+	p.UpdatedAt = now
 
 	policiesColumn, err := marshalPolicies(p.Policies)
 	if err != nil {
@@ -285,27 +287,35 @@ func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 		}
 	}
 
-	query := `
-		INSERT INTO llm_providers (
-			uuid, organization_uuid, handle, name, description, created_by, version, context, vhost, template,
-			upstream_url, upstream_auth, openapi_spec, model_list, rate_limiting, access_control, policies, status, created_at, updated_at
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec(r.db.Rebind(query),
-		p.UUID, p.OrganizationUUID, p.ID, p.Name, p.Description, p.CreatedBy, p.Version, p.Context, p.VHost, p.Template,
-		upstreamURL, string(upstreamAuthJSON), p.OpenAPISpec, string(modelProvidersJSON), string(rateLimitingJSON),
-		string(accessControlJSON), policiesColumn, p.Status,
-		p.CreatedAt, p.UpdatedAt,
+	// Insert into artifacts table first
+	_, err = tx.Exec(`
+		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.UUID, p.ID, p.Name, p.Version, constants.LLMProvider, p.OrganizationUUID, now, now,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create artifact: %w", err)
+	}
+
+	// Insert into llm_providers table
+	_, err = tx.Exec(`
+		INSERT INTO llm_providers (
+			uuid, description, created_by, context, vhost, template,
+			upstream_url, upstream_auth, openapi_spec, model_list, rate_limiting, access_control, policies, status
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.UUID, p.Description, p.CreatedBy, p.Context, p.VHost, p.Template,
+		upstreamURL, string(upstreamAuthJSON), p.OpenAPISpec, string(modelProvidersJSON), string(rateLimitingJSON),
+		string(accessControlJSON), policiesColumn, p.Status,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create provider: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -315,20 +325,24 @@ func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 }
 
 func (r *LLMProviderRepo) GetByID(providerID, orgUUID string) (*model.LLMProvider, error) {
-	row := r.db.QueryRow(r.db.Rebind(`
-		SELECT uuid, organization_uuid, handle, name, description, created_by, version, context, vhost, template,
-			upstream_url, upstream_auth, openapi_spec, model_list, rate_limiting, access_control, policies, status, created_at, updated_at
-		FROM llm_providers
-		WHERE handle = ? AND organization_uuid = ?
-	`), providerID, orgUUID)
+	row := r.db.QueryRow(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.description, p.created_by, p.context, p.vhost, p.template,
+			p.upstream_url, p.upstream_auth, p.openapi_spec, p.model_list, p.rate_limiting, p.access_control, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_providers p ON a.uuid = p.uuid
+		WHERE a.handle = ? AND a.organization_uuid = ? AND a.kind = ?
+	`, providerID, orgUUID, constants.LLMProvider)
 
 	var p model.LLMProvider
 	var upstreamURL, openAPISpec, modelProvidersRaw sql.NullString
 	var upstreamAuthJSON, rateLimitingJSON, accessControlJSON, policiesJSON sql.NullString
 	if err := row.Scan(
-		&p.UUID, &p.OrganizationUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Template,
+		&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+		&p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Template,
 		&upstreamURL, &upstreamAuthJSON, &openAPISpec, &modelProvidersRaw, &rateLimitingJSON,
-		&accessControlJSON, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+		&accessControlJSON, &policiesJSON, &p.Status,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -381,14 +395,17 @@ func (r *LLMProviderRepo) GetByID(providerID, orgUUID string) (*model.LLMProvide
 }
 
 func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*model.LLMProvider, error) {
-	rows, err := r.db.Query(r.db.Rebind(`
-		SELECT uuid, organization_uuid, handle, name, description, created_by, version, context, vhost, template,
-			upstream_url, upstream_auth, openapi_spec, model_list, rate_limiting, access_control, policies, status, created_at, updated_at
-		FROM llm_providers
-		WHERE organization_uuid = ?
-		ORDER BY created_at DESC
+	rows, err := r.db.Query(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.description, p.created_by, p.context, p.vhost, p.template,
+			p.upstream_url, p.upstream_auth, p.openapi_spec, p.model_list, p.rate_limiting, p.access_control, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_providers p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND a.kind = ?
+		ORDER BY a.created_at DESC
 		LIMIT ? OFFSET ?
-	`), orgUUID, limit, offset)
+	`, orgUUID, constants.LLMProvider, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -400,9 +417,10 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*model.LLMP
 		var upstreamURL, openAPISpec, modelProvidersRaw sql.NullString
 		var upstreamAuthJSON, rateLimitingJSON, accessControlJSON, policiesJSON sql.NullString
 		err := rows.Scan(
-			&p.UUID, &p.OrganizationUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Template,
+			&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Template,
 			&upstreamURL, &upstreamAuthJSON, &openAPISpec, &modelProvidersRaw, &rateLimitingJSON,
-			&accessControlJSON, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+			&accessControlJSON, &policiesJSON, &p.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -460,7 +478,8 @@ func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
 }
 
 func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {
-	p.UpdatedAt = time.Now()
+	now := time.Now()
+	p.UpdatedAt = now
 
 	policiesColumn, err := marshalPolicies(p.Policies)
 	if err != nil {
@@ -491,26 +510,49 @@ func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {
 		}
 	}
 
-	query := `
-		UPDATE llm_providers
-		SET name = ?, description = ?, version = ?, context = ?, vhost = ?, template = ?,
-			upstream_url = ?, upstream_auth = ?, openapi_spec = ?, model_list = ?, rate_limiting = ?, access_control = ?, policies = ?, status = ?, updated_at = ?
-		WHERE handle = ? AND organization_uuid = ?
-	`
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec(r.db.Rebind(query),
-		p.Name, p.Description, p.Version, p.Context, p.VHost, p.Template,
-		upstreamURL, string(upstreamAuthJSON), p.OpenAPISpec, string(modelProvidersJSON), string(rateLimitingJSON),
-		string(accessControlJSON), policiesColumn, p.Status, p.UpdatedAt,
-		p.ID, p.OrganizationUUID,
+	// Get the provider UUID from handle
+	var providerUUID string
+	err = tx.QueryRow(`
+		SELECT uuid FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?
+	`, p.ID, p.OrganizationUUID, constants.LLMProvider).Scan(&providerUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	// Update artifacts table
+	_, err = tx.Exec(`
+		UPDATE artifacts
+		SET name = ?, version = ?, updated_at = ?
+		WHERE uuid = ?`,
+		p.Name, p.Version, now, providerUUID,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update artifact: %w", err)
+	}
+
+	// Update llm_providers table
+	result, err := tx.Exec(`
+		UPDATE llm_providers
+		SET description = ?, context = ?, vhost = ?, template = ?,
+			upstream_url = ?, upstream_auth = ?, openapi_spec = ?, model_list = ?, rate_limiting = ?, access_control = ?, policies = ?, status = ?
+		WHERE uuid = ?`,
+		p.Description, p.Context, p.VHost, p.Template,
+		upstreamURL, string(upstreamAuthJSON), p.OpenAPISpec, string(modelProvidersJSON), string(rateLimitingJSON),
+		string(accessControlJSON), policiesColumn, p.Status,
+		providerUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update provider: %w", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
@@ -532,7 +574,26 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec(r.db.Rebind(`DELETE FROM llm_providers WHERE handle = ? AND organization_uuid = ?`), providerID, orgUUID)
+	// Get the provider UUID from handle
+	var providerUUID string
+	err = tx.QueryRow(`
+		SELECT uuid FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?
+	`, providerID, orgUUID, constants.LLMProvider).Scan(&providerUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	// Delete from llm_providers first, then artifacts
+	_, err = tx.Exec(`DELETE FROM llm_providers WHERE uuid = ?`, providerUUID)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, providerUUID)
 	if err != nil {
 		return err
 	}
@@ -552,7 +613,10 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 
 func (r *LLMProviderRepo) Exists(providerID, orgUUID string) (bool, error) {
 	var count int
-	err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_providers WHERE handle = ? AND organization_uuid = ?`), providerID, orgUUID).Scan(&count)
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?
+	`, providerID, orgUUID, constants.LLMProvider).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -575,34 +639,43 @@ func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
 		return err
 	}
 	p.UUID = u.String()
-	p.CreatedAt = time.Now()
-	p.UpdatedAt = time.Now()
+	now := time.Now()
+	p.CreatedAt = now
+	p.UpdatedAt = now
 
 	policiesColumn, err := marshalPolicies(p.Policies)
 	if err != nil {
 		return err
 	}
 
-	query := `
-		INSERT INTO llm_proxies (
-			uuid, organization_uuid, project_uuid, handle, name, description, created_by, version, context, vhost, provider,
-			openapi_spec, policies, status, created_at, updated_at
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec(r.db.Rebind(query),
-		p.UUID, p.OrganizationUUID, p.ProjectUUID, p.ID, p.Name, p.Description, p.CreatedBy, p.Version, p.Context, p.VHost, p.Provider,
-		p.OpenAPISpec, policiesColumn, p.Status,
-		p.CreatedAt, p.UpdatedAt,
+	// Insert into artifacts table first
+	_, err = tx.Exec(`
+		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.UUID, p.ID, p.Name, p.Version, constants.LLMProxy, p.OrganizationUUID, now, now,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create artifact: %w", err)
+	}
+
+	// Insert into llm_proxies table
+	_, err = tx.Exec(`
+		INSERT INTO llm_proxies (
+			uuid, project_uuid, description, created_by, context, vhost, provider,
+			openapi_spec, policies, status
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.UUID, p.ProjectUUID, p.Description, p.CreatedBy, p.Context, p.VHost, p.Provider,
+		p.OpenAPISpec, policiesColumn, p.Status,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create proxy: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -612,18 +685,22 @@ func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
 }
 
 func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*model.LLMProxy, error) {
-	row := r.db.QueryRow(r.db.Rebind(`
-		SELECT uuid, organization_uuid, project_uuid, handle, name, description, created_by, version, context, vhost, provider,
-				openapi_spec, policies, status, created_at, updated_at
-		FROM llm_proxies
-		WHERE handle = ? AND organization_uuid = ?
-	`), proxyID, orgUUID)
+	row := r.db.QueryRow(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.project_uuid, p.description, p.created_by, p.context, p.vhost, p.provider,
+			p.openapi_spec, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.handle = ? AND a.organization_uuid = ? AND a.kind = ?
+	`, proxyID, orgUUID, constants.LLMProxy)
 
 	var p model.LLMProxy
 	var openAPISpec, policiesJSON sql.NullString
 	if err := row.Scan(
-		&p.UUID, &p.OrganizationUUID, &p.ProjectUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Provider,
-		&openAPISpec, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+		&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+		&p.ProjectUUID, &p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Provider,
+		&openAPISpec, &policiesJSON, &p.Status,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -644,14 +721,17 @@ func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*model.LLMProxy, error)
 }
 
 func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*model.LLMProxy, error) {
-	rows, err := r.db.Query(r.db.Rebind(`
-		SELECT uuid, organization_uuid, project_uuid, handle, name, description, created_by, version, context, vhost, provider,
-				openapi_spec, policies, status, created_at, updated_at
-		FROM llm_proxies
-		WHERE organization_uuid = ?
-		ORDER BY created_at DESC
+	rows, err := r.db.Query(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.project_uuid, p.description, p.created_by, p.context, p.vhost, p.provider,
+			p.openapi_spec, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND a.kind = ?
+		ORDER BY a.created_at DESC
 		LIMIT ? OFFSET ?
-	`), orgUUID, limit, offset)
+	`, orgUUID, constants.LLMProxy, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -662,8 +742,9 @@ func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*model.LLMProx
 		var p model.LLMProxy
 		var openAPISpec, policiesJSON sql.NullString
 		err := rows.Scan(
-			&p.UUID, &p.OrganizationUUID, &p.ProjectUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Provider,
-			&openAPISpec, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+			&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+			&p.ProjectUUID, &p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Provider,
+			&openAPISpec, &policiesJSON, &p.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -682,14 +763,17 @@ func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*model.LLMProx
 }
 
 func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset int) ([]*model.LLMProxy, error) {
-	rows, err := r.db.Query(r.db.Rebind(`
-		SELECT uuid, organization_uuid, project_uuid, handle, name, description, created_by, version, context, vhost, provider,
-				openapi_spec, policies, status, created_at, updated_at
-		FROM llm_proxies
-		WHERE organization_uuid = ? AND project_uuid = ?
-		ORDER BY created_at DESC
+	rows, err := r.db.Query(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.project_uuid, p.description, p.created_by, p.context, p.vhost, p.provider,
+			p.openapi_spec, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?
+		ORDER BY a.created_at DESC
 		LIMIT ? OFFSET ?
-	`), orgUUID, projectUUID, limit, offset)
+	`, orgUUID, projectUUID, constants.LLMProxy, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -700,8 +784,9 @@ func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset 
 		var p model.LLMProxy
 		var openAPISpec, policiesJSON sql.NullString
 		err := rows.Scan(
-			&p.UUID, &p.OrganizationUUID, &p.ProjectUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Provider,
-			&openAPISpec, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+			&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+			&p.ProjectUUID, &p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Provider,
+			&openAPISpec, &policiesJSON, &p.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -720,14 +805,17 @@ func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset 
 }
 
 func (r *LLMProxyRepo) ListByProvider(orgUUID, providerID string, limit, offset int) ([]*model.LLMProxy, error) {
-	rows, err := r.db.Query(r.db.Rebind(`
-		SELECT uuid, organization_uuid, project_uuid, handle, name, description, created_by, version, context, vhost, provider,
-				openapi_spec, policies, status, created_at, updated_at
-		FROM llm_proxies
-		WHERE organization_uuid = ? AND provider = ?
-		ORDER BY created_at DESC
+	rows, err := r.db.Query(`
+		SELECT
+			a.uuid, a.handle, a.name, a.version, a.organization_uuid, a.created_at, a.updated_at,
+			p.project_uuid, p.description, p.created_by, p.context, p.vhost, p.provider,
+			p.openapi_spec, p.policies, p.status
+		FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND p.provider = ? AND a.kind = ?
+		ORDER BY a.created_at DESC
 		LIMIT ? OFFSET ?
-	`), orgUUID, providerID, limit, offset)
+	`, orgUUID, providerID, constants.LLMProxy, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -738,8 +826,9 @@ func (r *LLMProxyRepo) ListByProvider(orgUUID, providerID string, limit, offset 
 		var p model.LLMProxy
 		var openAPISpec, policiesJSON sql.NullString
 		err := rows.Scan(
-			&p.UUID, &p.OrganizationUUID, &p.ProjectUUID, &p.ID, &p.Name, &p.Description, &p.CreatedBy, &p.Version, &p.Context, &p.VHost, &p.Provider,
-			&openAPISpec, &policiesJSON, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+			&p.UUID, &p.ID, &p.Name, &p.Version, &p.OrganizationUUID, &p.CreatedAt, &p.UpdatedAt,
+			&p.ProjectUUID, &p.Description, &p.CreatedBy, &p.Context, &p.VHost, &p.Provider,
+			&openAPISpec, &policiesJSON, &p.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -759,7 +848,11 @@ func (r *LLMProxyRepo) ListByProvider(orgUUID, providerID string, limit, offset 
 
 func (r *LLMProxyRepo) Count(orgUUID string) (int, error) {
 	var count int
-	if err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_proxies WHERE organization_uuid = ?`), orgUUID).Scan(&count); err != nil {
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND a.kind = ?
+	`, orgUUID, constants.LLMProxy).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -767,7 +860,11 @@ func (r *LLMProxyRepo) Count(orgUUID string) (int, error) {
 
 func (r *LLMProxyRepo) CountByProject(orgUUID, projectUUID string) (int, error) {
 	var count int
-	if err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_proxies WHERE organization_uuid = ? AND project_uuid = ?`), orgUUID, projectUUID).Scan(&count); err != nil {
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?
+	`, orgUUID, projectUUID, constants.LLMProxy).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -775,39 +872,67 @@ func (r *LLMProxyRepo) CountByProject(orgUUID, projectUUID string) (int, error) 
 
 func (r *LLMProxyRepo) CountByProvider(orgUUID, providerID string) (int, error) {
 	var count int
-	if err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_proxies WHERE organization_uuid = ? AND provider = ?`), orgUUID, providerID).Scan(&count); err != nil {
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM artifacts a
+		JOIN llm_proxies p ON a.uuid = p.uuid
+		WHERE a.organization_uuid = ? AND p.provider = ? AND a.kind = ?
+	`, orgUUID, providerID, constants.LLMProxy).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (r *LLMProxyRepo) Update(p *model.LLMProxy) error {
-	p.UpdatedAt = time.Now()
+	now := time.Now()
+	p.UpdatedAt = now
 
 	policiesColumn, err := marshalPolicies(p.Policies)
 	if err != nil {
 		return err
 	}
 
-	query := `
-		UPDATE llm_proxies
-		SET name = ?, description = ?, version = ?, context = ?, vhost = ?, provider = ?,
-			openapi_spec = ?, policies = ?, status = ?, updated_at = ?
-		WHERE handle = ? AND organization_uuid = ?
-	`
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec(r.db.Rebind(query),
-		p.Name, p.Description, p.Version, p.Context, p.VHost, p.Provider,
-		p.OpenAPISpec, policiesColumn, p.Status, p.UpdatedAt,
-		p.ID, p.OrganizationUUID,
+	// Get the proxy UUID from handle
+	var proxyUUID string
+	err = tx.QueryRow(`
+		SELECT uuid FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?
+	`, p.ID, p.OrganizationUUID, constants.LLMProxy).Scan(&proxyUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	// Update artifacts table
+	_, err = tx.Exec(`
+		UPDATE artifacts
+		SET name = ?, version = ?, updated_at = ?
+		WHERE uuid = ?`,
+		p.Name, p.Version, now, proxyUUID,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update artifact: %w", err)
+	}
+
+	// Update llm_proxies table
+	result, err := tx.Exec(`
+		UPDATE llm_proxies
+		SET description = ?, context = ?, vhost = ?, provider = ?,
+			openapi_spec = ?, policies = ?, status = ?
+		WHERE uuid = ?`,
+		p.Description, p.Context, p.VHost, p.Provider,
+		p.OpenAPISpec, policiesColumn, p.Status,
+		proxyUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update proxy: %w", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
@@ -829,7 +954,26 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec(r.db.Rebind(`DELETE FROM llm_proxies WHERE handle = ? AND organization_uuid = ?`), proxyID, orgUUID)
+	// Get the proxy UUID from handle
+	var proxyUUID string
+	err = tx.QueryRow(`
+		SELECT uuid FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?
+	`, proxyID, orgUUID, constants.LLMProxy).Scan(&proxyUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	// Delete from llm_proxies first, then artifacts
+	_, err = tx.Exec(`DELETE FROM llm_proxies WHERE uuid = ?`, proxyUUID)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, proxyUUID)
 	if err != nil {
 		return err
 	}
@@ -849,7 +993,10 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 
 func (r *LLMProxyRepo) Exists(proxyID, orgUUID string) (bool, error) {
 	var count int
-	err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_proxies WHERE handle = ? AND organization_uuid = ?`), proxyID, orgUUID).Scan(&count)
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM artifacts
+		WHERE handle = ? AND organization_uuid = ? AND kind = 'LLMProxy'
+	`, proxyID, orgUUID).Scan(&count)
 	if err != nil {
 		return false, err
 	}

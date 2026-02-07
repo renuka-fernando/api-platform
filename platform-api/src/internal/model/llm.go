@@ -126,6 +126,7 @@ type LLMProviderTemplate struct {
 	UpdatedAt        time.Time                    `json:"updatedAt" db:"updated_at"`
 }
 
+// LLMProvider represents an LLM provider entity
 type LLMProvider struct {
 	UUID             string                 `json:"uuid" db:"uuid"`
 	OrganizationUUID string                 `json:"organizationId" db:"organization_uuid"`
@@ -148,12 +149,13 @@ type LLMProvider struct {
 	UpdatedAt        time.Time              `json:"updatedAt" db:"updated_at"`
 }
 
+// LLMProxy represents an LLM proxy entity
 type LLMProxy struct {
 	UUID             string      `json:"uuid" db:"uuid"`
 	OrganizationUUID string      `json:"organizationId" db:"organization_uuid"`
-	ProjectUUID      string      `json:"projectId" db:"project_uuid"`
 	ID               string      `json:"id" db:"handle"`
 	Name             string      `json:"name" db:"name"`
+	ProjectUUID      string      `json:"projectId" db:"project_uuid"`
 	Description      string      `json:"description,omitempty" db:"description"`
 	CreatedBy        string      `json:"createdBy,omitempty" db:"created_by"`
 	Version          string      `json:"version" db:"version"`
