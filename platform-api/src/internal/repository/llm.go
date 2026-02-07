@@ -241,11 +241,12 @@ func (r *LLMProviderTemplateRepo) Count(orgUUID string) (int, error) {
 // ---- LLM Providers ----
 
 type LLMProviderRepo struct {
-	db *database.DB
+	db           *database.DB
+	artifactRepo *ArtifactRepo
 }
 
 func NewLLMProviderRepo(db *database.DB) LLMProviderRepository {
-	return &LLMProviderRepo{db: db}
+	return &LLMProviderRepo{db: db, artifactRepo: NewArtifactRepo(db)}
 }
 
 func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
@@ -293,13 +294,15 @@ func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 	}
 	defer tx.Rollback()
 
-	// Insert into artifacts table first
-	_, err = tx.Exec(`
-		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.UUID, p.ID, p.Name, p.Version, constants.LLMProvider, p.OrganizationUUID, now, now,
-	)
-	if err != nil {
+	// Insert into artifacts table first using artifactRepo
+	if err := r.artifactRepo.Create(tx, &model.Artifact{
+		UUID:             p.UUID,
+		Handle:           p.ID,
+		Name:             p.Name,
+		Version:          p.Version,
+		Kind:             constants.LLMProvider,
+		OrganizationUUID: p.OrganizationUUID,
+	}); err != nil {
 		return fmt.Errorf("failed to create artifact: %w", err)
 	}
 
@@ -530,13 +533,13 @@ func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {
 	}
 
 	// Update artifacts table
-	_, err = tx.Exec(`
-		UPDATE artifacts
-		SET name = ?, version = ?, updated_at = ?
-		WHERE uuid = ?`,
-		p.Name, p.Version, now, providerUUID,
-	)
-	if err != nil {
+	if err := r.artifactRepo.Update(tx, &model.Artifact{
+		UUID:             providerUUID,
+		Name:             p.Name,
+		Version:          p.Version,
+		OrganizationUUID: p.OrganizationUUID,
+		UpdatedAt:        now,
+	}); err != nil {
 		return fmt.Errorf("failed to update artifact: %w", err)
 	}
 
@@ -593,16 +596,8 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 		return err
 	}
 
-	result, err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, providerUUID)
-	if err != nil {
+	if err := r.artifactRepo.Delete(tx, providerUUID); err != nil {
 		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -612,25 +607,18 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 }
 
 func (r *LLMProviderRepo) Exists(providerID, orgUUID string) (bool, error) {
-	var count int
-	err := r.db.QueryRow(`
-		SELECT COUNT(*) FROM artifacts
-		WHERE handle = ? AND organization_uuid = ? AND kind = ?
-	`, providerID, orgUUID, constants.LLMProvider).Scan(&count)
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return r.artifactRepo.Exists(constants.LLMProvider, providerID, orgUUID)
 }
 
 // ---- LLM Proxies ----
 
 type LLMProxyRepo struct {
-	db *database.DB
+	db           *database.DB
+	artifactRepo *ArtifactRepo
 }
 
 func NewLLMProxyRepo(db *database.DB) LLMProxyRepository {
-	return &LLMProxyRepo{db: db}
+	return &LLMProxyRepo{db: db, artifactRepo: NewArtifactRepo(db)}
 }
 
 func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
@@ -654,13 +642,15 @@ func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
 	}
 	defer tx.Rollback()
 
-	// Insert into artifacts table first
-	_, err = tx.Exec(`
-		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.UUID, p.ID, p.Name, p.Version, constants.LLMProxy, p.OrganizationUUID, now, now,
-	)
-	if err != nil {
+	// Insert into artifacts table first using artifactRepo
+	if err := r.artifactRepo.Create(tx, &model.Artifact{
+		UUID:             p.UUID,
+		Handle:           p.ID,
+		Name:             p.Name,
+		Version:          p.Version,
+		Kind:             constants.LLMProxy,
+		OrganizationUUID: p.OrganizationUUID,
+	}); err != nil {
 		return fmt.Errorf("failed to create artifact: %w", err)
 	}
 
@@ -911,13 +901,13 @@ func (r *LLMProxyRepo) Update(p *model.LLMProxy) error {
 	}
 
 	// Update artifacts table
-	_, err = tx.Exec(`
-		UPDATE artifacts
-		SET name = ?, version = ?, updated_at = ?
-		WHERE uuid = ?`,
-		p.Name, p.Version, now, proxyUUID,
-	)
-	if err != nil {
+	if err := r.artifactRepo.Update(tx, &model.Artifact{
+		UUID:             proxyUUID,
+		Name:             p.Name,
+		Version:          p.Version,
+		OrganizationUUID: p.OrganizationUUID,
+		UpdatedAt:        now,
+	}); err != nil {
 		return fmt.Errorf("failed to update artifact: %w", err)
 	}
 
@@ -967,13 +957,18 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 		return err
 	}
 
-	// Delete from llm_proxies first, then artifacts
+	// Delete from llm_proxies first, then artifacts using artifactRepo
 	_, err = tx.Exec(`DELETE FROM llm_proxies WHERE uuid = ?`, proxyUUID)
 	if err != nil {
 		return err
 	}
 
-	result, err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, proxyUUID)
+	if err := r.artifactRepo.Delete(tx, proxyUUID); err != nil {
+		return err
+	}
+
+	// Check if any rows were affected
+	result, err := tx.Exec(`SELECT 1 FROM artifacts WHERE uuid = ?`, proxyUUID)
 	if err != nil {
 		return err
 	}
@@ -992,15 +987,7 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 }
 
 func (r *LLMProxyRepo) Exists(proxyID, orgUUID string) (bool, error) {
-	var count int
-	err := r.db.QueryRow(`
-		SELECT COUNT(*) FROM artifacts
-		WHERE handle = ? AND organization_uuid = ? AND kind = 'LLMProxy'
-	`, proxyID, orgUUID).Scan(&count)
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return r.artifactRepo.Exists(constants.LLMProxy, proxyID, orgUUID)
 }
 
 func marshalPolicies(policies []model.LLMPolicy) (string, error) {

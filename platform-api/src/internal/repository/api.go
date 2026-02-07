@@ -35,6 +35,7 @@ import (
 type APIRepo struct {
 	db                 *database.DB
 	backendServiceRepo BackendServiceRepository
+	artifactRepo       ArtifactRepository
 }
 
 // NewAPIRepo creates a new API repository
@@ -42,6 +43,7 @@ func NewAPIRepo(db *database.DB) APIRepository {
 	return &APIRepo{
 		db:                 db,
 		backendServiceRepo: NewBackendServiceRepo(db),
+		artifactRepo:       NewArtifactRepo(db),
 	}
 }
 
@@ -66,19 +68,20 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 	}
 
 	kind := constants.RestApi
-	if kind == constants.APITypeWebSub {
+	if api.Kind == constants.WebSub {
 		kind = constants.WebSub
 	}
 
-	// Insert main API record
-	artifactQuery := `
-		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err = tx.Exec(r.db.Rebind(artifactQuery), api.ID, api.Handle, api.Name, api.Version, kind, api.OrganizationID,
-		api.CreatedAt, api.UpdatedAt)
-	if err != nil {
+	if err := r.artifactRepo.Create(tx, &model.Artifact{
+		UUID:             api.ID,
+		Handle:           api.Handle,
+		Name:             api.Name,
+		Version:          api.Version,
+		Kind:             kind,
+		OrganizationUUID: api.OrganizationID,
+		CreatedAt:        api.CreatedAt,
+		UpdatedAt:        api.UpdatedAt,
+	}); err != nil {
 		return err
 	}
 
@@ -381,12 +384,13 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 		return err
 	}
 	// Update artifact record
-	artifactQuery := `
-		UPDATE artifacts SET handle = ?, name = ?, version = ?, kind = ?, updated_at = ?
-		WHERE uuid = ? AND organization_uuid = ?
-	`
-	_, err = tx.Exec(r.db.Rebind(artifactQuery), api.Handle, api.Name, api.Version, api.Kind, api.UpdatedAt, api.ID, api.OrganizationID)
-	if err != nil {
+	if err := r.artifactRepo.Update(tx, &model.Artifact{
+		UUID:             api.ID,
+		Name:             api.Name,
+		Version:          api.Version,
+		OrganizationUUID: api.OrganizationID,
+		UpdatedAt:        api.UpdatedAt,
+	}); err != nil {
 		return err
 	}
 	// Update main API record
@@ -449,13 +453,12 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`,
 		// Delete from apis table first, then artifacts
 		`DELETE FROM apis WHERE uuid = ?`,
-		`DELETE FROM artifacts WHERE uuid = ? AND organization_uuid = ?`,
 	}
 
 	// Execute all delete statements
 	for i, query := range deleteQueries {
 		switch i {
-		case 0, 1, 2, len(deleteQueries) - 1:
+		case 0, 1, 2:
 			if _, err := tx.Exec(r.db.Rebind(query), apiUUID, orgUUID); err != nil {
 				return err
 			}
@@ -466,23 +469,17 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		}
 	}
 
+	// Delete from artifacts table using artifactRepo
+	if err := r.artifactRepo.Delete(tx, apiUUID); err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
 // CheckAPIExistsByHandleInOrganization checks if an API with the given handle exists within a specific organization
 func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (bool, error) {
-	query := `
-		SELECT COUNT(*) FROM artifacts
-		WHERE kind = 'RestApi' AND handle = ? AND organization_uuid = ?
-	`
-
-	var count int
-	err := r.db.QueryRow(r.db.Rebind(query), handle, orgUUID).Scan(&count)
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
+	return r.artifactRepo.Exists(constants.RestApi, handle, orgUUID)
 }
 
 // Helper methods for loading configurations

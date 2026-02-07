@@ -18,6 +18,8 @@
 package repository
 
 import (
+	"database/sql"
+
 	"platform-api/src/internal/model"
 	"time"
 )
@@ -42,6 +44,13 @@ type ProjectRepository interface {
 	UpdateProject(project *model.Project) error
 	DeleteProject(projectId string) error
 	ListProjects(orgID string, limit, offset int) ([]*model.Project, error)
+}
+
+type ArtifactRepository interface {
+	Create(tx *sql.Tx, artifact *model.Artifact) error
+	Delete(tx *sql.Tx, uuid string) error
+	Update(tx *sql.Tx, artifact *model.Artifact) error
+	Exists(kind, handle, orgUUID string) (bool, error)
 }
 
 // APIRepository defines the interface for API data operations
