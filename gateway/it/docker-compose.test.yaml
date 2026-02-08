@@ -24,9 +24,9 @@ services:
   gateway-controller:
     container_name: it-gateway-controller
     image: ghcr.io/wso2/api-platform/gateway-controller-coverage:0.7.0-SNAPSHOT
-    mem_limit: 128m
-    mem_reservation: 128m
-    cpus: 0.1
+    mem_limit: 1000m
+    mem_reservation: 1000m
+    cpus: 0.5
     command: ["-config", "/etc/gateway-controller/config.toml"]
     ports:
       - "9090:9090"   # REST API
@@ -56,9 +56,9 @@ services:
   gateway-runtime:
     container_name: it-gateway-runtime
     image: ghcr.io/wso2/api-platform/gateway-runtime-coverage:0.7.0-SNAPSHOT
-    mem_limit: 384m
-    mem_reservation: 384m
-    cpus: 0.3
+    mem_limit: 2000m
+    mem_reservation: 2000m
+    cpus: 1
     command: ["--pol.config", "/etc/policy-engine/config.toml"]
     ports:
       - "8080:8080"   # HTTP traffic (Envoy)
