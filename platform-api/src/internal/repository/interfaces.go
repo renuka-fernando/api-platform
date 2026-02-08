@@ -65,19 +65,6 @@ type APIRepository interface {
 	UpdateAPI(api *model.API) error
 	DeleteAPI(apiUUID, orgUUID string) error
 
-	// Deployment artifact methods (immutable deployments)
-	CreateDeploymentWithLimitEnforcement(deployment *model.APIDeployment, hardLimit int) error    // Atomic: count, cleanup if needed, create
-	GetDeploymentWithContent(deploymentID, apiUUID, orgUUID string) (*model.APIDeployment, error) // With content (for rollback/base deployment)
-	GetDeploymentWithState(deploymentID, apiUUID, orgUUID string) (*model.APIDeployment, error)   // With status derived (without content - lightweight)
-	GetDeploymentsWithState(apiUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*model.APIDeployment, error)
-	DeleteDeployment(deploymentID, apiUUID, orgUUID string) error
-	GetCurrentDeploymentByGateway(apiUUID, gatewayID, orgUUID string) (*model.APIDeployment, error)
-
-	// Deployment status methods (mutable state tracking)
-	SetCurrentDeployment(apiUUID, orgUUID, gatewayID, deploymentID string, status model.DeploymentStatus) (updatedAt time.Time, err error)
-	GetDeploymentStatus(apiUUID, orgUUID, gatewayID string) (deploymentID string, status model.DeploymentStatus, updatedAt *time.Time, err error)
-	DeleteDeploymentStatus(apiUUID, orgUUID, gatewayID string) error
-
 	// API-Gateway association methods
 	GetAPIGatewaysWithDetails(apiUUID, orgUUID string) ([]*model.APIGatewayWithDetails, error)
 
@@ -89,6 +76,22 @@ type APIRepository interface {
 	// API name validation methods
 	CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (bool, error)
 	CheckAPIExistsByNameAndVersionInOrganization(name, version, orgUUID, excludeHandle string) (bool, error)
+}
+
+// DeploymentRepository defines the interface for deployment data operations
+type DeploymentRepository interface {
+	// Deployment artifact methods (immutable deployments)
+	CreateWithLimitEnforcement(deployment *model.Deployment, hardLimit int) error // Atomic: count, cleanup if needed, create
+	GetWithContent(deploymentID, artifactUUID, orgUUID string) (*model.Deployment, error)
+	GetWithState(deploymentID, artifactUUID, orgUUID string) (*model.Deployment, error)
+	GetDeploymentsWithState(artifactUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*model.Deployment, error)
+	Delete(deploymentID, artifactUUID, orgUUID string) error
+	GetCurrentByGateway(artifactUUID, gatewayID, orgUUID string) (*model.Deployment, error)
+
+	// Deployment status methods (mutable state tracking)
+	SetCurrent(artifactUUID, orgUUID, gatewayID, deploymentID string, status model.DeploymentStatus) (updatedAt time.Time, err error)
+	GetStatus(artifactUUID, orgUUID, gatewayID string) (deploymentID string, status model.DeploymentStatus, updatedAt *time.Time, err error)
+	DeleteStatus(artifactUUID, orgUUID, gatewayID string) error
 }
 
 // GatewayRepository defines the interface for gateway data access
@@ -104,9 +107,9 @@ type GatewayRepository interface {
 	UpdateActiveStatus(gatewayId string, isActive bool) error
 
 	// Gateway association checking operations
-	HasGatewayAPIDeployments(gatewayID, organizationID string) (bool, error)
-	HasGatewayAPIAssociations(gatewayID, organizationID string) (bool, error)
+	HasGatewayDeployments(gatewayID, organizationID string) (bool, error)
 	HasGatewayAssociations(gatewayID, organizationID string) (bool, error)
+	HasGatewayAssociationsOrDeployments(gatewayID, organizationID string) (bool, error)
 
 	// Token operations
 	CreateToken(token *model.GatewayToken) error

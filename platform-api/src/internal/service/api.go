@@ -1092,7 +1092,7 @@ func (s *APIService) convertToAPIGatewayResponse(gwd *model.APIGatewayWithDetail
 
 	// Add deployment details if deployed
 	if gwd.IsDeployed && gwd.DeploymentID != nil && gwd.DeployedAt != nil {
-		apiGatewayResponse.Deployment = &dto.APIDeploymentDetails{
+		apiGatewayResponse.Deployment = &dto.DeploymentDetails{
 			DeploymentID: *gwd.DeploymentID,
 			DeployedAt:   *gwd.DeployedAt,
 		}

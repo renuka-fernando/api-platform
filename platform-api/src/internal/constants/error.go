@@ -53,7 +53,7 @@ var (
 	ErrInvalidLifecycleState       = errors.New("invalid lifecycle state")
 	ErrInvalidAPIType              = errors.New("invalid api type")
 	ErrInvalidTransport            = errors.New("invalid transport protocol")
-	ErrInvalidAPIDeployment        = errors.New("invalid api deployment")
+	ErrInvalidDeployment        = errors.New("invalid api deployment")
 	ErrGatewayNotAssociated        = errors.New("api is not associated with gateway")
 	ErrAPIContextVersionConflict   = errors.New("api with same context and version already deployed in gateway")
 )

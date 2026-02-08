@@ -23,23 +23,23 @@ import (
 
 // API represents an API entity in the platform
 type API struct {
-	ID              string           `json:"id,omitempty" yaml:"id,omitempty"`
-	Name            string           `json:"name" yaml:"name"`
-	Kind            string           `json:"kind" yaml:"kind"`
-	Description     string           `json:"description,omitempty" yaml:"description,omitempty"`
-	Context         string           `json:"context" yaml:"context"`
-	Version         string           `json:"version" yaml:"version"`
-	CreatedBy       string           `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
-	ProjectID       string           `json:"projectId" yaml:"projectId"`
-	OrganizationID  string           `json:"organizationId" yaml:"organizationId"`
-	CreatedAt       time.Time        `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
-	UpdatedAt       time.Time        `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-	LifeCycleStatus string           `json:"lifeCycleStatus,omitempty" yaml:"lifeCycleStatus,omitempty"`
-	Transport []string `json:"transport,omitempty" yaml:"transport,omitempty"`
-	Policies  []Policy `json:"policies,omitempty" yaml:"policies,omitempty"`
-	Operations      []Operation      `json:"operations,omitempty" yaml:"operations,omitempty"`
-	Channels        []Channel        `json:"channels,omitempty" yaml:"channels,omitempty"`
-	Upstream        *UpstreamConfig  `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	ID              string          `json:"id,omitempty" yaml:"id,omitempty"`
+	Name            string          `json:"name" yaml:"name"`
+	Kind            string          `json:"kind" yaml:"kind"`
+	Description     string          `json:"description,omitempty" yaml:"description,omitempty"`
+	Context         string          `json:"context" yaml:"context"`
+	Version         string          `json:"version" yaml:"version"`
+	CreatedBy       string          `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
+	ProjectID       string          `json:"projectId" yaml:"projectId"`
+	OrganizationID  string          `json:"organizationId" yaml:"organizationId"`
+	CreatedAt       time.Time       `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+	UpdatedAt       time.Time       `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
+	LifeCycleStatus string          `json:"lifeCycleStatus,omitempty" yaml:"lifeCycleStatus,omitempty"`
+	Transport       []string        `json:"transport,omitempty" yaml:"transport,omitempty"`
+	Policies        []Policy        `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Operations      []Operation     `json:"operations,omitempty" yaml:"operations,omitempty"`
+	Channels        []Channel       `json:"channels,omitempty" yaml:"channels,omitempty"`
+	Upstream        *UpstreamConfig `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 }
 
 // Operation represents an API operation
@@ -106,14 +106,14 @@ type DeploymentListResponse struct {
 
 // APIDeploymentYAML represents the API deployment YAML structure
 type APIDeploymentYAML struct {
-	ApiVersion string                `yaml:"apiVersion" binding:"required"`
-	Kind       string                `yaml:"kind" binding:"required"`
-	Metadata   APIDeploymentMetadata `yaml:"metadata" binding:"required"`
-	Spec       APIYAMLData           `yaml:"spec" binding:"required"`
+	ApiVersion string             `yaml:"apiVersion" binding:"required"`
+	Kind       string             `yaml:"kind" binding:"required"`
+	Metadata   DeploymentMetadata `yaml:"metadata" binding:"required"`
+	Spec       APIYAMLData        `yaml:"spec" binding:"required"`
 }
 
-// APIDeploymentMetadata represents the metadata section of the API deployment YAML
-type APIDeploymentMetadata struct {
+// DeploymentMetadata represents the metadata section of the API deployment YAML
+type DeploymentMetadata struct {
 	Name   string            `yaml:"name" binding:"required"`
 	Labels map[string]string `yaml:"labels,omitempty"`
 }

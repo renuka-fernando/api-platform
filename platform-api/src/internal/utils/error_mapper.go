@@ -217,7 +217,7 @@ func GetErrorResponse(err error) (int, interface{}) {
 		return makeError(http.StatusBadRequest, "Invalid API type")
 	case errors.Is(err, constants.ErrInvalidTransport):
 		return makeError(http.StatusBadRequest, "Invalid transport protocol")
-	case errors.Is(err, constants.ErrInvalidAPIDeployment):
+	case errors.Is(err, constants.ErrInvalidDeployment):
 		return makeError(http.StatusBadRequest, "Invalid API deployment")
 
 	// Gateway errors

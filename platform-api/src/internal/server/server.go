@@ -83,6 +83,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmTemplateRepo := repository.NewLLMProviderTemplateRepo(db)
 	llmProviderRepo := repository.NewLLMProviderRepo(db)
 	llmProxyRepo := repository.NewLLMProxyRepo(db)
+	deploymentRepo := repository.NewDeploymentRepo(db)
 
 	// Seed default LLM provider templates into the DB (per organization)
 	cfg.LLMTemplateDefinitionsPath = strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
@@ -153,10 +154,10 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	apiService := service.NewAPIService(apiRepo, projectRepo, orgRepo, gatewayRepo, devPortalRepo, publicationRepo,
 		gatewayEventsService, devPortalService, apiUtil)
 	gatewayService := service.NewGatewayService(gatewayRepo, orgRepo, apiRepo)
-	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, gatewayRepo, orgRepo, projectRepo, cfg)
+	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg)
 	apiKeyService := service.NewAPIKeyService(apiRepo, gatewayEventsService)
 	gitService := service.NewGitService()
-	deploymentService := service.NewDeploymentService(apiRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg)
+	deploymentService := service.NewDeploymentService(apiRepo, deploymentRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg)
 	llmTemplateService := service.NewLLMProviderTemplateService(llmTemplateRepo)
 	llmProviderService := service.NewLLMProviderService(llmProviderRepo, llmTemplateRepo, orgRepo, llmTemplateSeeder)
 	llmProxyService := service.NewLLMProxyService(llmProxyRepo, llmProviderRepo, projectRepo)

@@ -223,7 +223,7 @@ func TestGetDeploymentsWithState_SoftLimit(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := NewAPIRepo(db)
+	repo := NewDeploymentRepo(db)
 
 	// Setup test data
 	apiUUID := "api-001"
@@ -346,7 +346,7 @@ func TestGetDeploymentsWithState_PrioritizationLogic(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := NewAPIRepo(db)
+	repo := NewDeploymentRepo(db)
 
 	apiUUID := "api-002"
 	orgUUID := "org-002"
@@ -433,7 +433,7 @@ func TestGetDeploymentsWithState_MultipleGateways(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := NewAPIRepo(db)
+	repo := NewDeploymentRepo(db)
 
 	apiUUID := "api-003"
 	orgUUID := "org-003"

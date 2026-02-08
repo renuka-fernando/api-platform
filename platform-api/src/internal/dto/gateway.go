@@ -99,8 +99,8 @@ type AddGatewayToAPIRequest struct {
 	GatewayID string `json:"gatewayId" binding:"required"`
 }
 
-// APIDeploymentDetails represents deployment details for an API on a gateway
-type APIDeploymentDetails struct {
+// DeploymentDetails represents deployment details for an API on a gateway
+type DeploymentDetails struct {
 	DeploymentID string    `json:"deploymentId"`
 	DeployedAt   time.Time `json:"deployedAt"`
 }
@@ -111,7 +111,7 @@ type APIGatewayResponse struct {
 	GatewayResponse                       // Embedded gateway details
 	AssociatedAt    time.Time             `json:"associatedAt"`
 	IsDeployed      bool                  `json:"isDeployed"`
-	Deployment      *APIDeploymentDetails `json:"deployment,omitempty"` // Only present when isDeployed is true
+	Deployment      *DeploymentDetails `json:"deployment,omitempty"` // Only present when isDeployed is true
 }
 
 // APIGatewayListResponse represents a paginated list of gateways with API association and deployment details

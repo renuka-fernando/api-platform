@@ -446,7 +446,7 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 	apiDeployment := dto.APIDeploymentYAML{
 		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
 		Kind:       apiType,
-		Metadata: dto.APIDeploymentMetadata{
+		Metadata: dto.DeploymentMetadata{
 			Name: api.Handle,
 			Labels: map[string]string{
 				"project-id": api.ProjectID,
