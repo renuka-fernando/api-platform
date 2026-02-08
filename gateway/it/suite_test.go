@@ -111,7 +111,7 @@ func TestFeatures(t *testing.T) {
 				"features/llm-proxies.feature",
 				"features/search-deployments.feature",
 				// "features/policy-engine-admin.feature",
-				// "features/cel-conditions.feature",
+				"features/cel-conditions.feature",
 				"features/analytics-basic.feature",
 			},
 			TestingT: t,
