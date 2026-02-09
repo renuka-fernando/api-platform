@@ -79,7 +79,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 
 	// If user has provided a name, use it. Otherwise, generate a name from the display name.
 	var name string
-	if (req.Name != "") {
+	if req.Name != "" {
 		name = req.Name
 	} else {
 		name, err := utils.GenerateHandle(req.DisplayName, nil)
@@ -95,8 +95,11 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 		req.DisplayName = name
 	}
 
+	// Extract optional x-user-id header for temporary user identification
+	userId := c.GetHeader("x-user-id")
+
 	// Create the API key and broadcast to gateways
-	err := h.apiKeyService.CreateAPIKey(c.Request.Context(), apiHandle, orgId, &req)
+	err := h.apiKeyService.CreateAPIKey(c.Request.Context(), apiHandle, orgId, userId, &req)
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, constants.ErrAPINotFound) {
@@ -127,6 +130,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 		Message: "API key created and broadcasted to gateways successfully",
 	})
 }
+
 // UpdateAPIKey handles PUT /api/v1/apis/{apiId}/api-keys/{keyName}
 // This endpoint allows external platforms to update/regenerate external API keys on hybrid gateways
 func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
@@ -170,8 +174,11 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 		return
 	}
 
+	// Extract optional x-user-id header for temporary user identification
+	userId := c.GetHeader("x-user-id")
+
 	// Update the API key and broadcast to gateways
-	err := h.apiKeyService.UpdateAPIKey(c.Request.Context(), apiHandle, orgId, keyName, &req)
+	err := h.apiKeyService.UpdateAPIKey(c.Request.Context(), apiHandle, orgId, keyName, userId, &req)
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, constants.ErrAPINotFound) {
@@ -192,7 +199,7 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[INFO] Successfully updated API key: apiId=%s orgId=%s keyName=%s",
+	log.Printf("[INFO] Successfully updated API key: apiHandle=%s orgId=%s keyName=%s",
 		apiHandle, orgId, keyName)
 
 	// Return success response
@@ -229,8 +236,11 @@ func (h *APIKeyHandler) RevokeAPIKey(c *gin.Context) {
 		return
 	}
 
+	// Extract optional x-user-id header for temporary user identification
+	userId := c.GetHeader("x-user-id")
+
 	// Revoke the API key and broadcast to gateways
-	err := h.apiKeyService.RevokeAPIKey(c.Request.Context(), apiHandle, orgId, keyName)
+	err := h.apiKeyService.RevokeAPIKey(c.Request.Context(), apiHandle, orgId, keyName, userId)
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, constants.ErrAPINotFound) {
