@@ -24,43 +24,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wso2/api-platform/gateway/policy-engine/internal/testutils"
 	policy "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 )
-
-// =============================================================================
-// Helper Functions - using same patterns as benchmarks
-// =============================================================================
-
-func newTestRequestContext() *policy.RequestContext {
-	return &policy.RequestContext{
-		SharedContext: &policy.SharedContext{
-			RequestID:     "test-request-id",
-			APIName:       "TestAPI",
-			APIVersion:    "v1.0",
-			APIContext:    "/api",
-			OperationPath: "/users/{id}",
-			Metadata:      map[string]interface{}{"custom_key": "custom_value"},
-		},
-		Headers:   policy.NewHeaders(map[string][]string{"content-type": {"application/json"}, "authorization": {"Bearer token123"}}),
-		Path:      "/api/v1/users/123",
-		Method:    "GET",
-		Authority: "api.example.com",
-		Scheme:    "https",
-	}
-}
-
-func newTestResponseContext() *policy.ResponseContext {
-	reqCtx := newTestRequestContext()
-	return &policy.ResponseContext{
-		SharedContext:   reqCtx.SharedContext,
-		RequestHeaders:  reqCtx.Headers,
-		RequestBody:     reqCtx.Body,
-		RequestPath:     reqCtx.Path,
-		RequestMethod:   reqCtx.Method,
-		ResponseHeaders: policy.NewHeaders(map[string][]string{"content-type": {"application/json"}}),
-		ResponseStatus:  200,
-	}
-}
 
 // =============================================================================
 // NewCELEvaluator Tests
@@ -80,7 +46,7 @@ func TestEvaluateRequestCondition_SimpleExpressions(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	tests := []struct {
 		name       string
@@ -152,7 +118,7 @@ func TestEvaluateRequestCondition_ComplexExpressions(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	tests := []struct {
 		name       string
@@ -214,7 +180,7 @@ func TestEvaluateRequestCondition_InvalidExpression(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	tests := []struct {
 		name       string
@@ -242,7 +208,7 @@ func TestEvaluateRequestCondition_NonBooleanResult(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	// Expression that returns string instead of boolean
 	_, err = evaluator.EvaluateRequestCondition(`request.Method`, reqCtx)
@@ -258,7 +224,7 @@ func TestEvaluateResponseCondition_SimpleExpressions(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	respCtx := newTestResponseContext()
+	respCtx := testutils.NewTestResponseContext()
 
 	tests := []struct {
 		name       string
@@ -320,7 +286,7 @@ func TestEvaluateResponseCondition_CrossPhaseAccess(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	respCtx := newTestResponseContext()
+	respCtx := testutils.NewTestResponseContext()
 
 	tests := []struct {
 		name       string
@@ -415,7 +381,7 @@ func TestEvaluateResponseCondition_StatusRanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			respCtx := newTestResponseContext()
+			respCtx := testutils.NewTestResponseContext()
 			respCtx.ResponseStatus = tt.status
 			result, err := evaluator.EvaluateResponseCondition(tt.expression, respCtx)
 			require.NoError(t, err)
@@ -428,7 +394,7 @@ func TestEvaluateResponseCondition_InvalidExpression(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	respCtx := newTestResponseContext()
+	respCtx := testutils.NewTestResponseContext()
 
 	_, err = evaluator.EvaluateResponseCondition(`response.ResponseStatus ==`, respCtx)
 	assert.Error(t, err)
@@ -438,7 +404,7 @@ func TestEvaluateResponseCondition_NonBooleanResult(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	respCtx := newTestResponseContext()
+	respCtx := testutils.NewTestResponseContext()
 
 	_, err = evaluator.EvaluateResponseCondition(`response.ResponseStatus`, respCtx)
 	assert.Error(t, err)
@@ -453,7 +419,7 @@ func TestCELEvaluator_ProgramCaching(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 	expression := `request.Method == "GET"`
 
 	// First evaluation - compiles the program
@@ -474,7 +440,7 @@ func TestCELEvaluator_DifferentExpressions(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	expressions := []string{
 		`request.Method == "GET"`,
@@ -510,7 +476,7 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 			wg.Add(1)
 			go func(e string) {
 				defer wg.Done()
-				ctx := newTestRequestContext()
+				ctx := testutils.NewTestRequestContext()
 				_, err := evaluator.EvaluateRequestCondition(e, ctx)
 				if err != nil {
 					errors <- err
@@ -535,7 +501,7 @@ func TestEvaluateResponseCondition_ZeroStatus(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	respCtx := newTestResponseContext()
+	respCtx := testutils.NewTestResponseContext()
 	respCtx.ResponseStatus = 0
 
 	result, err := evaluator.EvaluateResponseCondition(`response.ResponseStatus == 0`, respCtx)
@@ -547,7 +513,7 @@ func TestEvaluateRequestCondition_EmptyPath(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 	reqCtx.Path = ""
 
 	result, err := evaluator.EvaluateRequestCondition(`request.Path == ""`, reqCtx)
@@ -559,7 +525,7 @@ func TestEvaluateRequestCondition_PathEndsWith(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	result, err := evaluator.EvaluateRequestCondition(`request.Path.endsWith("123")`, reqCtx)
 	require.NoError(t, err)
@@ -570,7 +536,7 @@ func TestEvaluateRequestCondition_PathSize(t *testing.T) {
 	evaluator, err := NewCELEvaluator()
 	require.NoError(t, err)
 
-	reqCtx := newTestRequestContext()
+	reqCtx := testutils.NewTestRequestContext()
 
 	result, err := evaluator.EvaluateRequestCondition(`size(request.Path) > 0`, reqCtx)
 	require.NoError(t, err)
@@ -585,12 +551,256 @@ func TestEvaluateRequestCondition_MethodComparison(t *testing.T) {
 
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
-			reqCtx := newTestRequestContext()
+			reqCtx := testutils.NewTestRequestContext()
 			reqCtx.Method = method
 
 			result, err := evaluator.EvaluateRequestCondition(`request.Method == "`+method+`"`, reqCtx)
 			require.NoError(t, err)
 			assert.True(t, result)
+		})
+	}
+}
+
+// =============================================================================
+// Header Operation Tests
+// =============================================================================
+
+func TestEvaluateRequestCondition_HeaderOperations(t *testing.T) {
+	evaluator, err := NewCELEvaluator()
+	require.NoError(t, err)
+
+	// Create context with headers
+	ctx := testutils.NewTestRequestContextWithHeaders(map[string][]string{
+		"authorization": {"Bearer token123"},
+		"content-type":  {"application/json"},
+		"x-api-key":     {"sk-test-key"},
+		"user-agent":    {"test-agent/1.0"},
+	})
+	ctx.Method = "POST"
+	ctx.Path = "/api/v1/test"
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   bool
+	}{
+		{
+			name:       "header exists - authorization present",
+			expression: `"authorization" in request.Headers`,
+			expected:   true,
+		},
+		{
+			name:       "header exists - x-api-key present",
+			expression: `"x-api-key" in request.Headers`,
+			expected:   true,
+		},
+		{
+			name:       "header exists - missing header",
+			expression: `"x-missing-header" in request.Headers`,
+			expected:   false,
+		},
+		{
+			name:       "header value check - exact match",
+			expression: `request.Headers["content-type"][0] == "application/json"`,
+			expected:   true,
+		},
+		{
+			name:       "header value check - wrong value",
+			expression: `request.Headers["content-type"][0] == "text/html"`,
+			expected:   false,
+		},
+		{
+			name:       "header value prefix check",
+			expression: `request.Headers["authorization"][0].startsWith("Bearer")`,
+			expected:   true,
+		},
+		{
+			name:       "header value contains",
+			expression: `request.Headers["user-agent"][0].contains("test-agent")`,
+			expected:   true,
+		},
+		{
+			name:       "multiple header conditions - AND",
+			expression: `"authorization" in request.Headers && "x-api-key" in request.Headers`,
+			expected:   true,
+		},
+		{
+			name:       "multiple header conditions - OR",
+			expression: `"authorization" in request.Headers || "x-missing" in request.Headers`,
+			expected:   true,
+		},
+		{
+			name:       "header and method condition",
+			expression: `"x-api-key" in request.Headers && request.Method == "POST"`,
+			expected:   true,
+		},
+		{
+			name:       "header value starts with specific prefix",
+			expression: `request.Headers["x-api-key"][0].startsWith("sk-")`,
+			expected:   true,
+		},
+		{
+			name:       "combined header value and path check",
+			expression: `request.Headers["content-type"][0] == "application/json" && request.Path.startsWith("/api")`,
+			expected:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := evaluator.EvaluateRequestCondition(tt.expression, ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEvaluateRequestCondition_HeaderOperations_EmptyHeaders(t *testing.T) {
+	evaluator, err := NewCELEvaluator()
+	require.NoError(t, err)
+
+	// Create context with no headers
+	ctx := testutils.NewTestRequestContextWithHeaders(map[string][]string{})
+	ctx.Method = "GET"
+	ctx.Path = "/api/test"
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   bool
+	}{
+		{
+			name:       "check for missing header in empty headers",
+			expression: `"authorization" in request.Headers`,
+			expected:   false,
+		},
+		{
+			name:       "check for any header in empty headers",
+			expression: `"content-type" in request.Headers`,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := evaluator.EvaluateRequestCondition(tt.expression, ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEvaluateResponseCondition_HeaderOperations(t *testing.T) {
+	evaluator, err := NewCELEvaluator()
+	require.NoError(t, err)
+
+	// Create response context with request and response headers
+	ctx := testutils.NewTestResponseContext()
+	ctx.RequestHeaders = policy.NewHeaders(map[string][]string{
+		"authorization": {"Bearer token123"},
+		"content-type":  {"application/json"},
+	})
+	ctx.ResponseHeaders = policy.NewHeaders(map[string][]string{
+		"content-type":   {"application/json; charset=utf-8"},
+		"cache-control":  {"no-cache"},
+		"x-request-id":   {"req-123"},
+		"content-length": {"1024"},
+	})
+	ctx.ResponseStatus = 200
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   bool
+	}{
+		{
+			name:       "response header exists",
+			expression: `"content-type" in response.ResponseHeaders`,
+			expected:   true,
+		},
+		{
+			name:       "response header missing",
+			expression: `"x-missing" in response.ResponseHeaders`,
+			expected:   false,
+		},
+		{
+			name:       "response header value check",
+			expression: `response.ResponseHeaders["cache-control"][0] == "no-cache"`,
+			expected:   true,
+		},
+		{
+			name:       "response header value contains",
+			expression: `response.ResponseHeaders["content-type"][0].contains("application/json")`,
+			expected:   true,
+		},
+		{
+			name:       "request header exists in response phase",
+			expression: `"authorization" in response.RequestHeaders`,
+			expected:   true,
+		},
+		{
+			name:       "request header value in response phase",
+			expression: `response.RequestHeaders["authorization"][0].startsWith("Bearer")`,
+			expected:   true,
+		},
+		{
+			name:       "combined request and response headers",
+			expression: `"authorization" in response.RequestHeaders && "content-type" in response.ResponseHeaders`,
+			expected:   true,
+		},
+		{
+			name:       "response header and status check",
+			expression: `"x-request-id" in response.ResponseHeaders && response.ResponseStatus == 200`,
+			expected:   true,
+		},
+		{
+			name:       "check both request and response content-type",
+			expression: `response.RequestHeaders["content-type"][0] == "application/json" && response.ResponseHeaders["content-type"][0].contains("application/json")`,
+			expected:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := evaluator.EvaluateResponseCondition(tt.expression, ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEvaluateResponseCondition_HeaderOperations_EmptyHeaders(t *testing.T) {
+	evaluator, err := NewCELEvaluator()
+	require.NoError(t, err)
+
+	// Create response context with empty headers
+	ctx := testutils.NewTestResponseContext()
+	ctx.RequestHeaders = policy.NewHeaders(map[string][]string{})
+	ctx.ResponseHeaders = policy.NewHeaders(map[string][]string{})
+	ctx.ResponseStatus = 200
+
+	tests := []struct {
+		name       string
+		expression string
+		expected   bool
+	}{
+		{
+			name:       "check for missing request header",
+			expression: `"authorization" in response.RequestHeaders`,
+			expected:   false,
+		},
+		{
+			name:       "check for missing response header",
+			expression: `"content-type" in response.ResponseHeaders`,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := evaluator.EvaluateResponseCondition(tt.expression, ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -614,7 +824,7 @@ func TestCELEvaluator_RealWorldExpressions(t *testing.T) {
 		{
 			name: "Skip POST requests",
 			setupReq: func() *policy.RequestContext {
-				ctx := newTestRequestContext()
+				ctx := testutils.NewTestRequestContext()
 				ctx.Method = "GET"
 				return ctx
 			},
@@ -625,7 +835,7 @@ func TestCELEvaluator_RealWorldExpressions(t *testing.T) {
 		{
 			name: "Only POST requests",
 			setupReq: func() *policy.RequestContext {
-				ctx := newTestRequestContext()
+				ctx := testutils.NewTestRequestContext()
 				ctx.Method = "POST"
 				return ctx
 			},
@@ -636,7 +846,7 @@ func TestCELEvaluator_RealWorldExpressions(t *testing.T) {
 		{
 			name: "Error response only",
 			setupResp: func() *policy.ResponseContext {
-				ctx := newTestResponseContext()
+				ctx := testutils.NewTestResponseContext()
 				ctx.ResponseStatus = 500
 				return ctx
 			},
@@ -647,7 +857,7 @@ func TestCELEvaluator_RealWorldExpressions(t *testing.T) {
 		{
 			name: "Success response only",
 			setupResp: func() *policy.ResponseContext {
-				ctx := newTestResponseContext()
+				ctx := testutils.NewTestResponseContext()
 				ctx.ResponseStatus = 200
 				return ctx
 			},
@@ -658,7 +868,7 @@ func TestCELEvaluator_RealWorldExpressions(t *testing.T) {
 		{
 			name: "Specific path prefix",
 			setupReq: func() *policy.RequestContext {
-				ctx := newTestRequestContext()
+				ctx := testutils.NewTestRequestContext()
 				ctx.Path = "/admin/users"
 				return ctx
 			},

@@ -2,7 +2,7 @@ Feature: Modify Headers Policy Integration Tests
   Test the modify-headers policy for comprehensive header manipulation in request and response flows
 
   Background:
-    Given the gateway is running
+    Given the gateway services are running
 
   # ========================================
   # Request Header Modifications
@@ -23,14 +23,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Custom-Header
                     value: CustomValue
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-set-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-set-req/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-custom-header" with value "CustomValue"
@@ -50,7 +50,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: APPEND
@@ -60,7 +60,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-Forwarded-For
                     value: gateway-proxy-2
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-append-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-append-req/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-forwarded-for" with both values "gateway-proxy-1" and "gateway-proxy-2"
@@ -80,13 +80,13 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: DELETE
                     name: User-Agent
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-delete-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-delete-req/1.0.0/test" with header "User-Agent: TestClient/1.0"
     Then the response status code should be 200
     And the response should not contain echoed header "user-agent"
@@ -106,7 +106,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -121,7 +121,7 @@ Feature: Modify Headers Policy Integration Tests
                   - action: DELETE
                     name: X-Internal-Token
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-multiple-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-multiple-req/1.0.0/test" with header "X-Internal-Token: secret-token"
     Then the response status code should be 200
     And the response should contain echoed header "x-request-id" with value "req-12345"
@@ -143,14 +143,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: Authorization
                     value: Bearer new-token
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-replace-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-replace-req/1.0.0/test" with header "Authorization: Bearer old-token"
     Then the response status code should be 200
     And the response should contain echoed header "authorization" with value "Bearer new-token"
@@ -170,14 +170,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Custom-HEADER
                     value: test-value
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-case-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-case-req/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-custom-header" with value "test-value"
@@ -201,14 +201,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
                     name: X-Gateway-Response
                     value: processed
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-set-resp/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-set-resp/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Gateway-Response" with value "processed"
@@ -228,7 +228,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: APPEND
@@ -238,7 +238,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-Gateway-Chain
                     value: gateway-2
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-append-resp/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-append-resp/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Gateway-Chain" with values "gateway-1" and "gateway-2"
@@ -258,13 +258,13 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: DELETE
                     name: X-Echo-Response
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-delete-resp/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-delete-resp/1.0.0/test"
     Then the response status code should be 200
     And the response should not have header "X-Echo-Response"
@@ -284,7 +284,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
@@ -299,7 +299,7 @@ Feature: Modify Headers Policy Integration Tests
                   - action: DELETE
                     name: X-Internal-Debug
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-multiple-resp/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-multiple-resp/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Response-ID" with value "resp-67890"
@@ -325,7 +325,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -340,7 +340,7 @@ Feature: Modify Headers Policy Integration Tests
                   - action: DELETE
                     name: X-Backend-Internal
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/modify-headers-both/1.0.0/test" with header "X-Client-Secret: secret123" and body:
       """
       {"test": "data"}
@@ -369,7 +369,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
@@ -389,7 +389,7 @@ Feature: Modify Headers Policy Integration Tests
                   - action: DELETE
                     name: X-Powered-By
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-security/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-security/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Frame-Options" with value "DENY"
@@ -416,7 +416,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
@@ -435,7 +435,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: Access-Control-Max-Age
                     value: "3600"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-cors/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-cors/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "Access-Control-Allow-Origin" with value "https://example.com"
@@ -462,7 +462,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
@@ -475,7 +475,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-RateLimit-Reset
                     value: "1640995200"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-ratelimit/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-ratelimit/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-RateLimit-Limit" with value "1000"
@@ -501,14 +501,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Empty-Header
                     value: ""
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-empty/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-empty/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-empty-header" with value ""
@@ -528,13 +528,13 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: DELETE
                     name: X-Does-Not-Exist
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-delete-none/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-delete-none/1.0.0/test"
     Then the response status code should be 200
 
@@ -553,14 +553,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Special-Value
                     value: "value with spaces, commas; semicolons: colons = equals"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-special/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-special/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-special-value" with value "value with spaces, commas; semicolons: colons = equals"
@@ -580,14 +580,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Long-Value
                     value: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo."
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-long/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-long/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-long-value" containing "Lorem ipsum dolor sit amet"
@@ -607,14 +607,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: X-Only-Request
                     value: test-value
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-only-req/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-only-req/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-only-request" with value "test-value"
@@ -634,14 +634,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 responseHeaders:
                   - action: SET
                     name: X-Only-Response
                     value: test-value
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-only-resp/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-only-resp/1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Only-Response" with value "test-value"
@@ -665,7 +665,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -688,7 +688,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-Gateway-ID
                     value: gateway-instance-1
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/modify-headers-tracking/1.0.0/test" with body:
       """
       {"transaction": "payment"}
@@ -719,7 +719,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -729,7 +729,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X_Another-Custom_Header
                     value: test-value-2
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-names/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-names/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-custom_header-123" with value "test-value-1"
@@ -754,7 +754,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -767,7 +767,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-Test-Header
                     value: final-value
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-multi-set/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-multi-set/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-test-header" with value "final-value"
@@ -791,7 +791,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -802,7 +802,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-Custom-Response
                     value: processed
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/modify-headers-content/1.0.0/test" with header "Content-Type: application/json" and body:
       """
       {"message": "test"}
@@ -830,14 +830,14 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
                     name: Authorization
                     value: Bearer backend-service-token-xyz
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-auth/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-auth/1.0.0/test" with header "Authorization: Bearer client-token-abc"
     Then the response status code should be 200
     And the response should contain echoed header "authorization" with value "Bearer backend-service-token-xyz"
@@ -861,7 +861,7 @@ Feature: Modify Headers Policy Integration Tests
           path: /test
           policies:
             - name: modify-headers
-              version: v0.1.1
+              version: v0
               params:
                 requestHeaders:
                   - action: SET
@@ -878,7 +878,7 @@ Feature: Modify Headers Policy Integration Tests
                     name: X-API-Deprecated
                     value: "false"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/modify-headers-version/1.0.0/test" to be ready
     And I send a GET request to "/modify-headers-version/1.0.0/test"
     Then the response status code should be 200
     And the response should contain echoed header "x-api-version" with value "v1.0.0"

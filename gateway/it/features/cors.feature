@@ -42,7 +42,7 @@ Feature: CORS Policy
             url: http://sample-backend:9080/api/v1
         policies:
           - name: cors
-            version: v0.1.0
+            version: v0
             params:
               allowedOrigins:
                 - "http://example.com"
@@ -64,7 +64,7 @@ Feature: CORS Policy
             path: /{country_code}/{city}
       """
     Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/cors-preflight/v1.0/us/seattle" to be ready
+    And I wait for the endpoint "http://localhost:8080/cors-preflight/v1.0/test/test" to be ready
 
     When I set header "Origin" to "http://example.com"
     And I set header "Access-Control-Request-Method" to "POST"

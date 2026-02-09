@@ -168,7 +168,7 @@ Feature: LLM Provider Management
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
-    And the JSON response field "count" should be at least 2
+    And the JSON response field "count" should be greater than 1
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -363,7 +363,7 @@ Feature: LLM Provider Management
             mode: allow_all
           policies:
             - name: modify-headers
-              version: v1.0.0
+              version: v1
               paths:
                 - path: /chat/completions
                   methods: [POST]
@@ -379,7 +379,7 @@ Feature: LLM Provider Management
     When I retrieve the LLM provider "policy-provider"
     Then the response status code should be 200
     And the JSON response field "provider.configuration.spec.policies[0].name" should be "modify-headers"
-    And the JSON response field "provider.configuration.spec.policies[0].version" should be "v1.0.0"
+    And the JSON response field "provider.configuration.spec.policies[0].version" should be "v1"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"

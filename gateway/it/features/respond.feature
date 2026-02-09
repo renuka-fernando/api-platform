@@ -2,7 +2,7 @@ Feature: Respond Policy Integration Tests
   Test the respond policy for returning immediate responses without calling the backend
 
   Background:
-    Given the gateway is running
+    Given the gateway services are running
 
   # ========================================
   # Basic Response Scenarios
@@ -23,12 +23,12 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: "OK"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-simple-200/1.0.0/test" to be ready
     And I send a GET request to "/respond-simple-200/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "OK"
@@ -48,7 +48,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 201
                 body: '{"id": 123, "name": "Created Resource", "status": "success"}'
@@ -58,7 +58,7 @@ Feature: Respond Policy Integration Tests
                   - name: Location
                     value: /api/resource/123
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/respond-201-json/1.0.0/test" with body:
       """
       {"test": "data"}
@@ -83,11 +83,11 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 204
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a DELETE request to "/respond-204-empty/1.0.0/test"
     Then the response status code should be 204
     And the response body should be empty
@@ -107,11 +107,11 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 body: "Default response"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-default-200/1.0.0/test" to be ready
     And I send a GET request to "/respond-default-200/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "Default response"
@@ -135,7 +135,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 400
                 body: '{"error": "Bad Request", "message": "Invalid input data"}'
@@ -143,7 +143,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/respond-400-error/1.0.0/test" with body:
       """
       {"invalid": "data"}
@@ -167,7 +167,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 401
                 body: '{"error": "Unauthorized", "message": "Authentication required"}'
@@ -177,7 +177,7 @@ Feature: Respond Policy Integration Tests
                   - name: WWW-Authenticate
                     value: Bearer realm="api"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-401-error/1.0.0/test" to be ready
     And I send a GET request to "/respond-401-error/1.0.0/test"
     Then the response status code should be 401
     And the response body should contain "Unauthorized"
@@ -198,7 +198,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 403
                 body: '{"error": "Forbidden", "message": "Access denied to this resource"}'
@@ -206,7 +206,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-403-error/1.0.0/test" to be ready
     And I send a GET request to "/respond-403-error/1.0.0/test"
     Then the response status code should be 403
     And the response body should contain "Forbidden"
@@ -227,7 +227,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 404
                 body: '{"error": "Not Found", "message": "The requested resource does not exist"}'
@@ -235,7 +235,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-404-error/1.0.0/test" to be ready
     And I send a GET request to "/respond-404-error/1.0.0/test"
     Then the response status code should be 404
     And the response body should contain "Not Found"
@@ -255,7 +255,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 429
                 body: '{"error": "Too many requests", "message": "Rate limit exceeded"}'
@@ -267,7 +267,7 @@ Feature: Respond Policy Integration Tests
                   - name: X-RateLimit-Limit
                     value: "100"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-429-ratelimit/1.0.0/test" to be ready
     And I send a GET request to "/respond-429-ratelimit/1.0.0/test"
     Then the response status code should be 429
     And the response body should contain "Rate limit exceeded"
@@ -293,7 +293,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 500
                 body: '{"error": "Internal Server Error", "message": "An unexpected error occurred"}'
@@ -301,7 +301,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-500-error/1.0.0/test" to be ready
     And I send a GET request to "/respond-500-error/1.0.0/test"
     Then the response status code should be 500
     And the response body should contain "Internal Server Error"
@@ -321,7 +321,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 503
                 body: '{"error": "Service Unavailable", "message": "System under maintenance. Please try again later."}'
@@ -331,7 +331,7 @@ Feature: Respond Policy Integration Tests
                   - name: Retry-After
                     value: "3600"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-503-maintenance/1.0.0/test" to be ready
     And I send a GET request to "/respond-503-maintenance/1.0.0/test"
     Then the response status code should be 503
     And the response body should contain "under maintenance"
@@ -356,14 +356,14 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 301
                 headers:
                   - name: Location
                     value: https://example.com/new-location
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-301-redirect/1.0.0/test" to be ready
     And I send a GET request to "/respond-301-redirect/1.0.0/test"
     Then the response status code should be 301
     And the response header "Location" should be "https://example.com/new-location"
@@ -383,14 +383,14 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 302
                 headers:
                   - name: Location
                     value: /temporary-location
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-302-redirect/1.0.0/test" to be ready
     And I send a GET request to "/respond-302-redirect/1.0.0/test"
     Then the response status code should be 302
     And the response header "Location" should be "/temporary-location"
@@ -414,7 +414,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '<?xml version="1.0"?><response><status>success</status><message>XML response</message></response>'
@@ -422,7 +422,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/xml
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-xml/1.0.0/test" to be ready
     And I send a GET request to "/respond-xml/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "<status>success</status>"
@@ -443,7 +443,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '<html><head><title>API Documentation</title></head><body><h1>Welcome</h1><p>This is a static HTML response.</p></body></html>'
@@ -451,7 +451,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: text/html
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-html/1.0.0/test" to be ready
     And I send a GET request to "/respond-html/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "<h1>Welcome</h1>"
@@ -472,7 +472,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: "This is a plain text response with multiple lines.\nLine 2\nLine 3"
@@ -480,7 +480,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: text/plain
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-text/1.0.0/test" to be ready
     And I send a GET request to "/respond-text/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "plain text response"
@@ -505,7 +505,7 @@ Feature: Respond Policy Integration Tests
           path: /users/:id
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"id": 123, "name": "John Doe", "email": "john@example.com", "role": "admin"}'
@@ -515,7 +515,7 @@ Feature: Respond Policy Integration Tests
                   - name: X-Mock-Response
                     value: "true"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-mock-user/1.0.0/users/test" to be ready
     And I send a GET request to "/respond-mock-user/1.0.0/users/123"
     Then the response status code should be 200
     And the response body should contain "John Doe"
@@ -537,7 +537,7 @@ Feature: Respond Policy Integration Tests
           path: /v1/users
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 410
                 body: '{"error": "Gone", "message": "This endpoint is deprecated. Please use /v2/users instead.", "migration_guide": "https://docs.example.com/migration"}'
@@ -549,7 +549,7 @@ Feature: Respond Policy Integration Tests
                   - name: X-API-Sunset-Date
                     value: "2026-12-31"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-deprecated/1.0.0/v1/users" to be ready
     And I send a GET request to "/respond-deprecated/1.0.0/v1/users"
     Then the response status code should be 410
     And the response body should contain "deprecated"
@@ -571,7 +571,7 @@ Feature: Respond Policy Integration Tests
           path: /health
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"status": "healthy", "version": "1.0.0", "uptime": 3600}'
@@ -581,7 +581,7 @@ Feature: Respond Policy Integration Tests
                   - name: Cache-Control
                     value: no-cache
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-health/1.0.0/health" to be ready
     And I send a GET request to "/respond-health/1.0.0/health"
     Then the response status code should be 200
     And the response body should contain "healthy"
@@ -602,7 +602,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 204
                 headers:
@@ -615,7 +615,7 @@ Feature: Respond Policy Integration Tests
                   - name: Access-Control-Max-Age
                     value: "86400"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send an OPTIONS request to "/respond-cors/1.0.0/test"
     Then the response status code should be 204
     And the response header "Access-Control-Allow-Origin" should be "*"
@@ -641,11 +641,11 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-minimal/1.0.0/test" to be ready
     And I send a GET request to "/respond-minimal/1.0.0/test"
     Then the response status code should be 200
 
@@ -664,12 +664,12 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: ""
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-empty-body/1.0.0/test" to be ready
     And I send a GET request to "/respond-empty-body/1.0.0/test"
     Then the response status code should be 200
     And the response body should be empty
@@ -689,7 +689,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"message": "success"}'
@@ -707,7 +707,7 @@ Feature: Respond Policy Integration Tests
                   - name: X-Request-ID
                     value: req-abc-123
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-multi-headers/1.0.0/test" to be ready
     And I send a GET request to "/respond-multi-headers/1.0.0/test"
     Then the response status code should be 200
     And the response header "X-Custom-Header-1" should be "value1"
@@ -731,7 +731,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"users": [{"id": 1, "name": "User 1"}, {"id": 2, "name": "User 2"}, {"id": 3, "name": "User 3"}, {"id": 4, "name": "User 4"}, {"id": 5, "name": "User 5"}], "total": 5, "page": 1, "pageSize": 10, "metadata": {"timestamp": "2026-01-28T10:00:00Z", "version": "v1"}}'
@@ -739,7 +739,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-large-json/1.0.0/test" to be ready
     And I send a GET request to "/respond-large-json/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "User 1"
@@ -761,7 +761,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"message": "Special chars: <>&\"''\n\t", "emoji": "🎉✅❌", "unicode": "Hello 世界"}'
@@ -769,7 +769,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json; charset=utf-8
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-special-chars/1.0.0/test" to be ready
     And I send a GET request to "/respond-special-chars/1.0.0/test"
     Then the response status code should be 200
     And the response body should contain "Special chars"
@@ -794,7 +794,7 @@ Feature: Respond Policy Integration Tests
           path: /test
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 102
                 body: '{"status": "Processing"}'
@@ -802,7 +802,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/respond-100-continue/1.0.0/test" with body:
       """
       {"test": "data"}
@@ -824,7 +824,7 @@ Feature: Respond Policy Integration Tests
           path: /brew-coffee
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 418
                 body: '{"error": "I am a teapot", "message": "This server refuses to brew coffee"}'
@@ -832,7 +832,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/json
       """
-    And I wait for the health endpoint to be ready
+    And I wait for 3 seconds
     And I send a POST request to "/respond-418-teapot/1.0.0/brew-coffee" with body:
       """
       {"beverage": "coffee"}
@@ -859,7 +859,7 @@ Feature: Respond Policy Integration Tests
           path: /json
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"format": "json"}'
@@ -870,7 +870,7 @@ Feature: Respond Policy Integration Tests
           path: /xml
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '<?xml version="1.0"?><response><format>xml</format></response>'
@@ -878,7 +878,7 @@ Feature: Respond Policy Integration Tests
                   - name: Content-Type
                     value: application/xml
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-multi-path/1.0.0/json" to be ready
     And I send a GET request to "/respond-multi-path/1.0.0/json"
     Then the response status code should be 200
     And the response body should contain "json"
@@ -905,7 +905,7 @@ Feature: Respond Policy Integration Tests
           path: /static
           policies:
             - name: respond
-              version: v0.1.0
+              version: v0
               params:
                 statusCode: 200
                 body: '{"data": "static content"}'
@@ -919,7 +919,7 @@ Feature: Respond Policy Integration Tests
                   - name: Expires
                     value: "Tue, 28 Jan 2026 12:00:00 GMT"
       """
-    And I wait for the health endpoint to be ready
+    And I wait for the endpoint "http://localhost:8080/respond-cache/1.0.0/static" to be ready
     And I send a GET request to "/respond-cache/1.0.0/static"
     Then the response status code should be 200
     And the response header "Cache-Control" should be "public, max-age=86400"

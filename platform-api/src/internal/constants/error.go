@@ -65,17 +65,18 @@ var (
 )
 
 var (
-	ErrDeploymentNotFound              = errors.New("deployment not found")
-	ErrDeploymentNotActive             = errors.New("no active deployment found for this API on the gateway")
-	ErrDeploymentIsDeployed            = errors.New("cannot delete an active deployment - undeploy it first")
-	ErrDeploymentAlreadyActive         = errors.New("deployment is already active")
-	ErrBaseDeploymentNotFound          = errors.New("base deployment not found")
-	ErrInvalidDeploymentStatus         = errors.New("invalid deployment status")
-	ErrDeploymentNameRequired          = errors.New("deployment name is required")
-	ErrDeploymentBaseRequired          = errors.New("base is required")
-	ErrDeploymentGatewayIDRequired     = errors.New("gatewayId is required")
-	ErrAPINoBackendServices            = errors.New("API must have at least one backend service attached before deployment")
-	ErrDeploymentAlreadyDeployed       = errors.New("cannot rollback to currently deployed deployment")
+	ErrDeploymentNotFound          = errors.New("deployment not found")
+	ErrDeploymentNotActive         = errors.New("no active deployment found for this API on the gateway")
+	ErrDeploymentIsDeployed        = errors.New("cannot delete an active deployment - undeploy it first")
+	ErrDeploymentAlreadyActive     = errors.New("deployment is already active")
+	ErrBaseDeploymentNotFound      = errors.New("base deployment not found")
+	ErrInvalidDeploymentStatus     = errors.New("invalid deployment status")
+	ErrDeploymentNameRequired      = errors.New("deployment name is required")
+	ErrDeploymentBaseRequired      = errors.New("base is required")
+	ErrDeploymentGatewayIDRequired = errors.New("gatewayId is required")
+	ErrAPINoBackendServices        = errors.New("API must have at least one backend service attached before deployment")
+	ErrDeploymentAlreadyDeployed   = errors.New("cannot restore to the currently deployed deployment")
+	ErrGatewayIDMismatch           = errors.New("gateway ID mismatch: deployment is bound to a different gateway")
 )
 
 var (
@@ -123,11 +124,20 @@ var (
 )
 
 var (
+	ErrLLMProviderTemplateExists   = errors.New("llm provider template already exists")
+	ErrLLMProviderTemplateNotFound = errors.New("llm provider template not found")
+	ErrLLMProviderExists           = errors.New("llm provider already exists")
+	ErrLLMProviderNotFound         = errors.New("llm provider not found")
+	ErrLLMProxyExists              = errors.New("llm proxy already exists")
+	ErrLLMProxyNotFound            = errors.New("llm proxy not found")
+)
+
+var (
 	// API Key errors
-	ErrAPIKeyNotFound        = errors.New("api key not found")
-	ErrAPIKeyAlreadyExists   = errors.New("api key already exists")
-	ErrInvalidAPIKey         = errors.New("invalid api key")
-	ErrGatewayUnavailable    = errors.New("gateway unavailable")
-	ErrAPIKeyEventDelivery   = errors.New("failed to deliver api key event to gateway")
-	ErrAPIKeyHashingFailed   = errors.New("failed to hash api key")
+	ErrAPIKeyNotFound      = errors.New("api key not found")
+	ErrAPIKeyAlreadyExists = errors.New("api key already exists")
+	ErrInvalidAPIKey       = errors.New("invalid api key")
+	ErrGatewayUnavailable  = errors.New("gateway unavailable")
+	ErrAPIKeyEventDelivery = errors.New("failed to deliver api key event to gateway")
+	ErrAPIKeyHashingFailed = errors.New("failed to hash api key")
 )
