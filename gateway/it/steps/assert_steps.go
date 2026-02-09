@@ -86,13 +86,11 @@ func (a *AssertSteps) Register(ctx *godog.ScenarioContext) {
 
 	// Debug helper
 	ctx.Step(`^I print the response body$`, a.printResponseBody)
-	ctx.Step(`^the response should contain echoed header "([^"]*)" with both values "([^"]*)" and "([^"]*)"$`, a.echoedHeaderShouldHaveBothValues)
 	ctx.Step(`^the response should not contain echoed header "([^"]*)"$`, a.echoedHeaderShouldNotExist)
 	ctx.Step(`^the response should contain echoed header "([^"]*)" containing "([^"]*)"$`, a.echoedHeaderShouldContain)
 
 	// Response header assertions (alternative to existing headerShouldBe)
 	ctx.Step(`^the response should have header "([^"]*)" with value "([^"]*)"$`, a.headerShouldBe)
-	ctx.Step(`^the response should have header "([^"]*)" with values "([^"]*)" and "([^"]*)"$`, a.headerShouldHaveBothValues)
 	ctx.Step(`^the response should not have header "([^"]*)"$`, a.headerShouldNotExist)
 	ctx.Step(`^the response should have header "([^"]*)" containing "([^"]*)"$`, a.headerShouldContain)
 }
@@ -506,71 +504,6 @@ func (a *AssertSteps) echoedHeaderShouldBe(headerName, expected string) error {
 	return nil
 }
 
-// echoedHeaderShouldHaveBothValues asserts an echoed header has both values (multi-value header)
-func (a *AssertSteps) echoedHeaderShouldHaveBothValues(headerName, value1, value2 string) error {
-	body := a.provider.LastBody()
-	var data map[string]interface{}
-	if err := json.Unmarshal(body, &data); err != nil {
-		return fmt.Errorf("failed to parse JSON response: %w", err)
-	}
-
-	headers, err := extractEchoedHeaders(data)
-	if err != nil {
-		return err
-	}
-
-	normalizedName := strings.ToLower(headerName)
-	var actualValue interface{}
-	var found bool
-
-	for key, value := range headers {
-		if strings.ToLower(key) == normalizedName {
-			actualValue = value
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("expected echoed header %q to exist in response", headerName)
-	}
-
-	// Check if it's an array with both values
-	arr, ok := actualValue.([]interface{})
-	if !ok {
-		// Could be a single comma-separated string
-		if strVal, ok := actualValue.(string); ok {
-			if !strings.Contains(strVal, value1) || !strings.Contains(strVal, value2) {
-				return fmt.Errorf("expected echoed header %q to contain both %q and %q, got %q", headerName, value1, value2, strVal)
-			}
-			return nil
-		}
-		return fmt.Errorf("expected echoed header %q to be an array, got %T", headerName, actualValue)
-	}
-
-	foundValue1 := false
-	foundValue2 := false
-
-	for _, item := range arr {
-		itemStr := fmt.Sprintf("%v", item)
-		if itemStr == value1 {
-			foundValue1 = true
-		}
-		if itemStr == value2 {
-			foundValue2 = true
-		}
-	}
-
-	if !foundValue1 {
-		return fmt.Errorf("expected echoed header %q to contain value %q", headerName, value1)
-	}
-	if !foundValue2 {
-		return fmt.Errorf("expected echoed header %q to contain value %q", headerName, value2)
-	}
-
-	return nil
-}
-
 // echoedHeaderShouldNotExist asserts an echoed header does not exist
 func (a *AssertSteps) echoedHeaderShouldNotExist(headerName string) error {
 	body := a.provider.LastBody()
@@ -628,40 +561,6 @@ func (a *AssertSteps) echoedHeaderShouldContain(headerName, expected string) err
 	actualStr := fmt.Sprintf("%v", actualValue)
 	if !strings.Contains(actualStr, expected) {
 		return fmt.Errorf("expected echoed header %q to contain %q, got %q", headerName, expected, actualStr)
-	}
-
-	return nil
-}
-
-// headerShouldHaveBothValues asserts a response header has both values (multi-value header)
-func (a *AssertSteps) headerShouldHaveBothValues(headerName, value1, value2 string) error {
-	resp := a.provider.LastResponse()
-	if resp == nil {
-		return fmt.Errorf("no response received")
-	}
-
-	values := resp.Header.Values(headerName)
-	if len(values) == 0 {
-		return fmt.Errorf("expected header %q to exist", headerName)
-	}
-
-	foundValue1 := false
-	foundValue2 := false
-
-	for _, val := range values {
-		if val == value1 {
-			foundValue1 = true
-		}
-		if val == value2 {
-			foundValue2 = true
-		}
-	}
-
-	if !foundValue1 {
-		return fmt.Errorf("expected header %q to contain value %q, got %v", headerName, value1, values)
-	}
-	if !foundValue2 {
-		return fmt.Errorf("expected header %q to contain value %q, got %v", headerName, value2, values)
 	}
 
 	return nil

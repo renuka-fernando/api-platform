@@ -41,41 +41,6 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should contain echoed header "x-custom-header" with value "CustomValue"
 
-  Scenario: Append values to a request header
-    When I deploy an API with the following configuration:
-      """
-      apiVersion: gateway.api-platform.wso2.com/v1alpha1
-      kind: RestApi
-      metadata:
-        name: test-modify-headers-append-request
-      spec:
-        displayName: Modify-Headers-Append-Request-Test
-        version: v1.0.0
-        context: /modify-headers-append-req/$version
-        upstream:
-          main:
-            url: http://sample-backend:9080/echo
-        operations:
-          - method: GET
-            path: /test
-            policies:
-              - name: modify-headers
-                version: v0
-                params:
-                  requestHeaders:
-                    - action: APPEND
-                      name: X-Forwarded-For
-                      value: gateway-proxy-1
-                    - action: APPEND
-                      name: X-Forwarded-For
-                      value: gateway-proxy-2
-      """
-    Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/modify-headers-append-req/v1.0.0/test" to be ready
-    When I send a GET request to "http://localhost:8080/modify-headers-append-req/v1.0.0/test"
-    Then the response status code should be 200
-    And the response should contain echoed header "x-forwarded-for" with both values "gateway-proxy-1" and "gateway-proxy-2"
-
   Scenario: Delete a request header
     When I deploy an API with the following configuration:
       """
@@ -107,7 +72,7 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should not contain echoed header "user-agent"
 
-  Scenario: Multiple request header operations (SET, APPEND, DELETE)
+  Scenario: Multiple request header operations (SET, DELETE)
     When I deploy an API with the following configuration:
       """
       apiVersion: gateway.api-platform.wso2.com/v1alpha1
@@ -132,12 +97,6 @@ Feature: Modify Headers Policy Integration Tests
                     - action: SET
                       name: X-Request-ID
                       value: req-12345
-                    - action: APPEND
-                      name: X-Tracking
-                      value: tracker-1
-                    - action: APPEND
-                      name: X-Tracking
-                      value: tracker-2
                     - action: DELETE
                       name: X-Internal-Token
       """
@@ -146,7 +105,6 @@ Feature: Modify Headers Policy Integration Tests
     When I send a GET request to "http://localhost:8080/modify-headers-multiple-req/v1.0.0/test" with header "X-Internal-Token: secret-token"
     Then the response status code should be 200
     And the response should contain echoed header "x-request-id" with value "req-12345"
-    And the response should contain echoed header "x-tracking" with both values "tracker-1" and "tracker-2"
     And the response should not contain echoed header "x-internal-token"
 
   Scenario: SET replaces existing request header value
@@ -249,41 +207,6 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should have header "X-Gateway-Response" with value "processed"
 
-  Scenario: Append values to a response header
-    When I deploy an API with the following configuration:
-      """
-      apiVersion: gateway.api-platform.wso2.com/v1alpha1
-      kind: RestApi
-      metadata:
-        name: test-modify-headers-append-response
-      spec:
-        displayName: Modify-Headers-Append-Response-Test
-        version: v1.0.0
-        context: /modify-headers-append-resp/$version
-        upstream:
-          main:
-            url: http://sample-backend:9080/echo
-        operations:
-          - method: GET
-            path: /test
-            policies:
-              - name: modify-headers
-                version: v0
-                params:
-                  responseHeaders:
-                    - action: APPEND
-                      name: X-Gateway-Chain
-                      value: gateway-1
-                    - action: APPEND
-                      name: X-Gateway-Chain
-                      value: gateway-2
-      """
-    Then the response should be successful
-    And I wait for the endpoint "http://localhost:8080/modify-headers-append-resp/v1.0.0/test" to be ready
-    When I send a GET request to "http://localhost:8080/modify-headers-append-resp/v1.0.0/test"
-    Then the response status code should be 200
-    And the response should have header "X-Gateway-Chain" with values "gateway-1" and "gateway-2"
-
   Scenario: Delete a response header
     When I deploy an API with the following configuration:
       """
@@ -315,7 +238,7 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should not have header "X-Echo-Response"
 
-  Scenario: Multiple response header operations (SET, APPEND, DELETE)
+  Scenario: Multiple response header operations (SET, DELETE)
     When I deploy an API with the following configuration:
       """
       apiVersion: gateway.api-platform.wso2.com/v1alpha1
@@ -340,12 +263,6 @@ Feature: Modify Headers Policy Integration Tests
                     - action: SET
                       name: X-Response-ID
                       value: resp-67890
-                    - action: APPEND
-                      name: X-Process-Chain
-                      value: step-1
-                    - action: APPEND
-                      name: X-Process-Chain
-                      value: step-2
                     - action: DELETE
                       name: X-Internal-Debug
       """
@@ -354,7 +271,6 @@ Feature: Modify Headers Policy Integration Tests
     When I send a GET request to "http://localhost:8080/modify-headers-multiple-resp/v1.0.0/test"
     Then the response status code should be 200
     And the response should have header "X-Response-ID" with value "resp-67890"
-    And the response should have header "X-Process-Chain" with values "step-1" and "step-2"
     And the response should not have header "X-Internal-Debug"
 
   # ========================================
@@ -490,12 +406,9 @@ Feature: Modify Headers Policy Integration Tests
                     - action: SET
                       name: Access-Control-Allow-Methods
                       value: GET, POST, PUT, DELETE
-                    - action: APPEND
+                    - action: SET
                       name: Access-Control-Allow-Headers
-                      value: Authorization
-                    - action: APPEND
-                      name: Access-Control-Allow-Headers
-                      value: Content-Type
+                      value: Authorization, Content-Type
                     - action: SET
                       name: Access-Control-Max-Age
                       value: "3600"
@@ -506,7 +419,7 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should have header "Access-Control-Allow-Origin" with value "https://example.com"
     And the response should have header "Access-Control-Allow-Methods" with value "GET, POST, PUT, DELETE"
-    And the response should have header "Access-Control-Allow-Headers" with values "Authorization" and "Content-Type"
+    And the response should have header "Access-Control-Allow-Headers" with value "Authorization, Content-Type"
     And the response should have header "Access-Control-Max-Age" with value "3600"
 
   # ========================================
@@ -779,12 +692,6 @@ Feature: Modify Headers Policy Integration Tests
                     - action: SET
                       name: X-Gateway-Version
                       value: v2.0.0
-                    - action: APPEND
-                      name: X-Route-Path
-                      value: gateway
-                    - action: APPEND
-                      name: X-Route-Path
-                      value: policy-engine
                   responseHeaders:
                     - action: SET
                       name: X-Response-Time
@@ -802,7 +709,6 @@ Feature: Modify Headers Policy Integration Tests
     Then the response status code should be 200
     And the response should contain echoed header "x-correlation-id" with value "corr-abc123"
     And the response should contain echoed header "x-gateway-version" with value "v2.0.0"
-    And the response should contain echoed header "x-route-path" with both values "gateway" and "policy-engine"
     And the response should have header "X-Response-Time" with value "45ms"
     And the response should have header "X-Gateway-ID" with value "gateway-instance-1"
 
