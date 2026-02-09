@@ -86,6 +86,7 @@ const (
 
 	// gRPC Access Log Service
 	GRPCAccessLogClusterName = "apip_als_cluster"
+	DefaultALSSocketPath     = "/app/als.sock"
 
 	// MCP related constants
 	MCP_RESOURCE_PATH          = "/mcp"

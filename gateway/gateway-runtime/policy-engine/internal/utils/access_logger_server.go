@@ -22,11 +22,13 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	v3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/analytics"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/config"
+	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/constants"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -87,17 +89,51 @@ func StartAccessLogServiceServer(cfg *config.Config) *grpc.Server {
 
 	v3.RegisterAccessLogServiceServer(server, accessLogServiceServer)
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort))
-	if err != nil {
-		slog.Error(fmt.Sprintf("Failed to listen on port: %d", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort))
-		panic(err)
+	// Create listener based on mode (same pattern as ext_proc in main.go)
+	var listener net.Listener
+	alsMode := cfg.Analytics.AccessLogsServiceCfg.Mode
+	if alsMode == "" {
+		alsMode = "uds"
 	}
-	go func() {
-		slog.Info("Starting to serve access log service server", "port", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort)
-		if err := server.Serve(listener); err != nil {
-			slog.Error("ALS server exited", "error", err)
+
+	switch alsMode {
+	case "uds":
+		socketPath := constants.DefaultALSSocketPath
+		if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("Failed to remove existing ALS socket", "path", socketPath, "error", err)
 		}
-	}()
+
+		listener, err = net.Listen("unix", socketPath)
+		if err != nil {
+			slog.Error("Failed to listen on ALS Unix socket", "path", socketPath, "error", err)
+			panic(err)
+		}
+
+		// Set socket permissions (readable/writable by owner and group)
+		if err := os.Chmod(socketPath, 0660); err != nil {
+			slog.Warn("Failed to set ALS socket permissions", "path", socketPath, "error", err)
+		}
+
+		go func() {
+			slog.Info("Starting to serve access log service server", "mode", "uds", "path", socketPath)
+			if err := server.Serve(listener); err != nil {
+				slog.Error("ALS server exited", "error", err)
+			}
+		}()
+	case "tcp":
+		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort))
+		if err != nil {
+			slog.Error("Failed to listen on ALS TCP port", "port", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort)
+			panic(err)
+		}
+
+		go func() {
+			slog.Info("Starting to serve access log service server", "mode", "tcp", "port", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort)
+			if err := server.Serve(listener); err != nil {
+				slog.Error("ALS server exited", "error", err)
+			}
+		}()
+	}
 
 	return server
 }

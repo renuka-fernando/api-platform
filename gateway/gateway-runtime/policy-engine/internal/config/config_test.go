@@ -921,10 +921,37 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "analytics enabled - valid config",
+			name: "analytics enabled - valid UDS config (default)",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "uds",
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+			},
+			expectErr: false,
+		},
+		{
+			name: "analytics enabled - valid UDS config (empty mode defaults to uds)",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "",
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+			},
+			expectErr: false,
+		},
+		{
+			name: "analytics enabled - valid TCP config",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "tcp",
 					ALSServerPort:         18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
@@ -934,10 +961,25 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "analytics enabled - invalid ALS port",
+			name: "analytics enabled - invalid mode",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "invalid",
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+			},
+			expectErr: true,
+			errMsg:    "mode must be 'uds' or 'tcp'",
+		},
+		{
+			name: "analytics enabled - TCP mode invalid ALS port",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "tcp",
 					ALSServerPort:         0,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
@@ -948,11 +990,24 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 			errMsg:    "als_server_port must be between 1 and 65535",
 		},
 		{
+			name: "analytics enabled - UDS mode skips port validation",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					Mode:                  "uds",
+					ALSServerPort:         0, // Invalid port, but irrelevant in UDS mode
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+			},
+			expectErr: false,
+		},
+		{
 			name: "analytics enabled - invalid shutdown timeout",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
 					ShutdownTimeout:       0,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
@@ -966,7 +1021,6 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 0,
 					ExtProcMaxHeaderLimit: 8192,
@@ -980,7 +1034,6 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 0,

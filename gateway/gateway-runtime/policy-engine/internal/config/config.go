@@ -203,6 +203,7 @@ type LoggingConfig struct {
 
 // AccessLogsServiceConfig holds access logs service configuration
 type AccessLogsServiceConfig struct {
+	Mode                  string        `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
 	ALSServerPort         int           `koanf:"als_server_port"`
 	ShutdownTimeout       time.Duration `koanf:"shutdown_timeout"`
 	PublicKeyPath         string        `koanf:"public_key_path"`
@@ -324,6 +325,7 @@ func defaultConfig() *Config {
 				"grpc_request_timeout":  20000000000,
 			},
 			AccessLogsServiceCfg: AccessLogsServiceConfig{
+				Mode:                  "", // Empty defaults to "uds"
 				ALSServerPort:         18090,
 				ShutdownTimeout:       600 * time.Second,
 				PublicKeyPath:         "",
@@ -490,8 +492,17 @@ func (c *Config) validateAnalyticsConfig() error {
 		// Validate ALS server config (policy-engine side)
 		als := c.Analytics.AccessLogsServiceCfg
 
-		if als.ALSServerPort <= 0 || als.ALSServerPort > 65535 {
-			return fmt.Errorf("analytics.access_logs_service.als_server_port must be between 1 and 65535, got %d", als.ALSServerPort)
+		// Validate ALS connection mode
+		switch als.Mode {
+		case "uds", "":
+			// UDS mode (default) - port is unused
+		case "tcp":
+			// TCP mode - validate port
+			if als.ALSServerPort <= 0 || als.ALSServerPort > 65535 {
+				return fmt.Errorf("analytics.access_logs_service.als_server_port must be between 1 and 65535, got %d", als.ALSServerPort)
+			}
+		default:
+			return fmt.Errorf("analytics.access_logs_service.mode must be 'uds' or 'tcp', got: %s", als.Mode)
 		}
 		if als.ShutdownTimeout <= 0 {
 			return fmt.Errorf("analytics.access_logs_service.shutdown_timeout must be positive, got %s", als.ShutdownTimeout)

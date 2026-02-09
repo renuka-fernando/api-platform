@@ -1678,16 +1678,31 @@ func (t *Translator) createPolicyEngineCluster() *cluster.Cluster {
 func (t *Translator) createALSCluster() *cluster.Cluster {
 	grpcConfig := t.config.Analytics.GRPCAccessLogCfg
 
-	address := &core.Address{
-		Address: &core.Address_SocketAddress{
-			SocketAddress: &core.SocketAddress{
-				Protocol: core.SocketAddress_TCP,
-				Address:  grpcConfig.Host,
-				PortSpecifier: &core.SocketAddress_PortValue{
-					PortValue: uint32(t.config.Analytics.AccessLogsServiceCfg.ALSServerPort),
+	// Build the endpoint address (UDS or TCP)
+	var address *core.Address
+
+	if grpcConfig.Mode == "tcp" {
+		// TCP mode - use host:port
+		address = &core.Address{
+			Address: &core.Address_SocketAddress{
+				SocketAddress: &core.SocketAddress{
+					Protocol: core.SocketAddress_TCP,
+					Address:  grpcConfig.Host,
+					PortSpecifier: &core.SocketAddress_PortValue{
+						PortValue: uint32(grpcConfig.Port),
+					},
 				},
 			},
-		},
+		}
+	} else {
+		// UDS mode (default) - use Unix domain socket with constant path
+		address = &core.Address{
+			Address: &core.Address_Pipe{
+				Pipe: &core.Pipe{
+					Path: constants.DefaultALSSocketPath,
+				},
+			},
+		}
 	}
 
 	lbEndpoint := &endpoint.LbEndpoint{
@@ -1702,10 +1717,16 @@ func (t *Translator) createALSCluster() *cluster.Cluster {
 		LbEndpoints: []*endpoint.LbEndpoint{lbEndpoint},
 	}
 
+	// UDS uses STATIC (no DNS resolution needed), TCP uses STRICT_DNS
+	clusterType := cluster.Cluster_STATIC
+	if grpcConfig.Mode == "tcp" {
+		clusterType = cluster.Cluster_STRICT_DNS
+	}
+
 	return &cluster.Cluster{
 		Name:                 constants.GRPCAccessLogClusterName,
 		ConnectTimeout:       durationpb.New(5 * time.Second),
-		ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_STRICT_DNS},
+		ClusterDiscoveryType: &cluster.Cluster_Type{Type: clusterType},
 		LbPolicy:             cluster.Cluster_ROUND_ROBIN,
 		LoadAssignment: &endpoint.ClusterLoadAssignment{
 			ClusterName: constants.GRPCAccessLogClusterName,

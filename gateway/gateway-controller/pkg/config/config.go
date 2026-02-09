@@ -331,7 +331,9 @@ type AccessLogsConfig struct {
 
 // GRPCAccessLogConfig holds configuration for gRPC Access Log Service
 type GRPCAccessLogConfig struct {
-	Host                string `koanf:"host"`
+	Mode                string `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
+	Host                string `koanf:"host"` // ALS hostname/IP (TCP mode only)
+	Port                int    `koanf:"port"` // ALS port (TCP mode only)
 	LogName             string `koanf:"log_name"`
 	BufferFlushInterval int    `koanf:"buffer_flush_interval"`
 	BufferSizeBytes     int    `koanf:"buffer_size_bytes"`
@@ -596,7 +598,9 @@ func defaultConfig() *Config {
 			Enabled:    false,
 			Publishers: make([]map[string]interface{}, 0),
 			GRPCAccessLogCfg: GRPCAccessLogConfig{
-				Host:                "policy-engine",
+				Mode:                "uds",           // UDS mode by default
+				Host:                "policy-engine", // Only used in TCP mode
+				Port:                18090,           // Only used in TCP mode
 				LogName:             "envoy_access_log",
 				BufferFlushInterval: 1000000000,
 				BufferSizeBytes:     16384,
@@ -1194,13 +1198,23 @@ func (c *Config) validateAnalyticsConfig() error {
 	if c.Analytics.Enabled {
 		// Validate gRPC access log configuration
 		grpcAccessLogCfg := c.Analytics.GRPCAccessLogCfg
-		alsServerPort := c.Analytics.AccessLogsServiceCfg.ALSServerPort
-		if alsServerPort <= 0 || alsServerPort > 65535 {
-			return fmt.Errorf("analytics.access_logs_service.als_server_port must be an integer between 1 and 65535, got %d", alsServerPort)
+
+		// Validate ALS connection mode
+		switch grpcAccessLogCfg.Mode {
+		case "uds", "":
+			// UDS mode (default) - host/port are unused
+		case "tcp":
+			// TCP mode - validate host and port
+			if grpcAccessLogCfg.Host == "" {
+				return fmt.Errorf("analytics.grpc_access_logs.host is required when mode is tcp")
+			}
+			if grpcAccessLogCfg.Port <= 0 || grpcAccessLogCfg.Port > 65535 {
+				return fmt.Errorf("analytics.grpc_access_logs.port must be between 1 and 65535 when mode is tcp, got %d", grpcAccessLogCfg.Port)
+			}
+		default:
+			return fmt.Errorf("analytics.grpc_access_logs.mode must be 'uds' or 'tcp', got: %s", grpcAccessLogCfg.Mode)
 		}
-		if grpcAccessLogCfg.Host == "" {
-			return fmt.Errorf("analytics.grpc_access_logs.host is required when analytics.enabled is true")
-		}
+
 		if grpcAccessLogCfg.LogName == "" {
 			return fmt.Errorf("analytics.grpc_access_logs.log_name is required when analytics.enabled is true")
 		}

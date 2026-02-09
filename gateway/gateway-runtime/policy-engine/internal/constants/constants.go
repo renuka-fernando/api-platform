@@ -25,6 +25,9 @@ const (
 	// Policy Engine Socket Path (matches gateway-controller constant)
 	DefaultPolicyEngineSocketPath = "/app/policy-engine.sock"
 
+	// ALS Socket Path (matches gateway-controller constant)
+	DefaultALSSocketPath = "/app/als.sock"
+
 	// Tracing Span Names
 	SpanExternalProcessingProcess      = "external_processing.process"
 	SpanProcessRequestHeaders          = "external_processing.process_request_headers"
