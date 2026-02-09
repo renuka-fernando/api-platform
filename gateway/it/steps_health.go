@@ -137,9 +137,9 @@ func (h *HealthSteps) allServicesShouldReportHealthyStatus() error {
 }
 
 // iWaitForEndpointToBeReady polls an endpoint until it returns 200 or times out
-// Optimized: 50 attempts × 300ms = 15s max (reduced from 10 × 2s = 20s)
+// Optimized: 30 attempts × 300ms = 9s max wait time
 func (h *HealthSteps) iWaitForEndpointToBeReady(url string) error {
-	maxAttempts := 50
+	maxAttempts := 30
 	attemptInterval := 300 * time.Millisecond
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
