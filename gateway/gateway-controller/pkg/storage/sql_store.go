@@ -1509,38 +1509,6 @@ func (s *sqlStore) Close() error {
 	return nil
 }
 
-// addDeploymentConfigs adds deployment configuration details to the database
-func (s *sqlStore) addDeploymentConfigs(cfg *models.StoredConfig) (bool, error) {
-	query := `INSERT INTO deployment_configs (id, configuration, source_configuration) VALUES (?, ?, ?)`
-
-	stmt, err := s.prepare(query)
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare statement: %w", err)
-	}
-	defer stmt.Close()
-
-	configJSON, err := json.Marshal(cfg.Configuration)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-	sourceConfigJSON, err := json.Marshal(cfg.SourceConfiguration)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal source configuration: %w", err)
-	}
-
-	_, err = stmt.Exec(
-		cfg.ID,
-		string(configJSON),
-		string(sourceConfigJSON),
-	)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to insert deployment configuration: %w", err)
-	}
-
-	return true, nil
-}
-
 func (s *sqlStore) addDeploymentConfigsTx(tx *sqlStoreTx, cfg *models.StoredConfig) (bool, error) {
 	query := `INSERT INTO deployment_configs (id, configuration, source_configuration) VALUES (?, ?, ?)`
 
@@ -1566,45 +1534,6 @@ func (s *sqlStore) addDeploymentConfigsTx(tx *sqlStoreTx, cfg *models.StoredConf
 	)
 	if err != nil {
 		return false, fmt.Errorf("failed to insert deployment configuration: %w", err)
-	}
-
-	return true, nil
-}
-
-// updateDeploymentConfigs updates deployment configuration details in the database
-func (s *sqlStore) updateDeploymentConfigs(cfg *models.StoredConfig) (bool, error) {
-	query := `UPDATE deployment_configs SET configuration = ?, source_configuration = ? WHERE id = ?`
-
-	stmt, err := s.prepare(query)
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare statement: %w", err)
-	}
-	defer stmt.Close()
-
-	configJSON, err := json.Marshal(cfg.Configuration)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-	sourceConfigJSON, err := json.Marshal(cfg.SourceConfiguration)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal source configuration: %w", err)
-	}
-
-	result, err := stmt.Exec(
-		string(configJSON),
-		string(sourceConfigJSON),
-		cfg.ID,
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to update deployment configuration: %w", err)
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("failed to get rows affected: %w", err)
-	}
-	if rows == 0 {
-		return false, fmt.Errorf("no deployment config found for id=%s", cfg.ID)
 	}
 
 	return true, nil

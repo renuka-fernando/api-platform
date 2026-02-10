@@ -60,7 +60,7 @@ test-postgres:
 	COMPOSE_FILE=docker-compose.test.postgres.yaml $(MAKE) test
 
 # Run tests with verbose output
-test-verbose:
+test-verbose: ensure-test-tags
 	COMPOSE_FILE=$(COMPOSE_FILE) go test -v -count=1 -timeout 30m ./...
 
 # Clean up test artifacts
