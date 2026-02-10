@@ -43,7 +43,7 @@ type RouteException struct {
 
 type LLMAccessControl struct {
 	Mode       string           `json:"mode" yaml:"mode" binding:"required"`
-	Exceptions []RouteException `json:"exceptions,omitempty" yaml:"exceptions,omitempty"`
+	Exceptions []RouteException `json:"exceptions" yaml:"exceptions"`
 }
 
 type LLMPolicyPath struct {
@@ -59,15 +59,32 @@ type LLMPolicy struct {
 }
 
 type RateLimitingLimitConfig struct {
-	RequestCount         int      `json:"requestCount" yaml:"requestCount"`
-	RequestResetDuration int      `json:"requestResetDuration" yaml:"requestResetDuration"`
-	RequestResetUnit     string   `json:"requestResetUnit" yaml:"requestResetUnit"`
-	TokenCount           *int     `json:"tokenCount,omitempty" yaml:"tokenCount,omitempty"`
-	TokenResetDuration   *int     `json:"tokenResetDuration,omitempty" yaml:"tokenResetDuration,omitempty"`
-	TokenResetUnit       *string  `json:"tokenResetUnit,omitempty" yaml:"tokenResetUnit,omitempty"`
-	Cost                 *float64 `json:"cost,omitempty" yaml:"cost,omitempty"`
-	CostResetDuration    *int     `json:"costResetDuration,omitempty" yaml:"costResetDuration,omitempty"`
-	CostResetUnit        *string  `json:"costResetUnit,omitempty" yaml:"costResetUnit,omitempty"`
+	Request *RequestRateLimit `json:"request,omitempty" yaml:"request,omitempty"`
+	Token   *TokenRateLimit   `json:"token,omitempty" yaml:"token,omitempty"`
+	Cost    *CostRateLimit    `json:"cost,omitempty" yaml:"cost,omitempty"`
+}
+
+type RateLimitResetWindow struct {
+	Duration int    `json:"duration" yaml:"duration"`
+	Unit     string `json:"unit" yaml:"unit"`
+}
+
+type RequestRateLimit struct {
+	Enabled bool                 `json:"enabled" yaml:"enabled"`
+	Count   int                  `json:"count" yaml:"count"`
+	Reset   RateLimitResetWindow `json:"reset" yaml:"reset"`
+}
+
+type TokenRateLimit struct {
+	Enabled bool                 `json:"enabled" yaml:"enabled"`
+	Count   int                  `json:"count" yaml:"count"`
+	Reset   RateLimitResetWindow `json:"reset" yaml:"reset"`
+}
+
+type CostRateLimit struct {
+	Enabled bool                 `json:"enabled" yaml:"enabled"`
+	Amount  float64              `json:"amount" yaml:"amount"`
+	Reset   RateLimitResetWindow `json:"reset" yaml:"reset"`
 }
 
 type RateLimitingResourceLimit struct {
@@ -90,18 +107,6 @@ type LLMRateLimitingConfig struct {
 	ConsumerLevel *RateLimitingScopeConfig `json:"consumerLevel,omitempty" yaml:"consumerLevel,omitempty"`
 }
 
-type LLMUpstreamAuth struct {
-	Type   string `json:"type" yaml:"type" binding:"required"`
-	Header string `json:"header,omitempty" yaml:"header,omitempty"`
-	// Value is write-only and must never be returned in responses.
-	Value string `json:"value,omitempty" yaml:"value,omitempty"`
-}
-
-type LLMUpstream struct {
-	URL  string           `json:"url" yaml:"url" binding:"required"`
-	Auth *LLMUpstreamAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
-}
-
 type LLMProviderTemplateAuth struct {
 	Type        string `json:"type,omitempty" yaml:"type,omitempty"`
 	Header      string `json:"header,omitempty" yaml:"header,omitempty"`
@@ -109,9 +114,10 @@ type LLMProviderTemplateAuth struct {
 }
 
 type LLMProviderTemplateMetadata struct {
-	EndpointURL string                   `json:"endpointUrl,omitempty" yaml:"endpointUrl,omitempty"`
-	Auth        *LLMProviderTemplateAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
-	LogoURL     string                   `json:"logoUrl,omitempty" yaml:"logoUrl,omitempty"`
+	EndpointURL    string                   `json:"endpointUrl,omitempty" yaml:"endpointUrl,omitempty"`
+	Auth           *LLMProviderTemplateAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
+	LogoURL        string                   `json:"logoUrl,omitempty" yaml:"logoUrl,omitempty"`
+	OpenapiSpecURL string                   `json:"openapiSpecUrl,omitempty" yaml:"openapiSpecUrl,omitempty"`
 }
 
 type LLMProviderTemplate struct {
@@ -148,21 +154,21 @@ type LLMProviderTemplateListResponse struct {
 type LLMProvider struct {
 	ID             string                 `json:"id" yaml:"id" binding:"required"`
 	Name           string                 `json:"name" yaml:"name" binding:"required"`
-	Description    string                 `json:"description,omitempty" yaml:"description,omitempty"`
-	CreatedBy      string                 `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
+	Description    string                 `json:"description" yaml:"description"`
+	CreatedBy      string                 `json:"createdBy" yaml:"createdBy"`
 	Version        string                 `json:"version" yaml:"version" binding:"required"`
-	Context        string                 `json:"context,omitempty" yaml:"context,omitempty"`
-	VHost          string                 `json:"vhost,omitempty" yaml:"vhost,omitempty"`
+	Context        string                 `json:"context" yaml:"context"`
+	VHost          string                 `json:"vhost" yaml:"vhost"`
 	Template       string                 `json:"template" yaml:"template" binding:"required"`
 	Upstream       UpstreamConfig         `json:"upstream" yaml:"upstream" binding:"required"`
-	OpenAPI        string                 `json:"openapi,omitempty" yaml:"openapi,omitempty"`
-	ModelProviders []LLMModelProvider     `json:"modelProviders,omitempty" yaml:"modelProviders,omitempty"`
+	OpenAPI        string                 `json:"openapi" yaml:"openapi"`
+	ModelProviders []LLMModelProvider     `json:"modelProviders" yaml:"modelProviders"`
 	AccessControl  LLMAccessControl       `json:"accessControl" yaml:"accessControl" binding:"required"`
-	RateLimiting   *LLMRateLimitingConfig `json:"rateLimiting,omitempty" yaml:"rateLimiting,omitempty"`
-	Policies       []LLMPolicy            `json:"policies,omitempty" yaml:"policies,omitempty"`
-	Security       *SecurityConfig        `json:"security,omitempty" yaml:"security,omitempty"`
-	CreatedAt      time.Time              `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
-	UpdatedAt      time.Time              `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
+	RateLimiting   *LLMRateLimitingConfig `json:"rateLimiting" yaml:"rateLimiting"`
+	Policies       []LLMPolicy            `json:"policies" yaml:"policies"`
+	Security       *SecurityConfig        `json:"security" yaml:"security"`
+	CreatedAt      time.Time              `json:"createdAt" yaml:"createdAt"`
+	UpdatedAt      time.Time              `json:"updatedAt" yaml:"updatedAt"`
 }
 
 type LLMProviderListItem struct {
@@ -186,18 +192,18 @@ type LLMProviderListResponse struct {
 type LLMProxy struct {
 	ID          string          `json:"id" yaml:"id" binding:"required"`
 	Name        string          `json:"name" yaml:"name" binding:"required"`
-	Description string          `json:"description,omitempty" yaml:"description,omitempty"`
-	CreatedBy   string          `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
+	Description string          `json:"description" yaml:"description"`
+	CreatedBy   string          `json:"createdBy" yaml:"createdBy"`
 	Version     string          `json:"version" yaml:"version" binding:"required"`
 	ProjectID   string          `json:"projectId" yaml:"projectId"`
-	Context     string          `json:"context,omitempty" yaml:"context,omitempty"`
-	VHost       string          `json:"vhost,omitempty" yaml:"vhost,omitempty"`
+	Context     string          `json:"context" yaml:"context"`
+	VHost       string          `json:"vhost" yaml:"vhost"`
 	Provider    string          `json:"provider" yaml:"provider" binding:"required"`
-	OpenAPI     string          `json:"openapi,omitempty" yaml:"openapi,omitempty"`
-	Policies    []LLMPolicy     `json:"policies,omitempty" yaml:"policies,omitempty"`
-	Security    *SecurityConfig `json:"security,omitempty" yaml:"security,omitempty"`
-	CreatedAt   time.Time       `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
-	UpdatedAt   time.Time       `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
+	OpenAPI     string          `json:"openapi" yaml:"openapi"`
+	Policies    []LLMPolicy     `json:"policies" yaml:"policies"`
+	Security    *SecurityConfig `json:"security" yaml:"security"`
+	CreatedAt   time.Time       `json:"createdAt" yaml:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt" yaml:"updatedAt"`
 }
 
 type LLMProxyListItem struct {
