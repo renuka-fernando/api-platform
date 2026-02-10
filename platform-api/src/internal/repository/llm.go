@@ -912,19 +912,6 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 		return err
 	}
 
-	// Check if any rows were affected
-	result, err := tx.Exec(r.db.Rebind(`SELECT 1 FROM artifacts WHERE uuid = ?`), proxyUUID)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
-	}
-
 	if err := tx.Commit(); err != nil {
 		return err
 	}

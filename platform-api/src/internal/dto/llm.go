@@ -107,18 +107,6 @@ type LLMRateLimitingConfig struct {
 	ConsumerLevel *RateLimitingScopeConfig `json:"consumerLevel,omitempty" yaml:"consumerLevel,omitempty"`
 }
 
-type LLMUpstreamAuth struct {
-	Type   string `json:"type" yaml:"type" binding:"required"`
-	Header string `json:"header,omitempty" yaml:"header,omitempty"`
-	// Value is write-only and must never be returned in responses.
-	Value string `json:"value,omitempty" yaml:"value,omitempty"`
-}
-
-type LLMUpstream struct {
-	URL  string           `json:"url" yaml:"url" binding:"required"`
-	Auth *LLMUpstreamAuth `json:"auth" yaml:"auth"`
-}
-
 type LLMProviderTemplateAuth struct {
 	Type        string `json:"type,omitempty" yaml:"type,omitempty"`
 	Header      string `json:"header,omitempty" yaml:"header,omitempty"`
