@@ -1211,22 +1211,6 @@ func mapRateLimitResetWindowDTO(in model.RateLimitResetWindow) dto.RateLimitRese
 	}
 }
 
-func mapSecurityConfig(in *dto.SecurityConfig) *model.SecurityConfig {
-	if in == nil {
-		return nil
-	}
-	out := model.SecurityConfig(*in)
-	return &out
-}
-
-func mapSecurityConfigDTO(in *model.SecurityConfig) *dto.SecurityConfig {
-	if in == nil {
-		return nil
-	}
-	out := dto.SecurityConfig(*in)
-	return &out
-}
-
 func mapResourceWiseRateLimitingDTO(in *model.ResourceWiseRateLimitingConfig) *dto.ResourceWiseRateLimitingConfig {
 	if in == nil {
 		return nil

@@ -87,8 +87,6 @@ type CostRateLimit struct {
 	Reset   RateLimitResetWindow `json:"reset" yaml:"reset"`
 }
 
-type SecurityConfig map[string]interface{}
-
 type RateLimitingResourceLimit struct {
 	Resource string                  `json:"resource" yaml:"resource"`
 	Limit    RateLimitingLimitConfig `json:"limit" yaml:"limit"`
