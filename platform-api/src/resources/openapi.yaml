@@ -258,7 +258,7 @@ paths:
         Validates an API project into the platform from a provided Git Repository URL.
         This endpoint checks the validity of the API project definitions and the overall validity of the API. 
         Returns the metadata of the API and the resources if the API project is valid.
-      operationId: ValidateRESTAPIProject
+      operationId: ValidateAPIProject
       tags:
         - REST APIs
       requestBody:
@@ -267,7 +267,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ValidateRESTAPIProjectRequest'
+              $ref: '#/components/schemas/ValidateAPIProjectRequest'
       responses:
         '201':
           description: API project is valid
@@ -380,7 +380,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ImportRESTAPIProjectRequest'
+              $ref: '#/components/schemas/ImportAPIProjectRequest'
       responses:
         '201':
           description: API project imported successfully
@@ -3174,7 +3174,6 @@ components:
         - context
         - version
         - projectId
-        - organizationId
         - upstream
       type: object
       properties:
@@ -3184,6 +3183,7 @@ components:
           example: my-rest-api-handle
         name:
           minLength: 1
+          description: Display name of the API
           pattern: '(^[^~!@#;:%^*()+={}|\\<>"'',&$\[\]\/]*$)'
           type: string
           example: PizzaShackAPI
@@ -3213,12 +3213,6 @@ components:
           format: uuid
           description: ID of the project this API belongs to
           example: yr434567-de34-76uj6-w376-234324532
-        organizationId:
-          type: string
-          format: uuid
-          description: ID of the organization this API belongs to
-          readOnly: true
-          example: 123e4567-e89b-12d3-a456-426614174000
         createdAt:
           type: string
           format: date-time
@@ -3232,7 +3226,8 @@ components:
           description: Timestamp when the api was last updated
           example: "2023-10-12T10:30:00Z"
         upstream:
-          $ref: "#/components/schemas/Upstream"
+          allOf:
+            - $ref: "#/components/schemas/Upstream"
         lifeCycleStatus:
           type: string
           description: Current lifecycle status of the API
@@ -4102,18 +4097,23 @@ components:
       title: Error object returned
       required:
         - code
-        - message
+        - title
       type: object
       properties:
         code:
           type: integer
           format: int64
-        message:
+        title:
           type: string
           description: Error message
-        description:
+        details:
           type: string
           description: A detailed description about the error message
+        errors:
+          type: array
+          description: List of specific errors (useful for validation errors)
+          items:
+            type: object
 
     GatewayArtifact:
       type: object
@@ -4623,7 +4623,7 @@ components:
           description: Timestamp when API was unpublished
           example: "2025-10-29T21:08:59.834784232+05:30"
 
-    ValidateRESTAPIProjectRequest:
+    ValidateAPIProjectRequest:
       type: object
       required:
         - repoUrl
@@ -4775,7 +4775,7 @@ components:
                 - version
                 - operations
     
-    ImportRESTAPIProjectRequest:
+    ImportAPIProjectRequest:
         type: object
         required:
             - repoUrl
@@ -4936,7 +4936,8 @@ components:
         - main
       properties:
         main:
-          $ref: '#/components/schemas/UpstreamDefinition'
+          allOf:
+            - $ref: '#/components/schemas/UpstreamDefinition'
         sandbox:
           $ref: '#/components/schemas/UpstreamDefinition'
 
@@ -5457,7 +5458,8 @@ components:
           items:
             $ref: '#/components/schemas/LLMModelProvider'
         upstream:
-          $ref: "#/components/schemas/Upstream"
+          allOf:
+            - $ref: "#/components/schemas/Upstream"
         accessControl:
           $ref: '#/components/schemas/LLMAccessControl'
         rateLimiting:
