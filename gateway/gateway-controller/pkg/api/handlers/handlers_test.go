@@ -394,7 +394,7 @@ func (m *MockControlPlaneClient) IsConnected() bool {
 	return m.connected
 }
 
-func (m *MockControlPlaneClient) NotifyAPIDeployment(apiID string, cfg *models.StoredConfig, revisionID string) error {
+func (m *MockControlPlaneClient) NotifyAPIDeployment(apiID string, cfg *models.StoredConfig, deploymentID string) error {
 	return nil
 }
 

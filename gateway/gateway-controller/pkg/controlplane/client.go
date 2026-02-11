@@ -590,7 +590,7 @@ func (c *Client) handleAPIDeployedEvent(event map[string]interface{}) {
 	c.logger.Info("Processing API deployment",
 		slog.String("api_id", apiID),
 		slog.String("environment", deployedEvent.Payload.Environment),
-		slog.String("revision_id", deployedEvent.Payload.RevisionID),
+		slog.String("deployment_id", deployedEvent.Payload.DeploymentID),
 		slog.String("vhost", deployedEvent.Payload.VHost),
 		slog.String("correlation_id", deployedEvent.CorrelationID),
 	)

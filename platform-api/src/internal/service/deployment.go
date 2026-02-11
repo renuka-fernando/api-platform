@@ -188,10 +188,10 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *dto.DeployAPIRequest,
 	// Send deployment event to gateway
 	if s.gatewayEventsService != nil {
 		deploymentEvent := &model.DeploymentEvent{
-			ApiId:       apiUUID,
-			RevisionID:  deploymentID,
-			Vhost:       gateway.Vhost,
-			Environment: "production",
+			ApiId:        apiUUID,
+			DeploymentID: deploymentID,
+			Vhost:        gateway.Vhost,
+			Environment:  "production",
 		}
 
 		if err := s.gatewayEventsService.BroadcastDeploymentEvent(req.GatewayID, deploymentEvent); err != nil {
@@ -256,10 +256,10 @@ func (s *DeploymentService) RestoreDeployment(apiUUID, deploymentID, gatewayID, 
 	// Send deployment event to gateway
 	if s.gatewayEventsService != nil {
 		deploymentEvent := &model.DeploymentEvent{
-			ApiId:       apiUUID,
-			RevisionID:  deploymentID,
-			Vhost:       gateway.Vhost,
-			Environment: "production",
+			ApiId:        apiUUID,
+			DeploymentID: deploymentID,
+			Vhost:        gateway.Vhost,
+			Environment:  "production",
 		}
 
 		if err := s.gatewayEventsService.BroadcastDeploymentEvent(targetDeployment.GatewayID, deploymentEvent); err != nil {
