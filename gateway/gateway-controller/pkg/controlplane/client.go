@@ -777,21 +777,23 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 	// They will be reused if the API is redeployed
 
 	// Update xDS snapshot asynchronously (undeployed APIs will be filtered out)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	if c.snapshotManager != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		if err := c.snapshotManager.UpdateSnapshot(ctx, undeployedEvent.CorrelationID); err != nil {
-			c.logger.Error("Failed to update xDS snapshot after API undeployment",
-				slog.String("api_id", apiID),
-				slog.Any("error", err),
-			)
-		} else {
-			c.logger.Info("Successfully updated xDS snapshot after API undeployment",
-				slog.String("api_id", apiID),
-			)
-		}
-	}()
+			if err := c.snapshotManager.UpdateSnapshot(ctx, undeployedEvent.CorrelationID); err != nil {
+				c.logger.Error("Failed to update xDS snapshot after API undeployment",
+					slog.String("api_id", apiID),
+					slog.Any("error", err),
+				)
+			} else {
+				c.logger.Info("Successfully updated xDS snapshot after API undeployment",
+					slog.String("api_id", apiID),
+				)
+			}
+		}()
+	}
 
 	c.logger.Info("Successfully processed API undeployment event",
 		slog.String("api_id", apiID),
@@ -919,17 +921,19 @@ func (c *Client) handleAPIDeletedEvent(event map[string]interface{}) {
 		}
 
 		// Update xDS snapshot to remove any stale routes
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
+		if c.snapshotManager != nil {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
 
-			if err := c.snapshotManager.UpdateSnapshot(ctx, deletedEvent.CorrelationID); err != nil {
-				c.logger.Warn("Failed to update xDS snapshot for orphaned resource cleanup",
-					slog.String("api_id", apiID),
-					slog.Any("error", err),
-				)
-			}
-		}()
+				if err := c.snapshotManager.UpdateSnapshot(ctx, deletedEvent.CorrelationID); err != nil {
+					c.logger.Warn("Failed to update xDS snapshot for orphaned resource cleanup",
+						slog.String("api_id", apiID),
+						slog.Any("error", err),
+					)
+				}
+			}()
+		}
 
 		if hasOrphanedResources {
 			c.logger.Info("Orphaned resource cleanup completed",
@@ -1037,21 +1041,23 @@ func (c *Client) handleAPIDeletedEvent(event map[string]interface{}) {
 	}
 
 	// 6. Update xDS snapshot asynchronously (API will be removed from routes)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	if c.snapshotManager != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		if err := c.snapshotManager.UpdateSnapshot(ctx, deletedEvent.CorrelationID); err != nil {
-			c.logger.Error("Failed to update xDS snapshot after API deletion",
-				slog.String("api_id", apiID),
-				slog.Any("error", err),
-			)
-		} else {
-			c.logger.Info("Successfully updated xDS snapshot after API deletion",
-				slog.String("api_id", apiID),
-			)
-		}
-	}()
+			if err := c.snapshotManager.UpdateSnapshot(ctx, deletedEvent.CorrelationID); err != nil {
+				c.logger.Error("Failed to update xDS snapshot after API deletion",
+					slog.String("api_id", apiID),
+					slog.Any("error", err),
+				)
+			} else {
+				c.logger.Info("Successfully updated xDS snapshot after API deletion",
+					slog.String("api_id", apiID),
+				)
+			}
+		}()
+	}
 
 	// 7. Remove derived policy configuration (after all other operations)
 	if c.policyManager != nil {
