@@ -21,6 +21,8 @@ package discovery
 import (
 	"reflect"
 	"testing"
+
+	policyv1alpha "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 )
 
 func TestExtractDefaultValues_Empty(t *testing.T) {
@@ -85,7 +87,10 @@ func TestExtractDefaultValues_Precedence(t *testing.T) {
 				},
 			},
 			want: map[string]interface{}{
-				"prop1": "${config.Prop1}",
+				"prop1": map[string]interface{}{
+					policyv1alpha.SystemParamConfigRefKey:    "${config.Prop1}",
+					policyv1alpha.SystemParamDefaultValueKey: "default-value",
+				},
 			},
 		},
 		{
@@ -211,11 +216,20 @@ func TestExtractDefaultValues_JWTAuthRealWorld(t *testing.T) {
 
 	got := ExtractDefaultValues(schema)
 	want := map[string]interface{}{
-		"authHeaderScheme":    "${config.JWTAuth.AuthHeaderScheme}",
-		"headerName":          "${config.JWTAuth.HeaderName}",
-		"onFailureStatusCode": "${config.JWTAuth.OnFailureStatusCode}",
-		"jwksCacheTtl":        "${config.JWTAuth.JwksCacheTtl}",
-		"keyManagers":         "${config.JWTAuth.KeyManagers}",
+		"authHeaderScheme": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.AuthHeaderScheme}",
+			policyv1alpha.SystemParamDefaultValueKey: "Bearer",
+		},
+		"headerName": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.HeaderName}",
+			policyv1alpha.SystemParamDefaultValueKey: "Authorization",
+		},
+		"onFailureStatusCode": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.OnFailureStatusCode}",
+			policyv1alpha.SystemParamDefaultValueKey: 401,
+		},
+		"jwksCacheTtl": "${config.JWTAuth.JwksCacheTtl}",
+		"keyManagers":  "${config.JWTAuth.KeyManagers}",
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -251,7 +265,61 @@ func TestExtractDefaultValues_MixedProperties(t *testing.T) {
 	want := map[string]interface{}{
 		"withDefault":      "value1",
 		"withWso2Default":  "${config.Value2}",
-		"withBothDefaults": "${config.Value3}", // wso2/defaultValue takes precedence
+		"withBothDefaults": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey:    "${config.Value3}",
+			policyv1alpha.SystemParamDefaultValueKey: 100,
+		},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ExtractDefaultValues() = %v, want %v", got, want)
+	}
+}
+
+func TestExtractDefaultValues_NestedObjectProperties(t *testing.T) {
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"algorithm": map[string]interface{}{
+				"type":              "string",
+				"default":           "gcra",
+				"wso2/defaultValue": "${config.policy.algorithm}",
+			},
+			"redis": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"host": map[string]interface{}{
+						"type":              "string",
+						"default":           "localhost",
+						"wso2/defaultValue": "${config.policy.redis.host}",
+					},
+					"port": map[string]interface{}{
+						"type":    "integer",
+						"default": 6379,
+					},
+					"password": map[string]interface{}{
+						"type":              "string",
+						"wso2/defaultValue": "${config.policy.redis.password}",
+					},
+				},
+			},
+		},
+	}
+
+	got := ExtractDefaultValues(schema)
+	want := map[string]interface{}{
+		"algorithm": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey:    "${config.policy.algorithm}",
+			policyv1alpha.SystemParamDefaultValueKey: "gcra",
+		},
+		"redis": map[string]interface{}{
+			"host": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey:    "${config.policy.redis.host}",
+				policyv1alpha.SystemParamDefaultValueKey: "localhost",
+			},
+			"port":     6379,
+			"password": "${config.policy.redis.password}",
+		},
 	}
 
 	if !reflect.DeepEqual(got, want) {

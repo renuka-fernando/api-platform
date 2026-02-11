@@ -22,10 +22,12 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	policyv1alpha "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 )
 
 // ConfigResolver resolves ${...} CEL expressions from a configuration map
@@ -239,6 +241,9 @@ func (r *ConfigResolver) resolveValueRecursive(value interface{}) (interface{}, 
 	case string:
 		return r.ResolveValue(v)
 	case map[string]interface{}:
+		if configRef, defaultValue, ok := parseFallbackMarker(v); ok {
+			return r.resolveConfigRefWithFallback(configRef, defaultValue)
+		}
 		return r.ResolveMap(v)
 	case []interface{}:
 		result := make([]interface{}, len(v))
@@ -253,4 +258,47 @@ func (r *ConfigResolver) resolveValueRecursive(value interface{}) (interface{}, 
 	default:
 		return value, nil
 	}
+}
+
+func parseFallbackMarker(value map[string]interface{}) (string, interface{}, bool) {
+	if len(value) != 2 {
+		return "", nil, false
+	}
+
+	configRefRaw, hasConfigRef := value[policyv1alpha.SystemParamConfigRefKey]
+	defaultValue, hasDefault := value[policyv1alpha.SystemParamDefaultValueKey]
+	if !hasConfigRef || !hasDefault {
+		return "", nil, false
+	}
+
+	configRef, ok := configRefRaw.(string)
+	if !ok || configRef == "" {
+		return "", nil, false
+	}
+
+	return configRef, defaultValue, true
+}
+
+func (r *ConfigResolver) resolveConfigRefWithFallback(configRef string, defaultValue interface{}) (interface{}, error) {
+	resolved, err := r.ResolveValue(configRef)
+	if err == nil {
+		return resolved, nil
+	}
+
+	if isMissingConfigKeyError(err) {
+		slog.Warn("Config key missing for system parameter, using schema default",
+			"reference", configRef,
+			"defaultValue", defaultValue,
+			"phase", "runtime")
+		return defaultValue, nil
+	}
+
+	return nil, err
+}
+
+func isMissingConfigKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "no such key:")
 }
