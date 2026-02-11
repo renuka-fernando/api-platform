@@ -350,6 +350,37 @@ func (s *GatewayService) VerifyToken(plainToken string) (*model.Gateway, error) 
 	return nil, errors.New("invalid token")
 }
 
+// ListTokens retrieves all active tokens for a gateway
+func (s *GatewayService) ListTokens(gatewayId, orgId string) ([]dto.TokenInfoResponse, error) {
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query gateway: %w", err)
+	}
+	if gateway == nil {
+		return nil, errors.New("gateway not found")
+	}
+	if gateway.OrganizationID != orgId {
+		return nil, errors.New("gateway not found")
+	}
+
+	activeTokens, err := s.gatewayRepo.GetActiveTokensByGatewayUUID(gatewayId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tokens: %w", err)
+	}
+
+	tokens := make([]dto.TokenInfoResponse, 0, len(activeTokens))
+	for _, t := range activeTokens {
+		tokens = append(tokens, dto.TokenInfoResponse{
+			ID:        t.ID,
+			Status:    t.Status,
+			CreatedAt: t.CreatedAt,
+			RevokedAt: t.RevokedAt,
+		})
+	}
+
+	return tokens, nil
+}
+
 // RotateToken generates a new token for a gateway (max 2 active tokens)
 func (s *GatewayService) RotateToken(gatewayId, orgId string) (*dto.TokenRotationResponse, error) {
 	// 1. Validate gateway exists
