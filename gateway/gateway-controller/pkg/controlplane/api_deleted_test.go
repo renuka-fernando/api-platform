@@ -481,9 +481,9 @@ func TestClient_findAPIConfig(t *testing.T) {
 			db:     db,
 		}
 
-		config, exists := client.findAPIConfig(apiID)
-		if !exists {
-			t.Error("Expected to find API config in database")
+		config, err := client.findAPIConfig(apiID)
+		if err != nil {
+			t.Errorf("Expected to find API config in database, got error: %v", err)
 		}
 		if config.ID != apiID {
 			t.Errorf("Expected API ID %s, got %s", apiID, config.ID)
@@ -505,16 +505,16 @@ func TestClient_findAPIConfig(t *testing.T) {
 			db:     db,
 		}
 
-		config, exists := client.findAPIConfig(apiID)
-		if !exists {
-			t.Error("Expected to find API config in memory store")
+		config, err := client.findAPIConfig(apiID)
+		if err != nil {
+			t.Errorf("Expected to find API config in memory store, got error: %v", err)
 		}
 		if config.ID != apiID {
 			t.Errorf("Expected API ID %s, got %s", apiID, config.ID)
 		}
 	})
 
-	t.Run("Returns false when config does not exist", func(t *testing.T) {
+	t.Run("Returns ErrNotFound when config does not exist", func(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 		store := storage.NewConfigStore()
 		db := newMockStorageForDeletion()
@@ -525,9 +525,9 @@ func TestClient_findAPIConfig(t *testing.T) {
 			db:     db,
 		}
 
-		_, exists := client.findAPIConfig("non-existent")
-		if exists {
-			t.Error("Expected findAPIConfig to return false for non-existent API")
+		_, err := client.findAPIConfig("non-existent")
+		if !storage.IsNotFoundError(err) {
+			t.Errorf("Expected ErrNotFound for non-existent API, got: %v", err)
 		}
 	})
 
@@ -545,9 +545,9 @@ func TestClient_findAPIConfig(t *testing.T) {
 			db:     nil,
 		}
 
-		config, exists := client.findAPIConfig(apiID)
-		if !exists {
-			t.Error("Expected to find API config in memory when DB is nil")
+		config, err := client.findAPIConfig(apiID)
+		if err != nil {
+			t.Errorf("Expected to find API config in memory when DB is nil, got error: %v", err)
 		}
 		if config.ID != apiID {
 			t.Errorf("Expected API ID %s, got %s", apiID, config.ID)

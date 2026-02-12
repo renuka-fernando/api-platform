@@ -767,12 +767,21 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 	)
 
 	// Check if API exists on this gateway
-	apiConfig, apiExists := c.findAPIConfig(apiID)
-	if !apiExists {
-		c.logger.Warn("API configuration not found for undeployment",
+	apiConfig, err := c.findAPIConfig(apiID)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.logger.Warn("API configuration not found for undeployment",
+				slog.String("api_id", apiID),
+			)
+			// Not an error - the API might already be undeployed or deleted
+			return
+		}
+		// Real storage error - log and abort
+		c.logger.Error("Failed to fetch API configuration for undeployment",
 			slog.String("api_id", apiID),
+			slog.String("correlation_id", undeployedEvent.CorrelationID),
+			slog.Any("error", err),
 		)
-		// Not an error - the API might already be undeployed or deleted
 		return
 	}
 
@@ -814,20 +823,33 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 }
 
 // findAPIConfig checks if an API exists in database or memory store
-func (c *Client) findAPIConfig(apiID string) (*models.StoredConfig, bool) {
+// Returns the config and an error. If the config is not found in either store,
+// returns (nil, storage.ErrNotFound). Other errors indicate actual storage failures.
+func (c *Client) findAPIConfig(apiID string) (*models.StoredConfig, error) {
 	// Check database first (source of truth when available)
 	if c.db != nil {
-		if config, err := c.db.GetConfig(apiID); err == nil {
-			return config, true
+		config, err := c.db.GetConfig(apiID)
+		if err == nil {
+			return config, nil
 		}
+		// If it's a real error (not just "not found"), surface it
+		if !storage.IsNotFoundError(err) {
+			return nil, fmt.Errorf("database error while fetching config: %w", err)
+		}
+		// Config not found in DB, fall through to check memory store
 	}
 
 	// Fall back to in-memory store
-	if config, err := c.store.Get(apiID); err == nil {
-		return config, true
+	config, err := c.store.Get(apiID)
+	if err == nil {
+		return config, nil
 	}
-
-	return nil, false
+	// If memory store also doesn't have it, return not found
+	if storage.IsNotFoundError(err) {
+		return nil, storage.ErrNotFound
+	}
+	// Other memory store errors
+	return nil, fmt.Errorf("memory store error while fetching config: %w", err)
 }
 
 // removePolicyConfiguration removes policy configuration with proper error handling
@@ -1126,13 +1148,24 @@ func (c *Client) handleAPIDeletedEvent(event map[string]interface{}) {
 	)
 
 	// Check if API exists on this gateway
-	apiConfig, apiExists := c.findAPIConfig(apiID)
-
-	if !apiExists {
-		c.cleanupOrphanedResources(apiID, deletedEvent.CorrelationID)
+	apiConfig, err := c.findAPIConfig(apiID)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			// Config not found - proceed with orphan cleanup
+			c.cleanupOrphanedResources(apiID, deletedEvent.CorrelationID)
+			return
+		}
+		// Real storage error (DB failure, etc.) - log and abort
+		// Do NOT proceed with orphan cleanup as the config might actually exist
+		c.logger.Error("Failed to fetch API configuration for deletion, aborting",
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", deletedEvent.CorrelationID),
+			slog.Any("error", err),
+		)
 		return
 	}
 
+	// Config found - perform full deletion
 	c.performFullAPIDeletion(apiID, apiConfig, deletedEvent.CorrelationID)
 }
 
