@@ -375,6 +375,14 @@ func (s *LLMProviderService) Update(orgUUID, handle string, req *dto.LLMProvider
 	if req.ID != "" && req.ID != handle {
 		return nil, constants.ErrInvalidInput
 	}
+	// Fetch existing provider to preserve sensitive fields on update
+	existing, err := s.repo.GetByID(handle, orgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch existing provider: %w", err)
+	}
+	if existing == nil {
+		return nil, constants.ErrLLMProviderNotFound
+	}
 	if req.Name == "" || req.Version == "" || req.Template == "" {
 		return nil, constants.ErrInvalidInput
 	}
@@ -418,6 +426,9 @@ func (s *LLMProviderService) Update(orgUUID, handle string, req *dto.LLMProvider
 			Security:      mapSecurityDTOToModel(req.Security),
 		},
 	}
+
+	// Preserve stored upstream auth credential when not supplied in update payload
+	m.Configuration.Upstream = preserveUpstreamAuthValue(existing.Configuration.Upstream, m.Configuration.Upstream)
 
 	if err := s.repo.Update(m); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -724,6 +735,33 @@ func validateUpstream(u dto.UpstreamConfig) error {
 	return nil
 }
 
+func preserveUpstreamAuthValue(existing, updated *model.UpstreamConfig) *model.UpstreamConfig {
+	if updated == nil {
+		return existing
+	}
+	if existing == nil {
+		return updated
+	}
+	if updated.Main == nil {
+		return existing
+	}
+	if existing.Main == nil || existing.Main.Auth == nil {
+		return updated
+	}
+	if updated.Main.Auth == nil {
+		updated.Main.Auth = &model.UpstreamAuth{
+			Type:   existing.Main.Auth.Type,
+			Header: existing.Main.Auth.Header,
+			Value:  existing.Main.Auth.Value,
+		}
+		return updated
+	}
+	if updated.Main.Auth.Value == "" {
+		updated.Main.Auth.Value = existing.Main.Auth.Value
+	}
+	return updated
+}
+
 func defaultString(v, def string) string {
 	if v == "" {
 		return def
@@ -815,7 +853,6 @@ func mapUpstreamConfigToDTO(in *model.UpstreamConfig) dto.UpstreamConfig {
 			out.Main.Auth = &dto.UpstreamAuth{
 				Type:   in.Main.Auth.Type,
 				Header: in.Main.Auth.Header,
-				Value:  in.Main.Auth.Value,
 			}
 		}
 	}
@@ -828,7 +865,6 @@ func mapUpstreamConfigToDTO(in *model.UpstreamConfig) dto.UpstreamConfig {
 			out.Sandbox.Auth = &dto.UpstreamAuth{
 				Type:   in.Sandbox.Auth.Type,
 				Header: in.Sandbox.Auth.Header,
-				Value:  in.Sandbox.Auth.Value,
 			}
 		}
 	}

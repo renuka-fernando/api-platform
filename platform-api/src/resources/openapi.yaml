@@ -4655,6 +4655,8 @@ components:
           example: X-API-Key
         value:
           type: string
+          writeOnly: true
+          format: password
           description: Authentication value (API key, Bearer token, or Base64 encoded credentials for basic auth)
           example: my-api-key-value
 
