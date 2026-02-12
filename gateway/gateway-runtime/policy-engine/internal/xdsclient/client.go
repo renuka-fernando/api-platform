@@ -131,6 +131,13 @@ func (c *Client) GetState() ClientState {
 	return c.state
 }
 
+// GetPolicyChainVersion returns the latest ACKed policy chain version from xDS.
+func (c *Client) GetPolicyChainVersion() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.policyChainVersion
+}
+
 // setState updates the client state
 func (c *Client) setState(state ClientState) {
 	c.mu.Lock()

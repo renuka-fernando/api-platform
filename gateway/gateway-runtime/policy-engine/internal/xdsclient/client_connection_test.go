@@ -386,6 +386,20 @@ func TestClient_SendDiscoveryRequest_VersionTracking(t *testing.T) {
 	}
 }
 
+func TestClient_GetPolicyChainVersion(t *testing.T) {
+	k, reg := createTestKernelAndRegistry(t)
+	config := createValidTestConfig()
+
+	client, err := NewClient(config, k, reg)
+	require.NoError(t, err)
+
+	client.mu.Lock()
+	client.policyChainVersion = "pc-v42"
+	client.mu.Unlock()
+
+	assert.Equal(t, "pc-v42", client.GetPolicyChainVersion())
+}
+
 // Mock ADS stream for testing
 type mockADSStream struct {
 	grpc.ClientStream

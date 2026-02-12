@@ -218,6 +218,7 @@ type MockServerInterface struct {
 	ReloadCertificatesCalled         bool
 	DeleteCertificateCalled          bool
 	GetConfigDumpCalled              bool
+	GetXDSSyncStatusCalled           bool
 	HealthCheckCalled                bool
 	ListLLMProviderTemplatesCalled   bool
 	CreateLLMProviderTemplateCalled  bool
@@ -316,6 +317,11 @@ func (m *MockServerInterface) DeleteCertificate(c *gin.Context, id string) {
 
 func (m *MockServerInterface) GetConfigDump(c *gin.Context) {
 	m.GetConfigDumpCalled = true
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (m *MockServerInterface) GetXDSSyncStatus(c *gin.Context) {
+	m.GetXDSSyncStatusCalled = true
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -2090,6 +2096,19 @@ func TestServerInterfaceWrapper_MiscRoutes(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.True(t, mockServer.ListPoliciesCalled)
+	})
+
+	t.Run("GetXDSSyncStatus", func(t *testing.T) {
+		router := gin.New()
+		mockServer := &MockServerInterface{}
+		RegisterHandlers(router, mockServer)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/xds_sync_status", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, mockServer.GetXDSSyncStatusCalled)
 	})
 }
 

@@ -37,12 +37,14 @@ type Server struct {
 }
 
 // NewServer creates a new admin server
-func NewServer(cfg *config.AdminConfig, k *kernel.Kernel, reg *registry.PolicyRegistry) *Server {
+func NewServer(cfg *config.AdminConfig, k *kernel.Kernel, reg *registry.PolicyRegistry, xds XDSSyncStatusProvider) *Server {
 	mux := http.NewServeMux()
 
 	// Register handlers
-	configDumpHandler := NewConfigDumpHandler(k, reg)
+	configDumpHandler := NewConfigDumpHandler(k, reg, xds)
+	xdsSyncHandler := NewXDSSyncStatusHandler(xds)
 	mux.Handle("/config_dump", ipWhitelistMiddleware(cfg.AllowedIPs, configDumpHandler))
+	mux.Handle("/xds_sync_status", ipWhitelistMiddleware(cfg.AllowedIPs, xdsSyncHandler))
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

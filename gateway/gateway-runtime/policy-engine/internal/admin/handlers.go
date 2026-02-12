@@ -21,22 +21,30 @@ package admin
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/kernel"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/registry"
 )
 
+// XDSSyncStatusProvider exposes the latest ACKed policy chain version.
+type XDSSyncStatusProvider interface {
+	GetPolicyChainVersion() string
+}
+
 // ConfigDumpHandler handles GET /config_dump requests
 type ConfigDumpHandler struct {
 	kernel   *kernel.Kernel
 	registry *registry.PolicyRegistry
+	xds      XDSSyncStatusProvider
 }
 
 // NewConfigDumpHandler creates a new config dump handler
-func NewConfigDumpHandler(k *kernel.Kernel, reg *registry.PolicyRegistry) *ConfigDumpHandler {
+func NewConfigDumpHandler(k *kernel.Kernel, reg *registry.PolicyRegistry, xds XDSSyncStatusProvider) *ConfigDumpHandler {
 	return &ConfigDumpHandler{
 		kernel:   k,
 		registry: reg,
+		xds:      xds,
 	}
 }
 
@@ -49,7 +57,7 @@ func (h *ConfigDumpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Dump the configuration
-	dump := DumpConfig(h.kernel, h.registry)
+	dump := DumpConfig(h.kernel, h.registry, h.getPolicyChainVersion())
 
 	// Set response headers
 	w.Header().Set("Content-Type", "application/json")
@@ -61,4 +69,44 @@ func (h *ConfigDumpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Just log the error (logger not available here, so silent failure)
 		return
 	}
+}
+
+func (h *ConfigDumpHandler) getPolicyChainVersion() string {
+	if h.xds == nil {
+		return ""
+	}
+	return h.xds.GetPolicyChainVersion()
+}
+
+// XDSSyncStatusHandler handles GET /xds_sync_status requests.
+type XDSSyncStatusHandler struct {
+	xds XDSSyncStatusProvider
+}
+
+// NewXDSSyncStatusHandler creates a new xDS sync status handler.
+func NewXDSSyncStatusHandler(xds XDSSyncStatusProvider) *XDSSyncStatusHandler {
+	return &XDSSyncStatusHandler{xds: xds}
+}
+
+// ServeHTTP implements http.Handler for xDS sync status.
+func (h *XDSSyncStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	policyChainVersion := ""
+	if h.xds != nil {
+		policyChainVersion = h.xds.GetPolicyChainVersion()
+	}
+
+	resp := XDSSyncStatusResponse{
+		Component:          "policy-engine",
+		Timestamp:          time.Now(),
+		PolicyChainVersion: policyChainVersion,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
 }

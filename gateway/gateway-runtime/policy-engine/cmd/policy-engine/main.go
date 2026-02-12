@@ -223,7 +223,7 @@ func main() {
 	// Start admin HTTP server if enabled
 	var adminServer *admin.Server
 	if cfg.PolicyEngine.Admin.Enabled {
-		adminServer = admin.NewServer(&cfg.PolicyEngine.Admin, k, reg)
+		adminServer = admin.NewServer(&cfg.PolicyEngine.Admin, k, reg, xdsClient)
 		go func() {
 			if err := adminServer.Start(ctx); err != nil {
 				slog.ErrorContext(ctx, "Admin server error", "error", err)

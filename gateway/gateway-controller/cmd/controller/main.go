@@ -489,7 +489,8 @@ func generateAuthConfig(config *config.Config) commonmodels.AuthConfig {
 		"POST /apis/:id/api-keys/:apiKeyName/regenerate": {"admin", "consumer"},
 		"DELETE /apis/:id/api-keys/:apiKeyName":          {"admin", "consumer"},
 
-		"GET /config_dump": {"admin"},
+		"GET /config_dump":     {"admin"},
+		"GET /xds_sync_status": {"admin"},
 	}
 	basicAuth := commonmodels.BasicAuth{Enabled: false}
 	idpAuth := commonmodels.IDPConfig{Enabled: false}

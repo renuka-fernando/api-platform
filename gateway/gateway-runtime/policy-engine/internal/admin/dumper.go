@@ -27,12 +27,15 @@ import (
 )
 
 // DumpConfig dumps the current policy engine configuration
-func DumpConfig(k *kernel.Kernel, reg *registry.PolicyRegistry) *ConfigDumpResponse {
+func DumpConfig(k *kernel.Kernel, reg *registry.PolicyRegistry, policyChainVersion string) *ConfigDumpResponse {
 	return &ConfigDumpResponse{
 		Timestamp:      time.Now(),
 		PolicyRegistry: dumpPolicyRegistry(reg),
 		Routes:         dumpRoutes(k),
 		LazyResources:  dumpLazyResources(),
+		XDSSync: XDSSyncInfo{
+			PolicyChainVersion: policyChainVersion,
+		},
 	}
 }
 

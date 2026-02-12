@@ -19,6 +19,7 @@
 package it
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -146,7 +147,7 @@ func (h *HealthSteps) iWaitForEndpointToBeReady(url string) error {
 		resp, err := h.state.HTTPClient.Get(url)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
-			return nil
+			return h.waitForPolicySnapshotSync()
 		}
 		if resp != nil {
 			resp.Body.Close()
@@ -176,7 +177,7 @@ func (h *HealthSteps) iWaitForEndpointToBeReadyWithMethodAndBody(url, method, bo
 		resp, err := h.state.HTTPClient.Do(req)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
-			return nil
+			return h.waitForPolicySnapshotSync()
 		}
 		if resp != nil {
 			resp.Body.Close()
@@ -188,4 +189,76 @@ func (h *HealthSteps) iWaitForEndpointToBeReadyWithMethodAndBody(url, method, bo
 	}
 
 	return fmt.Errorf("endpoint %s did not become ready with %s method after %d attempts", url, method, maxAttempts)
+}
+
+type xdsSyncStatusResponse struct {
+	PolicyChainVersion string `json:"policy_chain_version"`
+}
+
+func (h *HealthSteps) waitForPolicySnapshotSync() error {
+	maxAttempts := 50
+	attemptInterval := 300 * time.Millisecond
+
+	controllerURL := fmt.Sprintf("%s/xds_sync_status", h.state.Config.GatewayControllerURL)
+	policyEngineURL := fmt.Sprintf("%s/xds_sync_status", h.state.Config.PolicyEngineURL)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		controllerVersion, controllerErr := h.getControllerPolicyVersion(controllerURL)
+		runtimeVersion, runtimeErr := h.getPolicyEnginePolicyVersion(policyEngineURL)
+
+		if controllerErr == nil && runtimeErr == nil && controllerVersion == runtimeVersion {
+			return nil
+		}
+
+		if attempt < maxAttempts {
+			time.Sleep(attemptInterval)
+		}
+	}
+
+	return fmt.Errorf("policy snapshot versions did not sync in time between controller and policy engine")
+}
+
+func (h *HealthSteps) getControllerPolicyVersion(url string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if admin, ok := h.state.Config.Users["admin"]; ok {
+		req.SetBasicAuth(admin.Username, admin.Password)
+	}
+
+	resp, err := h.state.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("controller xds sync endpoint returned status %d", resp.StatusCode)
+	}
+
+	var payload xdsSyncStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	return payload.PolicyChainVersion, nil
+}
+
+func (h *HealthSteps) getPolicyEnginePolicyVersion(url string) (string, error) {
+	resp, err := h.state.HTTPClient.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("policy engine xds sync endpoint returned status %d", resp.StatusCode)
+	}
+
+	var payload xdsSyncStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	return payload.PolicyChainVersion, nil
 }

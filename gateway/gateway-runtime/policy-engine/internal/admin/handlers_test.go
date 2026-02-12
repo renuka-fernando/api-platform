@@ -30,11 +30,20 @@ import (
 	policy "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 )
 
+type mockXDSSyncProvider struct {
+	version string
+}
+
+func (m *mockXDSSyncProvider) GetPolicyChainVersion() string {
+	return m.version
+}
+
 // TestConfigDumpHandler_MethodNotAllowed tests that non-GET methods return 405
 func TestConfigDumpHandler_MethodNotAllowed(t *testing.T) {
 	handler := &ConfigDumpHandler{
 		kernel:   nil,
 		registry: nil,
+		xds:      nil,
 	}
 
 	methods := []string{
@@ -61,7 +70,7 @@ func TestConfigDumpHandler_MethodNotAllowed(t *testing.T) {
 
 // TestNewConfigDumpHandler tests the NewConfigDumpHandler constructor
 func TestNewConfigDumpHandler(t *testing.T) {
-	handler := NewConfigDumpHandler(nil, nil)
+	handler := NewConfigDumpHandler(nil, nil, nil)
 
 	assert.NotNil(t, handler)
 	assert.Nil(t, handler.kernel)
@@ -71,6 +80,9 @@ func TestNewConfigDumpHandler(t *testing.T) {
 // TestConfigDumpResponse_JSONSerialization tests JSON serialization of ConfigDumpResponse
 func TestConfigDumpResponse_JSONSerialization(t *testing.T) {
 	response := &ConfigDumpResponse{
+		XDSSync: XDSSyncInfo{
+			PolicyChainVersion: "v12",
+		},
 		PolicyRegistry: PolicyRegistryDump{
 			TotalPolicies: 2,
 			Policies: []PolicyInfo{
@@ -115,6 +127,7 @@ func TestConfigDumpResponse_JSONSerialization(t *testing.T) {
 	assert.Equal(t, response.PolicyRegistry.TotalPolicies, decoded.PolicyRegistry.TotalPolicies)
 	assert.Equal(t, len(response.PolicyRegistry.Policies), len(decoded.PolicyRegistry.Policies))
 	assert.Equal(t, response.Routes.TotalRoutes, decoded.Routes.TotalRoutes)
+	assert.Equal(t, "v12", decoded.XDSSync.PolicyChainVersion)
 }
 
 // TestPolicyInfo_JSONSerialization tests JSON serialization of PolicyInfo
@@ -293,6 +306,33 @@ func TestRoutesDump_EmptyRoutes(t *testing.T) {
 
 	assert.Equal(t, 0, decoded.TotalRoutes)
 	assert.Empty(t, decoded.RouteConfigs)
+}
+
+func TestXDSSyncStatusHandler(t *testing.T) {
+	handler := NewXDSSyncStatusHandler(&mockXDSSyncProvider{version: "pc-v9"})
+
+	req := httptest.NewRequest(http.MethodGet, "/xds_sync_status", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	var response XDSSyncStatusResponse
+	err := json.Unmarshal(recorder.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "policy-engine", response.Component)
+	assert.Equal(t, "pc-v9", response.PolicyChainVersion)
+	assert.False(t, response.Timestamp.IsZero())
+}
+
+func TestXDSSyncStatusHandler_MethodNotAllowed(t *testing.T) {
+	handler := NewXDSSyncStatusHandler(nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/xds_sync_status", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 }
 
 // TestDumpPolicySpecs tests the dumpPolicySpecs function

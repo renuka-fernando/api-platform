@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/wso2/api-platform/common/constants"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/apikeyxds"
@@ -177,6 +178,19 @@ func (s *APIServer) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
 		"timestamp": time.Now().Format(time.RFC3339),
+	})
+}
+
+// GetXDSSyncStatus implements the GET /xds_sync_status endpoint.
+func (s *APIServer) GetXDSSyncStatus(c *gin.Context) {
+	timestamp := time.Now()
+	component := "gateway-controller"
+	policyChainVersion := s.getPolicyChainVersionString()
+
+	c.JSON(http.StatusOK, api.XDSSyncStatusResponse{
+		Component:          &component,
+		Timestamp:          &timestamp,
+		PolicyChainVersion: &policyChainVersion,
 	})
 }
 
@@ -2233,6 +2247,7 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 
 	timestamp := time.Now()
 	status := "success"
+	policyChainVersion := s.getPolicyChainVersionString()
 
 	// Build response
 	response := api.ConfigDumpResponse{
@@ -2252,6 +2267,9 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 			TotalCertificates:     &totalCertificates,
 			TotalCertificateBytes: &totalBytes,
 		},
+		XdsSync: &api.ConfigDumpXDSSync{
+			PolicyChainVersion: &policyChainVersion,
+		},
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -2259,6 +2277,13 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 		slog.Int("apis", len(apisSlice)),
 		slog.Int("policies", len(policies)),
 		slog.Int("certificates", len(certificates)))
+}
+
+func (s *APIServer) getPolicyChainVersionString() string {
+	if s.policyManager == nil {
+		return "0"
+	}
+	return strconv.FormatInt(s.policyManager.GetResourceVersion(), 10)
 }
 
 // CreateAPIKey implements ServerInterface.CreateAPIKey

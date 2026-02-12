@@ -102,6 +102,11 @@ func (pm *PolicyManager) ListPolicies() []*models.StoredPolicyConfig {
 	return pm.store.GetAll()
 }
 
+// GetResourceVersion returns the current policy resource version used for xDS updates.
+func (pm *PolicyManager) GetResourceVersion() int64 {
+	return pm.store.GetResourceVersion()
+}
+
 // ParsePolicyJSON parses a policy configuration from JSON string
 func ParsePolicyJSON(jsonStr string) (*policyenginev1.Configuration, error) {
 	var config policyenginev1.Configuration

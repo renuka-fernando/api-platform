@@ -39,6 +39,7 @@ import (
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/policyxds"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/utils"
 )
@@ -794,6 +795,45 @@ func TestGetConfigDump(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "success", *response.Status)
 	assert.NotNil(t, response.Statistics)
+	assert.NotNil(t, response.XdsSync)
+	assert.Equal(t, "0", *response.XdsSync.PolicyChainVersion)
+}
+
+func TestGetXDSSyncStatus(t *testing.T) {
+	server := createTestAPIServer()
+
+	c, w := createTestContext("GET", "/xds_sync_status", nil)
+	server.GetXDSSyncStatus(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response api.XDSSyncStatusResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "gateway-controller", *response.Component)
+	assert.Equal(t, "0", *response.PolicyChainVersion)
+	assert.NotNil(t, response.Timestamp)
+}
+
+func TestGetXDSSyncStatusWithPolicyVersion(t *testing.T) {
+	server := createTestAPIServer()
+
+	policyStore := storage.NewPolicyStore()
+	snapshotMgr := policyxds.NewSnapshotManager(policyStore, server.logger)
+	server.policyManager = policyxds.NewPolicyManager(policyStore, snapshotMgr, server.logger)
+
+	policyStore.IncrementResourceVersion()
+	policyStore.IncrementResourceVersion()
+
+	c, w := createTestContext("GET", "/xds_sync_status", nil)
+	server.GetXDSSyncStatus(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response api.XDSSyncStatusResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "2", *response.PolicyChainVersion)
 }
 
 // TestGetConfigDumpWithCertificates tests config dump with certificates

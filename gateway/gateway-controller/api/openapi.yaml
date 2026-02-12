@@ -1786,6 +1786,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /xds_sync_status:
+    get:
+      summary: Get xDS policy sync status
+      description: |
+        Returns the current policy chain xDS version produced by the gateway controller.
+        This endpoint can be used by tests and monitoring tools to track policy propagation.
+      operationId: getXDSSyncStatus
+      tags:
+        - System
+      responses:
+        "200":
+          description: Current controller xDS policy sync status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XDSSyncStatusResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     APIConfiguration:
@@ -3698,6 +3721,32 @@ components:
               type: integer
               description: Total bytes of all certificates
               example: 221599
+        xds_sync:
+          $ref: "#/components/schemas/ConfigDumpXDSSync"
+
+    ConfigDumpXDSSync:
+      type: object
+      description: xDS sync metadata included in config dump
+      properties:
+        policy_chain_version:
+          type: string
+          description: Latest policy chain version published by the controller
+          example: "12"
+
+    XDSSyncStatusResponse:
+      type: object
+      properties:
+        component:
+          type: string
+          example: gateway-controller
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-12T10:30:00Z"
+        policy_chain_version:
+          type: string
+          description: Latest policy chain version published by the controller
+          example: "12"
 
 tags:
   - name: System

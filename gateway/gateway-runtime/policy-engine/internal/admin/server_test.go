@@ -61,7 +61,7 @@ func TestNewServer(t *testing.T) {
 		Factories:   make(map[string]policy.PolicyFactory),
 	}
 
-	server := NewServer(cfg, k, reg)
+	server := NewServer(cfg, k, reg, nil)
 
 	require.NotNil(t, server)
 	assert.Equal(t, cfg, server.cfg)
@@ -85,7 +85,7 @@ func TestServer_StartAndStop(t *testing.T) {
 		Factories:   make(map[string]policy.PolicyFactory),
 	}
 
-	server := NewServer(cfg, k, reg)
+	server := NewServer(cfg, k, reg, &mockXDSSyncProvider{version: "pc-v11"})
 	ctx := context.Background()
 
 	// Start server in goroutine
@@ -102,6 +102,11 @@ func TestServer_StartAndStop(t *testing.T) {
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	syncResp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/xds_sync_status", port))
+	require.NoError(t, err)
+	syncResp.Body.Close()
+	assert.Equal(t, http.StatusOK, syncResp.StatusCode)
 
 	// Stop server
 	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -136,7 +141,7 @@ func TestServer_StartWithInvalidPort(t *testing.T) {
 		Factories:   make(map[string]policy.PolicyFactory),
 	}
 
-	server := NewServer(cfg, k, reg)
+	server := NewServer(cfg, k, reg, nil)
 
 	// Start should fail because port is already in use
 	ctx := context.Background()
