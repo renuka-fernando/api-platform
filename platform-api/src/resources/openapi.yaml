@@ -938,7 +938,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployRESTAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: API deployed successfully
@@ -2253,7 +2253,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: LLM provider deployed successfully
@@ -2506,7 +2506,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: LLM proxy deployed successfully
@@ -4838,7 +4838,7 @@ components:
             - code
             - message
 
-    DeployRESTAPIRequest:
+    DeployRequest:
       type: object
       required:
         - name

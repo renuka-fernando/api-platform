@@ -103,12 +103,7 @@ func (s *GatewayService) RegisterGateway(orgID, name, displayName, description, 
 		return nil, fmt.Errorf("failed to create gateway: %w", err)
 	}
 
-	if err := s.gatewayRepo.CreateToken(gatewayToken); err != nil {
-		// Note: In production, this should be wrapped in a transaction
-		return nil, fmt.Errorf("failed to create token: %w", err)
-	}
-
-	// 10. Return GatewayResponse
+	// 7. Return GatewayResponse
 	return gatewayModelToAPI(gateway), nil
 }
 
@@ -268,7 +263,7 @@ func (s *GatewayService) VerifyToken(plainToken string) (*model.Gateway, error) 
 }
 
 // ListTokens retrieves all active tokens for a gateway
-func (s *GatewayService) ListTokens(gatewayId, orgId string) ([]dto.TokenInfoResponse, error) {
+func (s *GatewayService) ListTokens(gatewayId, orgId string) ([]api.TokenInfoResponse, error) {
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query gateway: %w", err)
@@ -285,12 +280,19 @@ func (s *GatewayService) ListTokens(gatewayId, orgId string) ([]dto.TokenInfoRes
 		return nil, fmt.Errorf("failed to get tokens: %w", err)
 	}
 
-	tokens := make([]dto.TokenInfoResponse, 0, len(activeTokens))
+	tokens := make([]api.TokenInfoResponse, 0, len(activeTokens))
 	for _, t := range activeTokens {
-		tokens = append(tokens, dto.TokenInfoResponse{
-			ID:        t.ID,
-			Status:    t.Status,
-			CreatedAt: t.CreatedAt,
+		tokenUUID, err := uuid.Parse(t.ID)
+		if err != nil {
+			// Skip invalid UUIDs (should never happen for persisted tokens)
+			continue
+		}
+
+		status := api.TokenInfoResponseStatus(t.Status)
+		tokens = append(tokens, api.TokenInfoResponse{
+			Id:        &tokenUUID,
+			Status:    &status,
+			CreatedAt: &t.CreatedAt,
 			RevokedAt: t.RevokedAt,
 		})
 	}

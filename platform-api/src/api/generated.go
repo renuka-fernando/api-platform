@@ -260,6 +260,12 @@ const (
 	PUT      RouteExceptionMethods = "PUT"
 )
 
+// Defines values for TokenInfoResponseStatus.
+const (
+	Active  TokenInfoResponseStatus = "active"
+	Revoked TokenInfoResponseStatus = "revoked"
+)
+
 // Defines values for UpdateDevPortalRequestVisibility.
 const (
 	Private UpdateDevPortalRequestVisibility = "private"
@@ -289,6 +295,7 @@ const (
 
 // Defines values for DeploymentStatusQ.
 const (
+	DeploymentStatusQARCHIVED   DeploymentStatusQ = "ARCHIVED"
 	DeploymentStatusQDEPLOYED   DeploymentStatusQ = "DEPLOYED"
 	DeploymentStatusQUNDEPLOYED DeploymentStatusQ = "UNDEPLOYED"
 )
@@ -300,8 +307,23 @@ const (
 	GetGatewayArtifactsParamsArtifactTypeRESTAPI    GetGatewayArtifactsParamsArtifactType = "REST_API"
 )
 
+// Defines values for GetLLMProviderDeploymentsParamsStatus.
+const (
+	GetLLMProviderDeploymentsParamsStatusARCHIVED   GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProviderDeploymentsParamsStatusDEPLOYED   GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
+)
+
+// Defines values for GetLLMProxyDeploymentsParamsStatus.
+const (
+	GetLLMProxyDeploymentsParamsStatusARCHIVED   GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProxyDeploymentsParamsStatusDEPLOYED   GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProxyDeploymentsParamsStatusUNDEPLOYED GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
+)
+
 // Defines values for GetDeploymentsParamsStatus.
 const (
+	ARCHIVED   GetDeploymentsParamsStatus = "ARCHIVED"
 	DEPLOYED   GetDeploymentsParamsStatus = "DEPLOYED"
 	UNDEPLOYED GetDeploymentsParamsStatus = "UNDEPLOYED"
 )
@@ -433,6 +455,33 @@ type CreateGatewayRequest struct {
 // CreateGatewayRequestFunctionalityType Type of gateway functionality
 type CreateGatewayRequestFunctionalityType string
 
+// CreateLLMProviderAPIKeyRequest defines model for CreateLLMProviderAPIKeyRequest.
+type CreateLLMProviderAPIKeyRequest struct {
+	// DisplayName User-friendly name for the API key
+	DisplayName *string `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+
+	// ExpiresAt Optional expiration time in ISO 8601 format
+	ExpiresAt *time.Time `json:"expiresAt,omitempty" yaml:"expiresAt,omitempty"`
+
+	// Name Unique identifier for the API key within the LLM provider. If not provided, generated from displayName.
+	Name *string `json:"name,omitempty" yaml:"name,omitempty"`
+}
+
+// CreateLLMProviderAPIKeyResponse defines model for CreateLLMProviderAPIKeyResponse.
+type CreateLLMProviderAPIKeyResponse struct {
+	// ApiKey The generated API key value (shown only once, 64 hexadecimal characters)
+	ApiKey string `binding:"required" json:"apiKey" yaml:"apiKey"`
+
+	// KeyId Unique identifier of the generated key
+	KeyId string `binding:"required" json:"keyId" yaml:"keyId"`
+
+	// Message Detailed message about the operation result
+	Message string `binding:"required" json:"message" yaml:"message"`
+
+	// Status Status of the operation
+	Status string `binding:"required" json:"status" yaml:"status"`
+}
+
 // CreateProjectRequest Request body for creating a project. Organization ID is automatically extracted
 // from the JWT token and does not need to be provided.
 type CreateProjectRequest struct {
@@ -494,8 +543,8 @@ type CreateRESTAPIRequest struct {
 // CreateRESTAPIRequestLifeCycleStatus Current lifecycle status of the API
 type CreateRESTAPIRequestLifeCycleStatus string
 
-// DeployRESTAPIRequest defines model for DeployRESTAPIRequest.
-type DeployRESTAPIRequest struct {
+// DeployRequest defines model for DeployRequest.
+type DeployRequest struct {
 	// Base The source for the API definition. Can be "current" (latest working copy) or a deploymentId (existing deployment)
 	Base string `binding:"required" json:"base" yaml:"base"`
 
@@ -1832,6 +1881,24 @@ type SecurityConfig struct {
 	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
 
+// TokenInfoResponse defines model for TokenInfoResponse.
+type TokenInfoResponse struct {
+	// CreatedAt Timestamp when token was created
+	CreatedAt *time.Time `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+
+	// Id Token UUID
+	Id *openapi_types.UUID `json:"id,omitempty" yaml:"id,omitempty"`
+
+	// RevokedAt Timestamp when token was revoked (null if active)
+	RevokedAt *time.Time `json:"revokedAt" yaml:"revokedAt"`
+
+	// Status Current token status
+	Status *TokenInfoResponseStatus `json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+// TokenInfoResponseStatus Current token status
+type TokenInfoResponseStatus string
+
 // TokenRateLimitDimension defines model for TokenRateLimitDimension.
 type TokenRateLimitDimension struct {
 	// Count Maximum number of tokens in the reset window.
@@ -2107,6 +2174,36 @@ type ListLLMProvidersParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty" yaml:"offset,omitempty"`
 }
 
+// GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
+type GetLLMProviderDeploymentsParams struct {
+	// GatewayId **Gateway ID** consisting of the **UUID** of the Gateway to filter status by.
+	GatewayId *GatewayIdQ `form:"gatewayId,omitempty" json:"gatewayId,omitempty" yaml:"gatewayId,omitempty"`
+
+	// Status Filter deployments by status (DEPLOYED, UNDEPLOYED, or ARCHIVED)
+	Status *GetLLMProviderDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+// GetLLMProviderDeploymentsParamsStatus defines parameters for GetLLMProviderDeployments.
+type GetLLMProviderDeploymentsParamsStatus string
+
+// RestoreLLMProviderDeploymentParams defines parameters for RestoreLLMProviderDeployment.
+type RestoreLLMProviderDeploymentParams struct {
+	// DeploymentId UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
+	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+
+	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
+	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+}
+
+// UndeployLLMProviderDeploymentParams defines parameters for UndeployLLMProviderDeployment.
+type UndeployLLMProviderDeploymentParams struct {
+	// DeploymentId UUID of the deployment to undeploy
+	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+
+	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
+	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+}
+
 // ListLLMProxiesByProviderParams defines parameters for ListLLMProxiesByProvider.
 type ListLLMProxiesByProviderParams struct {
 	// Limit Maximum number of LLM proxies to return
@@ -2126,6 +2223,36 @@ type ListLLMProxiesParams struct {
 
 	// Offset Number of LLM proxies to skip
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty" yaml:"offset,omitempty"`
+}
+
+// GetLLMProxyDeploymentsParams defines parameters for GetLLMProxyDeployments.
+type GetLLMProxyDeploymentsParams struct {
+	// GatewayId **Gateway ID** consisting of the **UUID** of the Gateway to filter status by.
+	GatewayId *GatewayIdQ `form:"gatewayId,omitempty" json:"gatewayId,omitempty" yaml:"gatewayId,omitempty"`
+
+	// Status Filter deployments by status (DEPLOYED, UNDEPLOYED, or ARCHIVED)
+	Status *GetLLMProxyDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+// GetLLMProxyDeploymentsParamsStatus defines parameters for GetLLMProxyDeployments.
+type GetLLMProxyDeploymentsParamsStatus string
+
+// RestoreLLMProxyDeploymentParams defines parameters for RestoreLLMProxyDeployment.
+type RestoreLLMProxyDeploymentParams struct {
+	// DeploymentId UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
+	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+
+	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
+	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+}
+
+// UndeployLLMProxyDeploymentParams defines parameters for UndeployLLMProxyDeployment.
+type UndeployLLMProxyDeploymentParams struct {
+	// DeploymentId UUID of the deployment to undeploy
+	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+
+	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
+	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // ListRESTAPIsParams defines parameters for ListRESTAPIs.
@@ -2154,7 +2281,7 @@ type GetDeploymentsParams struct {
 	// GatewayId **Gateway ID** consisting of the **UUID** of the Gateway to filter status by.
 	GatewayId *GatewayIdQ `form:"gatewayId,omitempty" json:"gatewayId,omitempty" yaml:"gatewayId,omitempty"`
 
-	// Status Filter deployments by status (DEPLOYED or UNDEPLOYED)
+	// Status Filter deployments by status (DEPLOYED, UNDEPLOYED, or ARCHIVED)
 	Status *GetDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty" yaml:"status,omitempty"`
 }
 
@@ -2224,11 +2351,20 @@ type CreateLLMProviderJSONRequestBody = LLMProvider
 // UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
 type UpdateLLMProviderJSONRequestBody = LLMProvider
 
+// CreateLLMProviderAPIKeyJSONRequestBody defines body for CreateLLMProviderAPIKey for application/json ContentType.
+type CreateLLMProviderAPIKeyJSONRequestBody = CreateLLMProviderAPIKeyRequest
+
+// DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
+type DeployLLMProviderJSONRequestBody = DeployRequest
+
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = LLMProxy
 
 // UpdateLLMProxyJSONRequestBody defines body for UpdateLLMProxy for application/json ContentType.
 type UpdateLLMProxyJSONRequestBody = LLMProxy
+
+// DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
+type DeployLLMProxyJSONRequestBody = DeployRequest
 
 // RegisterOrganizationJSONRequestBody defines body for RegisterOrganization for application/json ContentType.
 type RegisterOrganizationJSONRequestBody = Organization
@@ -2246,7 +2382,7 @@ type CreateRESTAPIJSONRequestBody = CreateRESTAPIRequest
 type UpdateRESTAPIJSONRequestBody = UpdateRESTAPIRequest
 
 // DeployAPIJSONRequestBody defines body for DeployAPI for application/json ContentType.
-type DeployAPIJSONRequestBody = DeployRESTAPIRequest
+type DeployAPIJSONRequestBody = DeployRequest
 
 // PublishRESTAPIToDevPortalJSONRequestBody defines body for PublishRESTAPIToDevPortal for application/json ContentType.
 type PublishRESTAPIToDevPortalJSONRequestBody = PublishToDevPortalRequest

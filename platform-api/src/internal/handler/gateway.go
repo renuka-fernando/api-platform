@@ -29,8 +29,6 @@ import (
 	"platform-api/src/internal/utils"
 
 	"github.com/gin-gonic/gin"
-
-	"github.com/gin-gonic/gin"
 )
 
 // GatewayHandler handles HTTP requests for gateway operations
