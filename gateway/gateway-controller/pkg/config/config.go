@@ -589,7 +589,7 @@ func defaultConfig() *Config {
 				Timeouts: UpstreamTimeouts{
 					RouteTimeoutMs:     60000,
 					RouteIdleTimeoutMs: 300000,
-					ConnectTimeoutMs:    5000,
+					ConnectTimeoutMs:   5000,
 				},
 			},
 			PolicyEngine: PolicyEngineConfig{
@@ -810,14 +810,14 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server.xds_port must be between 1 and 65535, got: %d", c.Controller.Server.XDSPort)
 	}
 
-	if c.GatewayController.AdminServer.Enabled {
-		if c.GatewayController.AdminServer.Port < 1 || c.GatewayController.AdminServer.Port > 65535 {
-			return fmt.Errorf("admin_server.port must be between 1 and 65535, got: %d", c.GatewayController.AdminServer.Port)
+	if c.Controller.AdminServer.Enabled {
+		if c.Controller.AdminServer.Port < 1 || c.Controller.AdminServer.Port > 65535 {
+			return fmt.Errorf("admin_server.port must be between 1 and 65535, got: %d", c.Controller.AdminServer.Port)
 		}
-		if c.GatewayController.AdminServer.Port == c.GatewayController.Server.APIPort {
+		if c.Controller.AdminServer.Port == c.Controller.Server.APIPort {
 			return fmt.Errorf("admin_server.port cannot be same as server.api_port")
 		}
-		if c.GatewayController.AdminServer.Port == c.GatewayController.Server.XDSPort {
+		if c.Controller.AdminServer.Port == c.Controller.Server.XDSPort {
 			return fmt.Errorf("admin_server.port cannot be same as server.xds_port")
 		}
 	}
@@ -833,7 +833,7 @@ func (c *Config) Validate() error {
 		if c.Controller.Metrics.Port == c.Controller.Server.XDSPort {
 			return fmt.Errorf("metrics.port cannot be same as server.xds_port")
 		}
-		if c.GatewayController.AdminServer.Enabled && c.GatewayController.Metrics.Port == c.GatewayController.AdminServer.Port {
+		if c.Controller.AdminServer.Enabled && c.Controller.Metrics.Port == c.Controller.AdminServer.Port {
 			return fmt.Errorf("metrics.port cannot be same as admin_server.port")
 		}
 	}

@@ -362,8 +362,8 @@ func main() {
 
 	// Start controller admin server for debug endpoints if enabled.
 	var controllerAdminServer *adminserver.Server
-	if cfg.GatewayController.AdminServer.Enabled {
-		controllerAdminServer = adminserver.NewServer(&cfg.GatewayController.AdminServer, apiServer, log)
+	if cfg.Controller.AdminServer.Enabled {
+		controllerAdminServer = adminserver.NewServer(&cfg.Controller.AdminServer, apiServer, log)
 		go func() {
 			if err := controllerAdminServer.Start(); err != nil {
 				log.Error("Controller admin server failed", slog.Any("error", err))

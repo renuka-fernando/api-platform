@@ -563,9 +563,9 @@ func TestConfig_Validate_RouterListenerPort(t *testing.T) {
 
 func TestDefaultConfig_AdminServerDefaults(t *testing.T) {
 	cfg := defaultConfig()
-	assert.True(t, cfg.GatewayController.AdminServer.Enabled)
-	assert.Equal(t, 9092, cfg.GatewayController.AdminServer.Port)
-	assert.Equal(t, []string{"*"}, cfg.GatewayController.AdminServer.AllowedIPs)
+	assert.True(t, cfg.Controller.AdminServer.Enabled)
+	assert.Equal(t, 9092, cfg.Controller.AdminServer.Port)
+	assert.Equal(t, []string{"*"}, cfg.Controller.AdminServer.AllowedIPs)
 }
 
 func TestConfig_Validate_HTTPSPort(t *testing.T) {

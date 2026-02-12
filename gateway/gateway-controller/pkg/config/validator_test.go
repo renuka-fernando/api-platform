@@ -658,7 +658,7 @@ func TestValidateUpstreamDefinitions_NoUpstreams(t *testing.T) {
 
 	definitions := &[]api.UpstreamDefinition{
 		{
-			Name:      "my-upstream",
+			Name: "my-upstream",
 			Upstreams: []struct {
 				Urls   []string `json:"urls" yaml:"urls"`
 				Weight *int     `json:"weight,omitempty" yaml:"weight,omitempty"`
