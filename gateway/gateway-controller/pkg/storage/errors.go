@@ -25,6 +25,9 @@ var (
 	// ErrNotFound is returned when a configuration is not found
 	ErrNotFound = errors.New("configuration not found")
 
+	// ErrPolicyNotFound is returned when a policy configuration is not found
+	ErrPolicyNotFound = errors.New("policy configuration not found")
+
 	// ErrConflict is returned when a configuration with the same name/version already exists
 	ErrConflict = errors.New("configuration already exists")
 
@@ -60,4 +63,9 @@ func IsDatabaseUnavailableError(err error) bool {
 // IsOperationNotAllowedError checks if an error is an operation not allowed error
 func IsOperationNotAllowedError(err error) bool {
 	return errors.Is(err, ErrOperationNotAllowed)
+}
+
+// IsPolicyNotFoundError checks if an error is a policy not found error
+func IsPolicyNotFoundError(err error) bool {
+	return errors.Is(err, ErrPolicyNotFound)
 }

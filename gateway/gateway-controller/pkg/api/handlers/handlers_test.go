@@ -2456,3 +2456,50 @@ func TestRevokeAPIKeyNotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "error", response.Status)
 }
+
+// MockPolicyManager is a mock implementation of the policy manager for testing
+type MockPolicyManager struct {
+	removePolicyErr error
+	addPolicyErr    error
+	removedPolicyID string
+	addedPolicy     *models.StoredPolicyConfig
+}
+
+func (m *MockPolicyManager) RemovePolicy(id string) error {
+	m.removedPolicyID = id
+	return m.removePolicyErr
+}
+
+func (m *MockPolicyManager) AddPolicy(policy *models.StoredPolicyConfig) error {
+	m.addedPolicy = policy
+	return m.addPolicyErr
+}
+
+func (m *MockPolicyManager) GetPolicy(id string) (*models.StoredPolicyConfig, error) {
+	return nil, nil
+}
+
+func (m *MockPolicyManager) ListPolicies() []*models.StoredPolicyConfig {
+	return nil
+}
+
+// TestPolicyRemovalErrorHandling tests error handling in policy removal logic
+func TestPolicyRemovalErrorHandling(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool // true if ErrPolicyNotFound, false otherwise
+	}{
+		{"policy not found", fmt.Errorf("wrapped: %w", storage.ErrPolicyNotFound), true},
+		{"storage error", errors.New("database failed"), false},
+		{"success", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &MockPolicyManager{removePolicyErr: tt.err}
+			err := mock.RemovePolicy("test-id")
+			assert.Equal(t, tt.want, storage.IsPolicyNotFoundError(err))
+		})
+	}
+}

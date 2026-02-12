@@ -299,8 +299,15 @@ func (s *APIServer) CreateAPI(c *gin.Context) {
 			// API was updated and no longer has policies, remove the existing policy configuration
 			policyID := result.StoredConfig.ID + "-policies"
 			if err := s.policyManager.RemovePolicy(policyID); err != nil {
-				// Log at debug level since policy may not exist if API never had policies
-				log.Debug("No policy configuration to remove", slog.String("policy_id", policyID))
+				// Only treat "policy not found" as non-error (API may never have had policies)
+				// Other errors (storage failures, snapshot update failures) should be logged as errors
+				if storage.IsPolicyNotFoundError(err) {
+					log.Debug("No policy configuration to remove", slog.String("policy_id", policyID))
+				} else {
+					log.Error("Failed to remove policy configuration",
+						slog.Any("error", err),
+						slog.String("policy_id", policyID))
+				}
 			} else {
 				log.Info("Derived policy configuration removed (API no longer has policies)",
 					slog.String("policy_id", policyID))

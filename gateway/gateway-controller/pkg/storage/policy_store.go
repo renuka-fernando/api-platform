@@ -108,7 +108,7 @@ func (s *PolicyStore) Delete(id string) error {
 
 	policy, exists := s.policies[id]
 	if !exists {
-		return fmt.Errorf("policy configuration with ID %s not found", id)
+		return fmt.Errorf("policy configuration with ID %s: %w", id, ErrPolicyNotFound)
 	}
 
 	// Remove from both maps
