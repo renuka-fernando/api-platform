@@ -136,11 +136,12 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 
 	// Initialize WebSocket manager first (needed for GatewayEventsService)
 	wsConfig := websocket.ManagerConfig{
-		MaxConnections:    cfg.WebSocket.MaxConnections,
-		HeartbeatInterval: 20 * time.Second,
-		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+		MaxConnections:       cfg.WebSocket.MaxConnections,
+		HeartbeatInterval:    20 * time.Second,
+		HeartbeatTimeout:     time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+		MaxConnectionsPerOrg: cfg.WebSocket.MaxConnectionsPerOrg,
 	}
-	wsManager := websocket.NewManager(wsConfig)
+	wsManager := websocket.NewManager(wsConfig, gatewayRepo)
 
 	// Initialize utilities
 	apiUtil := &utils.APIUtil{}
@@ -233,8 +234,9 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmProviderAPIKeyHandler.RegisterRoutes(router)
 	llmProxyDeploymentHandler.RegisterRoutes(router)
 
-	log.Printf("[INFO] WebSocket manager initialized: maxConnections=%d heartbeatTimeout=%ds rateLimitPerMin=%d",
-		cfg.WebSocket.MaxConnections, cfg.WebSocket.ConnectionTimeout, cfg.WebSocket.RateLimitPerMin)
+	log.Printf("[INFO] WebSocket manager initialized: maxConnections=%d heartbeatTimeout=%ds rateLimitPerMin=%d maxConnectionsPerOrg=%d",
+		cfg.WebSocket.MaxConnections, cfg.WebSocket.ConnectionTimeout, cfg.WebSocket.RateLimitPerMin,
+		cfg.WebSocket.MaxConnectionsPerOrg)
 
 	return &Server{
 		router:      router,
