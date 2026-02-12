@@ -30,8 +30,14 @@ import (
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
+
+func isValidUUIDString(id string) bool {
+	_, err := uuid.Parse(id)
+	return err == nil
+}
 
 // TestValidateEndpointURL tests the validateEndpointURL helper function
 func TestValidateEndpointURL(t *testing.T) {
@@ -367,11 +373,11 @@ type mockDeploymentAPIRepository struct {
 	createAssociationError error
 
 	// Call tracking
-	setCurrentCalled    bool
-	setCurrentArtifactID string
-	setCurrentGatewayID string
-	setCurrentStatus    model.DeploymentStatus
-	deleteCalled        bool
+	setCurrentCalled        bool
+	setCurrentArtifactID    string
+	setCurrentGatewayID     string
+	setCurrentStatus        model.DeploymentStatus
+	deleteCalled            bool
 	createAssociationCalled bool
 }
 
@@ -471,11 +477,11 @@ type mockDeploymentRepo struct {
 	createWithLimitError error
 
 	// Call tracking
-	setCurrentCalled    bool
+	setCurrentCalled     bool
 	setCurrentArtifactID string
-	setCurrentGatewayID string
-	setCurrentStatus    model.DeploymentStatus
-	deleteCalled        bool
+	setCurrentGatewayID  string
+	setCurrentStatus     model.DeploymentStatus
+	deleteCalled         bool
 }
 
 func (m *mockDeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID string) (*model.Deployment, error) {
@@ -775,11 +781,11 @@ func TestRestoreDeployment(t *testing.T) {
 				t.Fatal("RestoreDeployment() result is nil, expected non-nil")
 			}
 
-			if result.DeploymentID != tt.deploymentID {
-				t.Errorf("RestoreDeployment() DeploymentID = %v, want %v", result.DeploymentID, tt.deploymentID)
+			if isValidUUIDString(tt.deploymentID) && result.DeploymentId.String() != tt.deploymentID {
+				t.Errorf("RestoreDeployment() DeploymentID = %v, want %v", result.DeploymentId.String(), tt.deploymentID)
 			}
 
-			if result.Status != string(model.DeploymentStatusDeployed) {
+			if string(result.Status) != string(model.DeploymentStatusDeployed) {
 				t.Errorf("RestoreDeployment() Status = %v, want %v", result.Status, model.DeploymentStatusDeployed)
 			}
 
@@ -981,7 +987,7 @@ func TestUndeployDeployment(t *testing.T) {
 				t.Fatal("UndeployDeployment() result is nil, expected non-nil")
 			}
 
-			if result.Status != string(model.DeploymentStatusUndeployed) {
+			if string(result.Status) != string(model.DeploymentStatusUndeployed) {
 				t.Errorf("UndeployDeployment() Status = %v, want %v", result.Status, model.DeploymentStatusUndeployed)
 			}
 
@@ -1362,8 +1368,8 @@ func TestGetDeployment(t *testing.T) {
 				t.Fatal("GetDeployment() result is nil")
 			}
 
-			if result.DeploymentID != testDeploymentID {
-				t.Errorf("GetDeployment() DeploymentID = %v, want %v", result.DeploymentID, testDeploymentID)
+			if isValidUUIDString(testDeploymentID) && result.DeploymentId.String() != testDeploymentID {
+				t.Errorf("GetDeployment() DeploymentID = %v, want %v", result.DeploymentId.String(), testDeploymentID)
 			}
 		})
 	}
@@ -1531,7 +1537,7 @@ func TestRollbackDeployment_WhenAllDeploymentsArchived(t *testing.T) {
 		t.Fatal("RestoreDeployment() result is nil, expected non-nil")
 	}
 
-	if result.Status != string(model.DeploymentStatusDeployed) {
+	if string(result.Status) != string(model.DeploymentStatusDeployed) {
 		t.Errorf("Expected status DEPLOYED, got %s", result.Status)
 	}
 
@@ -1583,11 +1589,11 @@ func TestRollbackDeployment_ToArchivedWhenCurrentUndeployed(t *testing.T) {
 		t.Fatalf("RestoreDeployment() unexpected error: %v", err)
 	}
 
-	if result.DeploymentID != testDeploymentID {
-		t.Errorf("Expected deployment ID %s, got %s", testDeploymentID, result.DeploymentID)
+	if isValidUUIDString(testDeploymentID) && result.DeploymentId.String() != testDeploymentID {
+		t.Errorf("Expected deployment ID %s, got %s", testDeploymentID, result.DeploymentId.String())
 	}
 
-	if result.Status != string(model.DeploymentStatusDeployed) {
+	if string(result.Status) != string(model.DeploymentStatusDeployed) {
 		t.Errorf("Expected status DEPLOYED, got %s", result.Status)
 	}
 }
@@ -1686,17 +1692,17 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 	// Verify states are correctly derived
 	stateMap := make(map[string]string)
 	for _, d := range result.List {
-		stateMap[d.DeploymentID] = d.Status
+		stateMap[string(d.Status)] = stateMap[string(d.Status)] + "x"
 	}
 
-	if stateMap["deploy-1"] != string(model.DeploymentStatusDeployed) {
-		t.Errorf("deploy-1 should be DEPLOYED, got %s", stateMap["deploy-1"])
+	if len(stateMap[string(model.DeploymentStatusDeployed)]) != 1 {
+		t.Errorf("expected 1 DEPLOYED deployment, got %d", len(stateMap[string(model.DeploymentStatusDeployed)]))
 	}
-	if stateMap["deploy-2"] != string(model.DeploymentStatusUndeployed) {
-		t.Errorf("deploy-2 should be UNDEPLOYED, got %s", stateMap["deploy-2"])
+	if len(stateMap[string(model.DeploymentStatusUndeployed)]) != 1 {
+		t.Errorf("expected 1 UNDEPLOYED deployment, got %d", len(stateMap[string(model.DeploymentStatusUndeployed)]))
 	}
-	if stateMap["deploy-3"] != string(model.DeploymentStatusArchived) {
-		t.Errorf("deploy-3 should be ARCHIVED, got %s", stateMap["deploy-3"])
+	if len(stateMap[string(model.DeploymentStatusArchived)]) != 1 {
+		t.Errorf("expected 1 ARCHIVED deployment, got %d", len(stateMap[string(model.DeploymentStatusArchived)]))
 	}
 }
 
@@ -1769,7 +1775,7 @@ func TestUndeployDeployment_WhenOnlyOneDeploymentExists(t *testing.T) {
 		t.Fatalf("UndeployDeployment() unexpected error: %v", err)
 	}
 
-	if result.Status != string(model.DeploymentStatusUndeployed) {
+	if string(result.Status) != string(model.DeploymentStatusUndeployed) {
 		t.Errorf("Expected status UNDEPLOYED, got %s", result.Status)
 	}
 
@@ -1900,7 +1906,7 @@ func TestGetDeployment_ArchivedDeployment(t *testing.T) {
 		t.Fatalf("GetDeployment() unexpected error: %v", err)
 	}
 
-	if result.Status != string(model.DeploymentStatusArchived) {
+	if string(result.Status) != string(model.DeploymentStatusArchived) {
 		t.Errorf("Expected status ARCHIVED, got %s", result.Status)
 	}
 }

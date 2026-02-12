@@ -22,13 +22,14 @@ import (
 	"log"
 	"net/http"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 type DeploymentHandler struct {
@@ -58,7 +59,7 @@ func (h *DeploymentHandler) DeployAPI(c *gin.Context) {
 		return
 	}
 
-	var req dto.DeployAPIRequest
+	var req api.DeployRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
 		return
@@ -75,7 +76,7 @@ func (h *DeploymentHandler) DeployAPI(c *gin.Context) {
 			"base is required (use 'current' or a deploymentId)"))
 		return
 	}
-	if req.GatewayID == "" {
+	if req.GatewayId == (openapi_types.UUID{}) {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"gatewayId is required"))
 		return
@@ -138,25 +139,20 @@ func (h *DeploymentHandler) UndeployDeployment(c *gin.Context) {
 	}
 
 	apiId := c.Param("apiId")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.UndeployDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if apiId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"API ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.UndeployDeploymentByHandle(apiId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
@@ -203,25 +199,20 @@ func (h *DeploymentHandler) RestoreDeployment(c *gin.Context) {
 	}
 
 	apiId := c.Param("apiId")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.RestoreDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if apiId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"API ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.RestoreDeploymentByHandle(apiId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
@@ -368,9 +359,19 @@ func (h *DeploymentHandler) GetDeployments(c *gin.Context) {
 		return
 	}
 
-	// Get optional query parameters
-	gatewayId := c.Query("gatewayId")
-	status := c.Query("status")
+	var params api.GetDeploymentsParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	var gatewayId, status string
+	if params.GatewayId != nil {
+		gatewayId = string(*params.GatewayId)
+	}
+	if params.Status != nil {
+		status = string(*params.Status)
+	}
 
 	deployments, err := h.deploymentService.GetDeploymentsByHandle(apiId, gatewayId, status, orgId)
 	if err != nil {

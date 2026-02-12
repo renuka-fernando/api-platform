@@ -138,6 +138,32 @@ func ParseOpenAPIUUID(id string) (*openapi_types.UUID, error) {
 	return &openapiUUID, nil
 }
 
+// ParseOptionalOpenAPIUUID parses an optional UUID string pointer into an OpenAPI UUID pointer.
+// Returns nil when input is nil, empty, or invalid.
+func ParseOptionalOpenAPIUUID(id *string) *openapi_types.UUID {
+	if id == nil || *id == "" {
+		return nil
+	}
+
+	parsed, err := ParseOpenAPIUUID(*id)
+	if err != nil {
+		return nil
+	}
+
+	return parsed
+}
+
+// ParseOpenAPIUUIDOrZero parses a UUID string into an OpenAPI UUID value.
+// Returns zero UUID when input is invalid.
+func ParseOpenAPIUUIDOrZero(id string) openapi_types.UUID {
+	parsed, err := ParseOpenAPIUUID(id)
+	if err != nil || parsed == nil {
+		return openapi_types.UUID{}
+	}
+
+	return *parsed
+}
+
 // StringPtrIfNotEmpty returns a pointer for non-empty strings.
 func StringPtrIfNotEmpty(value string) *string {
 	if value == "" {
@@ -164,6 +190,15 @@ func MapPtrIfNotEmpty(m map[string]interface{}) *map[string]interface{} {
 		return nil
 	}
 	return &m
+}
+
+// MapValueOrEmpty returns the map value when non-nil or an empty map otherwise.
+func MapValueOrEmpty(m *map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+
+	return *m
 }
 
 // StringPtrValue returns the value of a string pointer or empty string if nil
