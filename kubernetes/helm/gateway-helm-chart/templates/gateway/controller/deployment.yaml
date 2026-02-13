@@ -71,7 +71,7 @@ spec:
             - "-config"
             - "/etc/gateway-controller/config.toml"
           env:
-            - name: APIP_GW_CONTROLPLANE_HOST
+            - name: APIP_GW_CONTROLLER_CONTROLPLANE_HOST
               value: {{ $controller.controlPlane.host | quote }}
             - name: APIP_GW_CONTROLPLANE_PORT
               value: {{ printf "%d" (int $controller.controlPlane.port) | quote }}
