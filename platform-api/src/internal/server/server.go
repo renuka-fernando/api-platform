@@ -173,6 +173,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 		cfg,
 	)
 	llmProviderAPIKeyService := service.NewLLMProviderAPIKeyService(llmProviderRepo, gatewayRepo, gatewayEventsService)
+	llmProxyAPIKeyService := service.NewLLMProxyAPIKeyService(llmProxyRepo, gatewayRepo, gatewayEventsService)
 	llmProxyDeploymentService := service.NewLLMProxyDeploymentService(
 		llmProxyRepo,
 		deploymentRepo,
@@ -196,6 +197,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService)
 	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService)
 	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService)
+	llmProxyAPIKeyHandler := handler.NewLLMProxyAPIKeyHandler(llmProxyAPIKeyService)
 	llmProxyDeploymentHandler := handler.NewLLMProxyDeploymentHandler(llmProxyDeploymentService)
 
 	// Setup router
@@ -232,6 +234,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmHandler.RegisterRoutes(router)
 	llmDeploymentHandler.RegisterRoutes(router)
 	llmProviderAPIKeyHandler.RegisterRoutes(router)
+	llmProxyAPIKeyHandler.RegisterRoutes(router)
 	llmProxyDeploymentHandler.RegisterRoutes(router)
 
 	log.Printf("[INFO] WebSocket manager initialized: maxConnections=%d heartbeatTimeout=%ds rateLimitPerMin=%d maxConnectionsPerOrg=%d",

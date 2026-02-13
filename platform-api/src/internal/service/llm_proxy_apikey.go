@@ -1,0 +1,150 @@
+/*
+ *  Copyright (c) 2026, WSO2 LLC. (http://www.wso2.org) All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ */
+
+package service
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"platform-api/src/internal/constants"
+	"platform-api/src/internal/dto"
+	"platform-api/src/internal/model"
+	"platform-api/src/internal/repository"
+	"platform-api/src/internal/utils"
+)
+
+// LLMProxyAPIKeyService handles API key management for LLM proxies
+type LLMProxyAPIKeyService struct {
+	llmProxyRepo         repository.LLMProxyRepository
+	gatewayRepo          repository.GatewayRepository
+	gatewayEventsService *GatewayEventsService
+}
+
+// NewLLMProxyAPIKeyService creates a new LLM proxy API key service instance
+func NewLLMProxyAPIKeyService(
+	llmProxyRepo repository.LLMProxyRepository,
+	gatewayRepo repository.GatewayRepository,
+	gatewayEventsService *GatewayEventsService,
+) *LLMProxyAPIKeyService {
+	return &LLMProxyAPIKeyService{
+		llmProxyRepo:         llmProxyRepo,
+		gatewayRepo:          gatewayRepo,
+		gatewayEventsService: gatewayEventsService,
+	}
+}
+
+// CreateLLMProxyAPIKey generates an API key for an LLM proxy and broadcasts it to all gateways.
+func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
+	ctx context.Context,
+	proxyID, orgID, userID string,
+	req *dto.CreateLLMProxyAPIKeyRequest,
+) (*dto.CreateLLMProxyAPIKeyResponse, error) {
+
+	proxy, err := s.llmProxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		log.Printf("[ERROR] Failed to get LLM proxy for API key creation: proxyID=%s error=%v", proxyID, err)
+		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
+	}
+	if proxy == nil {
+		log.Printf("[WARN] LLM proxy not found: proxyID=%s orgID=%s", proxyID, orgID)
+		return nil, constants.ErrAPINotFound
+	}
+
+	apiKey, err := utils.GenerateAPIKey()
+	if err != nil {
+		log.Printf("[ERROR] Failed to generate API key for LLM proxy: proxyID=%s error=%v", proxyID, err)
+		return nil, fmt.Errorf("failed to generate API key: %w", err)
+	}
+
+	var name string
+	if req.Name != "" {
+		name = req.Name
+	} else {
+		name, err = utils.GenerateHandle(req.DisplayName, nil)
+		if err != nil {
+			log.Printf("[ERROR] Failed to generate API key name: proxyID=%s error=%v", proxyID, err)
+			return nil, fmt.Errorf("failed to generate API key name: %w", err)
+		}
+	}
+
+	displayName := req.DisplayName
+	if displayName == "" {
+		displayName = name
+	}
+
+	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
+	if err != nil {
+		log.Printf("[ERROR] Failed to get gateways for API key broadcast: proxyID=%s error=%v", proxyID, err)
+		return nil, fmt.Errorf("failed to get gateways: %w", err)
+	}
+
+	if len(gateways) == 0 {
+		log.Printf("[WARN] No gateways found for organization: orgID=%s", orgID)
+		return nil, constants.ErrGatewayUnavailable
+	}
+
+	operations := "[\"*\"]"
+
+	event := &model.APIKeyCreatedEvent{
+		ApiId:       proxyID,
+		Name:        name,
+		DisplayName: displayName,
+		ApiKey:      apiKey,
+		Operations:  operations,
+		ExpiresAt:   req.ExpiresAt,
+	}
+
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, gateway := range gateways {
+		gatewayID := gateway.ID
+
+		log.Printf("[INFO] Broadcasting LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s",
+			proxyID, gatewayID, name)
+
+		err := s.gatewayEventsService.BroadcastAPIKeyCreatedEvent(gatewayID, userID, event)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to broadcast LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s error=%v",
+				proxyID, gatewayID, name, err)
+		} else {
+			successCount++
+			log.Printf("[INFO] Successfully broadcast LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s",
+				proxyID, gatewayID, name)
+		}
+	}
+
+	log.Printf("[INFO] LLM proxy API key creation broadcast summary: proxyID=%s keyName=%s total=%d success=%d failed=%d",
+		proxyID, name, len(gateways), successCount, failureCount)
+
+	if successCount == 0 {
+		log.Printf("[ERROR] Failed to deliver LLM proxy API key to any gateway: proxyID=%s keyName=%s", proxyID, name)
+		return nil, fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
+	}
+
+	return &dto.CreateLLMProxyAPIKeyResponse{
+		Status:  "success",
+		Message: "API key created and broadcasted to gateways successfully",
+		KeyId:   name,
+		ApiKey:  apiKey,
+	}, nil
+}
