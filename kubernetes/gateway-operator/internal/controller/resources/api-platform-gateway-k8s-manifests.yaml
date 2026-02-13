@@ -85,7 +85,7 @@ spec:
     spec:
       containers:
         - env:
-            - name: APIP_GW_CONTROLPLANE_HOST
+            - name: APIP_GW_CONTROLLER_CONTROLPLANE_HOST
               value: host.docker.internal:8443
             - name: APIP_GW_CONTROLPLANE_TOKEN
             - name: APIP_GW_LOGGING_LEVEL
