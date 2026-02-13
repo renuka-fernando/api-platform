@@ -258,6 +258,14 @@ func (s *LLMProviderService) Create(orgUUID, createdBy string, req *dto.LLMProvi
 		return nil, constants.ErrLLMProviderExists
 	}
 
+	providerCount, err := s.repo.Count(orgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count providers: %w", err)
+	}
+	if err := validateLLMResourceLimit(providerCount, constants.MaxLLMProvidersPerOrganization, constants.ErrLLMProviderLimitReached); err != nil {
+		return nil, err
+	}
+
 	contextValue := defaultString(req.Context, "/")
 	m := &model.LLMProvider{
 		OrganizationUUID: orgUUID,
@@ -493,6 +501,14 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *dto.LLMProxy) (
 	}
 	if exists {
 		return nil, constants.ErrLLMProxyExists
+	}
+
+	proxyCount, err := s.repo.Count(orgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count proxies: %w", err)
+	}
+	if err := validateLLMResourceLimit(proxyCount, constants.MaxLLMProxiesPerOrganization, constants.ErrLLMProxyLimitReached); err != nil {
+		return nil, err
 	}
 
 	contextValue := defaultString(req.Context, "/")
@@ -805,6 +821,13 @@ func defaultString(v, def string) string {
 		return def
 	}
 	return v
+}
+
+func validateLLMResourceLimit(currentCount int, maxAllowed int, limitErr error) error {
+	if currentCount >= maxAllowed {
+		return limitErr
+	}
+	return nil
 }
 
 func mapExtractionIdentifier(in *dto.ExtractionIdentifier) *model.ExtractionIdentifier {

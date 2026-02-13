@@ -242,6 +242,9 @@ func (h *LLMHandler) CreateLLMProvider(c *gin.Context) {
 	created, err := h.providerService.Create(orgID, createdBy, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, constants.ErrLLMProviderLimitReached):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM provider limit reached for organization"))
+			return
 		case errors.Is(err, constants.ErrLLMProviderExists):
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM provider already exists"))
 			return
@@ -401,6 +404,9 @@ func (h *LLMHandler) CreateLLMProxy(c *gin.Context) {
 	created, err := h.proxyService.Create(orgID, createdBy, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, constants.ErrLLMProxyLimitReached):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM proxy limit reached for organization"))
+			return
 		case errors.Is(err, constants.ErrLLMProxyExists):
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM proxy already exists"))
 			return
