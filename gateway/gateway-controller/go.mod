@@ -22,7 +22,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/stretchr/testify v1.11.1
 	github.com/wso2/api-platform/common v0.0.0
-	github.com/wso2/api-platform/sdk v0.3.1
+	github.com/wso2/api-platform/sdk v0.3.14
 	github.com/xeipuuv/gojsonschema v1.2.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
@@ -31,7 +31,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.24.0 // indirect
+	cel.dev/expr v0.25.1 // indirect
 	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/MicahParks/keyfunc/v3 v3.7.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -55,7 +55,7 @@ require (
 	github.com/go-playground/validator/v10 v10.29.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -104,8 +104,4 @@ require (
 // combinedWatcher is using "github.com/envoyproxy/go-control-plane/pkg/server/stream/v3" StreamState which is not available in v0.14.0
 replace github.com/envoyproxy/go-control-plane v0.13.5-0.20251024222203-75eaa193e329 => github.com/envoyproxy/go-control-plane v0.13.4
 
-// Local module replacements for Docker builds
-replace (
-	github.com/wso2/api-platform/common => ../../common
-	github.com/wso2/api-platform/sdk => ../../sdk
-)
+replace github.com/wso2/api-platform/common => ../../common
