@@ -1,5 +1,6 @@
 {{- $annotations := merge (deepCopy (default (dict) .Values.commonAnnotations)) (default (dict) .Values.gateway.configMap.annotations) -}}
-{{- $gc := .Values.gateway.config.gateway_controller -}}
+{{- $gc := .Values.gateway.config.controller -}}
+{{- $router := .Values.gateway.config.router -}}
 {{- $pe := .Values.gateway.config.policy_engine -}}
 {{- $controllerHost := printf "%s-controller" (include "gateway-operator.fullname" .) -}}
 apiVersion: v1
@@ -17,98 +18,110 @@ metadata:
   {{- end }}
 data:
   config.toml: |
-    [gateway_controller.server]
+    [controller.server]
     api_port = {{ $gc.server.api_port }}
     xds_port = {{ $gc.server.xds_port }}
     shutdown_timeout = {{ $gc.server.shutdown_timeout | quote }}
 
-    [gateway_controller.policyserver]
-    enabled = {{ $gc.policyserver.enabled }}
-    port = {{ $gc.policyserver.port }}
+    [controller.policy_server]
+    port = {{ $gc.policy_server.port }}
 
-    [gateway_controller.policyserver.tls]
-    enabled = {{ $gc.policyserver.tls.enabled }}
-    cert_file = {{ $gc.policyserver.tls.cert_file | quote }}
-    key_file = {{ $gc.policyserver.tls.key_file | quote }}
+    [controller.policy_server.tls]
+    enabled = {{ $gc.policy_server.tls.enabled }}
+    cert_file = {{ $gc.policy_server.tls.cert_file | quote }}
+    key_file = {{ $gc.policy_server.tls.key_file | quote }}
 
-    [gateway_controller.storage]
+    [controller.storage]
     type = {{ $gc.storage.type | quote }}
 
-    [gateway_controller.storage.sqlite]
+    [controller.storage.sqlite]
     path = {{ $gc.storage.sqlite.path | quote }}
 
-    [gateway_controller.policies]
+    [controller.policies]
     definitions_path = {{ $gc.policies.definitions_path | quote }}
 
-    [gateway_controller.router]
-    gateway_host = {{ $gc.router.gateway_host | quote }}
-    listener_port = {{ $gc.router.listener_port }}
-    https_enabled = {{ $gc.router.https_enabled }}
-    https_port = {{ $gc.router.https_port }}
-    tracing_service_name = {{ $gc.router.tracing_service_name | default "" | quote }}
+    [router]
+    gateway_host = {{ $router.gateway_host | quote }}
+    listener_port = {{ $router.listener_port }}
+    https_enabled = {{ $router.https_enabled }}
+    https_port = {{ $router.https_port }}
+    tracing_service_name = {{ $router.tracing_service_name | default "" | quote }}
 
-    [gateway_controller.router.access_logs]
-    enabled = {{ $gc.router.access_logs.enabled }}
-    format = {{ $gc.router.access_logs.format | quote }}
-    {{- if eq $gc.router.access_logs.format "json" }}
-    json_fields = { {{- $first := true }}{{- range $key, $value := $gc.router.access_logs.json_fields }}{{- if not $first }}, {{ end }}{{- $first = false }}{{ $key }} = {{ $value | quote }}{{- end }} }
+    [router.access_logs]
+    enabled = {{ $router.access_logs.enabled }}
+    format = {{ $router.access_logs.format | quote }}
+    {{- if eq $router.access_logs.format "json" }}
+    json_fields = { {{- $first := true }}{{- range $key, $value := $router.access_logs.json_fields }}{{- if not $first }}, {{ end }}{{- $first = false }}{{ $key }} = {{ $value | quote }}{{- end }} }
     {{- end }}
-    {{- if eq $gc.router.access_logs.format "text" }}
-    text_format = {{ $gc.router.access_logs.text_format | quote }}
+    {{- if eq $router.access_logs.format "text" }}
+    text_format = {{ $router.access_logs.text_format | quote }}
     {{- end }}
 
-    [gateway_controller.router.downstream_tls]
-    cert_path = {{ $gc.router.downstream_tls.cert_path | quote }}
-    key_path = {{ $gc.router.downstream_tls.key_path | quote }}
-    minimum_protocol_version = {{ $gc.router.downstream_tls.minimum_protocol_version | quote }}
-    maximum_protocol_version = {{ $gc.router.downstream_tls.maximum_protocol_version | quote }}
-    ciphers = {{ $gc.router.downstream_tls.ciphers | quote }}
+    [router.downstream_tls]
+    cert_path = {{ $router.downstream_tls.cert_path | quote }}
+    key_path = {{ $router.downstream_tls.key_path | quote }}
+    minimum_protocol_version = {{ $router.downstream_tls.minimum_protocol_version | quote }}
+    maximum_protocol_version = {{ $router.downstream_tls.maximum_protocol_version | quote }}
+    ciphers = {{ $router.downstream_tls.ciphers | quote }}
 
-    [gateway_controller.router.upstream.tls]
-    minimum_protocol_version = {{ $gc.router.upstream.tls.minimum_protocol_version | quote }}
-    maximum_protocol_version = {{ $gc.router.upstream.tls.maximum_protocol_version | quote }}
-    ciphers = {{ $gc.router.upstream.tls.ciphers | quote }}
-    trusted_cert_path = {{ $gc.router.upstream.tls.trusted_cert_path | quote }}
-    custom_certs_path = {{ $gc.router.upstream.tls.custom_certs_path | quote }}
-    verify_host_name = {{ $gc.router.upstream.tls.verify_host_name }}
-    disable_ssl_verification = {{ $gc.router.upstream.tls.disable_ssl_verification }}
+    [router.upstream.tls]
+    minimum_protocol_version = {{ $router.upstream.tls.minimum_protocol_version | quote }}
+    maximum_protocol_version = {{ $router.upstream.tls.maximum_protocol_version | quote }}
+    ciphers = {{ $router.upstream.tls.ciphers | quote }}
+    trusted_cert_path = {{ $router.upstream.tls.trusted_cert_path | quote }}
+    custom_certs_path = {{ $router.upstream.tls.custom_certs_path | quote }}
+    verify_host_name = {{ $router.upstream.tls.verify_host_name }}
+    disable_ssl_verification = {{ $router.upstream.tls.disable_ssl_verification }}
 
-    [gateway_controller.router.upstream.timeouts]
-    route_timeout_in_ms = {{ $gc.router.upstream.timeouts.route_timeout_in_ms }}
-    route_idle_timeout_in_ms = {{ $gc.router.upstream.timeouts.route_idle_timeout_in_ms }}
-    connect_timeout_in_ms = {{ $gc.router.upstream.timeouts.connect_timeout_in_ms }}
+    [router.upstream.timeouts]
+    route_timeout_ms = {{ $router.upstream.timeouts.route_timeout_ms }}
+    route_idle_timeout_ms = {{ $router.upstream.timeouts.route_idle_timeout_ms }}
+    connect_timeout_ms = {{ $router.upstream.timeouts.connect_timeout_ms }}
 
-    [gateway_controller.router.policy_engine]
-    enabled = {{ $gc.router.policy_engine.enabled }}
-    mode = {{ $gc.router.policy_engine.mode | quote }}
-    timeout_ms = {{ $gc.router.policy_engine.timeout_ms }}
-    failure_mode_allow = {{ $gc.router.policy_engine.failure_mode_allow }}
-    route_cache_action = {{ $gc.router.policy_engine.route_cache_action | quote }}
-    allow_mode_override = {{ $gc.router.policy_engine.allow_mode_override }}
-    request_header_mode = {{ $gc.router.policy_engine.request_header_mode | quote }}
-    message_timeout_ms = {{ $gc.router.policy_engine.message_timeout_ms }}
+    [router.policy_engine]
+    mode = {{ $router.policy_engine.mode | quote }}
+    host = {{ $router.policy_engine.host | default "" | quote }}
+    port = {{ $router.policy_engine.port | default 9001 }}
+    timeout_ms = {{ $router.policy_engine.timeout_ms }}
+    failure_mode_allow = {{ $router.policy_engine.failure_mode_allow }}
+    route_cache_action = {{ $router.policy_engine.route_cache_action | quote }}
+    allow_mode_override = {{ $router.policy_engine.allow_mode_override }}
+    message_timeout_ms = {{ $router.policy_engine.message_timeout_ms }}
+
+    {{- if $router.policy_engine.tls }}
+    [router.policy_engine.tls]
+    enabled = {{ $router.policy_engine.tls.enabled }}
+    {{- if $router.policy_engine.tls.enabled }}
+    cert_path = {{ $router.policy_engine.tls.cert_path | quote }}
+    key_path = {{ $router.policy_engine.tls.key_path | quote }}
+    ca_path = {{ $router.policy_engine.tls.ca_path | quote }}
+    server_name = {{ $router.policy_engine.tls.server_name | quote }}
+    skip_verify = {{ $router.policy_engine.tls.skip_verify }}
+    {{- end }}
+    {{- end }}
 
     {{- if $gc.auth }}
     {{- if $gc.auth.basic }}
-    [gateway_controller.auth.basic]
+    [controller.auth.basic]
     enabled = {{ $gc.auth.basic.enabled }}
     {{- if $gc.auth.basic.users }}
     {{- range $gc.auth.basic.users }}
-    [[gateway_controller.auth.basic.users]]
+    [[controller.auth.basic.users]]
     username = {{ .username | quote }}
     password = {{ .password | quote }}
+    password_hashed = {{ .password_hashed | default false }}
     roles = [{{- range $i, $role := .roles }}{{- if gt $i 0 }}, {{ end }}{{ $role | quote }}{{- end }}]
     {{- end }}
     {{- end }}
     {{- end }}
     {{- if $gc.auth.idp }}
-    [gateway_controller.auth.idp]
+    [controller.auth.idp]
     enabled = {{ $gc.auth.idp.enabled }}
     jwks_url = {{ $gc.auth.idp.jwks_url | quote }}
     issuer = {{ $gc.auth.idp.issuer | quote }}
     roles_claim = {{ $gc.auth.idp.roles_claim | quote }}
     {{- if $gc.auth.idp.role_mapping }}
-    [gateway_controller.auth.idp.role_mapping]
+    [controller.auth.idp.role_mapping]
     {{- range $key, $value := $gc.auth.idp.role_mapping }}
     {{ $key }} = {{ $value | quote }}
     {{- end }}
@@ -116,12 +129,12 @@ data:
     {{- end }}
     {{- end }}
 
-    [gateway_controller.logging]
+    [controller.logging]
     level = {{ $gc.logging.level | quote }}
     format = {{ $gc.logging.format | quote }}
 
     [policy_engine.server]
-    extproc_socket = {{ $pe.server.extproc_socket | quote }}
+    extproc_port = {{ $pe.server.extproc_port }}
 
     [policy_engine.admin]
     enabled = {{ $pe.admin.enabled }}
@@ -132,10 +145,7 @@ data:
     mode = {{ $pe.config_mode.mode | quote }}
 
     [policy_engine.xds]
-    enabled = {{ $pe.xds.enabled }}
     # server_address is set via -xds-server flag (injected by gateway-runtime entrypoint)
-    node_id = {{ $pe.xds.node_id | quote }}
-    cluster = {{ $pe.xds.cluster | quote }}
     connect_timeout = {{ $pe.xds.connect_timeout | quote }}
     request_timeout = {{ $pe.xds.request_timeout | quote }}
     initial_reconnect_delay = {{ $pe.xds.initial_reconnect_delay | quote }}
@@ -166,23 +176,19 @@ data:
     {{- end }}
     {{- end }}
     {{- end }}
-    {{- if .Values.gateway.config.analytics.grpc_access_logs }}
-    [analytics.grpc_access_logs]
+    {{- if .Values.gateway.config.analytics.grpc_event_server }}
+    [analytics.grpc_event_server]
     host = "127.0.0.1"
-    log_name = {{ .Values.gateway.config.analytics.grpc_access_logs.log_name | quote }}
-    buffer_flush_interval = {{ .Values.gateway.config.analytics.grpc_access_logs.buffer_flush_interval | quote }}
-    buffer_size_bytes = {{ .Values.gateway.config.analytics.grpc_access_logs.buffer_size_bytes }}
-    grpc_request_timeout = {{ .Values.gateway.config.analytics.grpc_access_logs.grpc_request_timeout | quote }}
-    {{- end }}
-    {{- if .Values.gateway.config.analytics.access_logs_service }}
-    [analytics.access_logs_service]
-    als_server_port = {{ .Values.gateway.config.analytics.access_logs_service.als_server_port }}
-    shutdown_timeout = {{ .Values.gateway.config.analytics.access_logs_service.shutdown_timeout | quote }}
-    public_key_path = {{ .Values.gateway.config.analytics.access_logs_service.public_key_path | quote }}
-    private_key_path = {{ .Values.gateway.config.analytics.access_logs_service.private_key_path | quote }}
-    als_plain_text = {{ .Values.gateway.config.analytics.access_logs_service.als_plain_text }}
-    max_message_size = {{ .Values.gateway.config.analytics.access_logs_service.max_message_size }}
-    max_header_limit = {{ .Values.gateway.config.analytics.access_logs_service.max_header_limit }}
+    buffer_flush_interval = {{ .Values.gateway.config.analytics.grpc_event_server.buffer_flush_interval | quote }}
+    buffer_size_bytes = {{ .Values.gateway.config.analytics.grpc_event_server.buffer_size_bytes }}
+    grpc_request_timeout = {{ .Values.gateway.config.analytics.grpc_event_server.grpc_request_timeout | quote }}
+    server_port = {{ .Values.gateway.config.analytics.grpc_event_server.server_port }}
+    shutdown_timeout = {{ .Values.gateway.config.analytics.grpc_event_server.shutdown_timeout | quote }}
+    public_key_path = {{ .Values.gateway.config.analytics.grpc_event_server.public_key_path | quote }}
+    private_key_path = {{ .Values.gateway.config.analytics.grpc_event_server.private_key_path | quote }}
+    als_plain_text = {{ .Values.gateway.config.analytics.grpc_event_server.als_plain_text }}
+    max_message_size = {{ .Values.gateway.config.analytics.grpc_event_server.max_message_size }}
+    max_header_limit = {{ .Values.gateway.config.analytics.grpc_event_server.max_header_limit }}
     {{- end }}
     {{- end }}
 

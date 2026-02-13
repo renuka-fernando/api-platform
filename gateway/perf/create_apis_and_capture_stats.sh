@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # ---------------- containers ----------------
-ROUTER_CTN="gateway-router-1"
+ROUTER_CTN="gateway-gateway-runtime-1"
 CONTROLLER_CTN="gateway-gateway-controller-1"
-POLICY_CTN="gateway-policy-engine-1"
+
 
 # ---------------- API endpoint ----------------
 API_MGR_URL="http://localhost:9090/apis"
@@ -14,7 +14,7 @@ TOTAL="${1:-50}"
 OUT="${2:-stats.csv}"
 
 # ---------------- CSV header ----------------
-echo "api_count,router_cpu_pct,router_mem_used,controller_cpu_pct,controller_mem_used,policy_cpu_pct,policy_mem_used,http_code" > "$OUT"
+echo "api_count,router_cpu_pct,router_mem_used,controller_cpu_pct,controller_mem_used,http_code" > "$OUT"
 
 # ---------------- helper: docker stats ----------------
 get_stats() {
@@ -88,7 +88,6 @@ EOF
   # ---- capture stats ----
   router_line="$(get_stats "$ROUTER_CTN" || echo "NA,NA")"
   ctrl_line="$(get_stats "$CONTROLLER_CTN" || echo "NA,NA")"
-  pol_line="$(get_stats "$POLICY_CTN" || echo "NA,NA")"
 
   router_cpu="${router_line%%,*}"
   router_mem="${router_line#*,}"
@@ -96,10 +95,8 @@ EOF
   ctrl_cpu="${ctrl_line%%,*}"
   ctrl_mem="${ctrl_line#*,}"
 
-  pol_cpu="${pol_line%%,*}"
-  pol_mem="${pol_line#*,}"
 
-  echo "$i,$router_cpu,$router_mem,$ctrl_cpu,$ctrl_mem,$pol_cpu,$pol_mem,$http_code" >> "$OUT"
+  echo "$i,$router_cpu,$router_mem,$ctrl_cpu,$ctrl_mem,$http_code" >> "$OUT"
 
   if [[ "$http_code" != "200" && "$http_code" != "201" && "$http_code" != "202" ]]; then
     echo "❌ API create failed at count=$i (HTTP $http_code). Stopping."

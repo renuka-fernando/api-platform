@@ -42,11 +42,11 @@ type GatewayConfig struct {
 
 // Config represents the config section
 type Config struct {
-	GatewayController GatewayControllerConfig `yaml:"gateway_controller"`
+	Controller ControllerConfig `yaml:"controller"`
 }
 
-// GatewayControllerConfig represents the gateway_controller section of the config
-type GatewayControllerConfig struct {
+// ControllerConfig represents the controller section of the config
+type ControllerConfig struct {
 	Auth AuthSettings `yaml:"auth"`
 }
 
@@ -105,7 +105,7 @@ func GetDeploymentConfigFromGateway(ctx context.Context, k8sClient client.Client
 		return nil, fmt.Errorf("failed to parse auth config from ConfigMap: %w", err)
 	}
 
-	return &deploymentConfig.Gateway.Config.GatewayController.Auth, nil
+	return &deploymentConfig.Gateway.Config.Controller.Auth, nil
 }
 
 // GetBasicAuthCredentials extracts basic auth credentials from the auth config

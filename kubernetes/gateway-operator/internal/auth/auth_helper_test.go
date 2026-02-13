@@ -11,7 +11,7 @@ func TestAuthConfigParsing(t *testing.T) {
 	yamlContent := `
 gateway:
   config:
-    gateway_controller:
+    controller:
       auth:
         basic:
           enabled: true
@@ -27,7 +27,7 @@ gateway:
 	assert.NoError(t, err)
 
 	// Verify structure traversal
-	basicAuth := authConfig.Gateway.Config.GatewayController.Auth.Basic
+	basicAuth := authConfig.Gateway.Config.Controller.Auth.Basic
 	assert.True(t, basicAuth.Enabled)
 	assert.Len(t, basicAuth.Users, 1)
 	assert.Equal(t, "admin", basicAuth.Users[0].Username)
@@ -38,7 +38,7 @@ func TestGetBasicAuthCredentials(t *testing.T) {
 	yamlContent := `
 gateway:
   config:
-    gateway_controller:
+    controller:
       auth:
         basic:
           enabled: true
@@ -51,7 +51,7 @@ gateway:
 	var deploymentConfig DeploymentConfig
 	_ = yaml.Unmarshal([]byte(yamlContent), &deploymentConfig)
 
-	username, password, ok := GetBasicAuthCredentials(&deploymentConfig.Gateway.Config.GatewayController.Auth)
+	username, password, ok := GetBasicAuthCredentials(&deploymentConfig.Gateway.Config.Controller.Auth)
 	assert.True(t, ok)
 	assert.Equal(t, "testuser", username)
 	assert.Equal(t, "testpassword", password)

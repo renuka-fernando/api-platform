@@ -48,27 +48,24 @@ Analytics is configured entirely through the gateway `config.toml` file and is e
 | `enabled`              | boolean | Yes      | Enables the publisher                     |
 | `settings`             | object | Yes       | Map of Publisher specific attributes required for configuring the publisher client                     |
 
-#### gRPC Access Logs
+#### gRPC Event Server
+
+This section configures both the Envoy access log streaming settings and the ALS (Access Log Service) server that receives those logs. The ALS server runs within the policy-engine component.
 
 | Parameter               | Type     | Required | Default | Description                      |
 | ----------------------- | -------- | -------- |---- | -------------------------------- |
-| `host`                  | string   | Yes      | - | Hostname or service name of the Access Log Service (ALS) server to which Envoy streams access logs over gRPC.              |
-| `log_name`              | string   | No       | `"envoy_access_log"`| Logical identifier attached to the access log stream, used to distinguish log streams on the server side. |
 | `buffer_flush_interval` | duration | No       | `1000000000`| Maximum time Envoy waits(in nanoseconds) before flushing buffered access log entries.|
 | `buffer_size_bytes`     | int      | No       | `16384` | Maximum size of the in-memory buffer used to batch access log entries before sending them to ALS server.                  |
 | `grpc_request_timeout`  | duration | No       | `20000000000` | Timeout duration Envoy waits(in nanoseconds) for a response from the ALS server before considering the log delivery attempt failed.            |
+| `server_port`           | int     | Yes      | - | gRPC port on which the ALS server listens for incoming access log streams from Envoy.      |
+| `shutdown_timeout`      | int     | No       | `600` | Maximum time allowed for the ALS server to gracefully shut down while completing in-flight log processing(in seconds). |
+| `als_plain_text`        | boolean | No       | `true` | Use plaintext gRPC        |
+| `public_key_path`       | string | No       | - | Path to the public key used for securing ALS communication when transport-level encryption or authentication is enabled.        |
+| `private_key_path`      | string | No       | - | Path to the private key used for securing ALS communication when transport-level encryption or authentication is enabled.        |
+| `max_message_size`      | int     | No       | `1000000000` |Maximum size of a single gRPC message that the ALS server is allowed to receive from Envoy.      |
+| `max_header_limit`      | int     | No       | `8192` | Maximum allowed size of request or response headers processed by the ALS server      |
 
-#### Access Log Service
-
-| Parameter          | Type    | Required | Default | Description               |
-| ------------------ | ------- | -------- | --- | ------------------------- |
-| `als_server_port`  | int     | Yes      | - | gRPC port on which the ALS server listens for incoming access log streams from Envoy.      |
-| `shutdown_timeout` | int     | No       | `600` | Maximum time allowed for the ALS server to gracefully shut down while completing in-flight log processing(in seconds). |
-| `als_plain_text`   | boolean | No       | `true` | Use plaintext gRPC        |
-| `public_key_path`   | string | No       | - | Path to the public key used for securing ALS communication when transport-level encryption or authentication is enabled.        |
-| `private_key_path`   | string | No       | - | Path to the privare key used for securing ALS communication when transport-level encryption or authentication is enabled.        |
-| `max_message_size` | int     | No       | `1000000000` |Maximum size of a single gRPC message that the ALS server is allowed to receive from Envoy.      |
-| `max_header_limit` | int     | No       | `8192` | Maximum allowed size of request or response headers processed by the ALS server      |
+**Note:** The hostname for the ALS connection is automatically derived from the policy-engine configuration. The internal log name identifier is set to `"envoy_access_log"` and is not configurable.
 
 
 ## Configuration Examples
@@ -101,15 +98,11 @@ event_queue_size = 10000
 batch_size = 50
 timer_wakeup_seconds = 3
 
-[analytics.grpc_access_logs]
-host = "policy-engine"
-log_name = "envoy_access_log"
+[analytics.grpc_event_server]
 buffer_flush_interval = 1000000000
 buffer_size_bytes = 16384
 grpc_request_timeout = 20000000000
-
-[analytics.access_logs_service]
-als_server_port = 18090
+server_port = 18090
 shutdown_timeout = 600
 als_plain_text = true
 max_message_size = 1000000000

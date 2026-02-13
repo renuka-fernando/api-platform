@@ -42,7 +42,7 @@ The metrics configuration is located in `gateway/configs/config.toml`:
 #### Gateway Controller Metrics Configuration
 
 ```toml
-[gateway_controller.metrics]
+[controller.metrics]
 # Enable or disable Prometheus metrics endpoint
 enabled = true
 

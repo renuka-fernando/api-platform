@@ -24,7 +24,7 @@ In the umbrella gateway config, these settings live under `gateway_controller.au
 
 ### Option A: Basic Auth (local users)
 ```yaml
-gateway_controller:
+controller:
   auth:
     basic:
       enabled: true
@@ -41,7 +41,7 @@ gateway_controller:
 
 ### Option B: JWT (IDP) with role-based authorization
 ```yaml
-gateway_controller:
+controller:
   auth:
     idp:
       enabled: true

@@ -307,14 +307,12 @@ func (t *Translator) TranslateConfigs(
 		clusters = append(clusters, c)
 	}
 
-	// Add policy engine cluster if enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		policyEngineCluster := t.createPolicyEngineCluster()
-		clusters = append(clusters, policyEngineCluster)
-	}
+	// Add policy engine cluster
+	policyEngineCluster := t.createPolicyEngineCluster()
+	clusters = append(clusters, policyEngineCluster)
 
 	// Add ALS cluster if gRPC access log is enabled
-	log.Debug("gRPC access log config", slog.Any("config", t.config.Analytics.GRPCAccessLogCfg))
+	log.Debug("gRPC event server config", slog.Any("config", t.config.Analytics.GRPCEventServerCfg))
 	if t.config.Analytics.Enabled {
 		log.Info("gRPC access log is enabled, creating ALS cluster")
 		alsCluster := t.createALSCluster()
@@ -429,7 +427,7 @@ func (t *Translator) translateAsyncAPIConfig(cfg *models.StoredConfig, allConfig
 	mainRoutesList := make([]*route.Route, 0)
 
 	// Determine effective vhosts (fallback to global router defaults when not provided)
-	effectiveMainVHost := t.config.GatewayController.Router.VHosts.Main.Default
+	effectiveMainVHost := t.config.Router.VHosts.Main.Default
 	if apiData.Vhosts != nil {
 		if strings.TrimSpace(apiData.Vhosts.Main) != "" {
 			effectiveMainVHost = apiData.Vhosts.Main
@@ -493,8 +491,8 @@ func (t *Translator) translateAPIConfig(cfg *models.StoredConfig, allConfigs []*
 	mainRoutesList := make([]*route.Route, 0)
 
 	// Determine effective vhosts (fallback to global router defaults when not provided)
-	effectiveMainVHost := t.config.GatewayController.Router.VHosts.Main.Default
-	effectiveSandboxVHost := t.config.GatewayController.Router.VHosts.Sandbox.Default
+	effectiveMainVHost := t.config.Router.VHosts.Main.Default
+	effectiveSandboxVHost := t.config.Router.VHosts.Sandbox.Default
 	if apiData.Vhosts != nil {
 		if strings.TrimSpace(apiData.Vhosts.Main) != "" {
 			effectiveMainVHost = apiData.Vhosts.Main
@@ -627,20 +625,18 @@ func (t *Translator) createListener(virtualHosts []*route.VirtualHost, isHTTPS b
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	// Add router filter (must be last)
 	httpFilters = append(httpFilters, &hcm.HttpFilter{
@@ -785,20 +781,18 @@ func (t *Translator) createInternalListenerForWebSubHub(isHTTPS bool) (*listener
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	// Add router filter (must be last)
 	httpFilters = append(httpFilters, &hcm.HttpFilter{
@@ -1001,20 +995,18 @@ func (t *Translator) createDynamicFwdListenerForWebSubHub(isHTTPS bool) (*listen
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	dnsCacheConfig := &common_dfp.DnsCacheConfig{
 		// Required: unique name for the shared DNS cache
@@ -1393,10 +1385,10 @@ func (t *Translator) createRoute(apiId, apiName, apiVersion, context, method, pa
 	routeAction := &route.Route_Route{
 		Route: &route.RouteAction{
 			Timeout: durationpb.New(
-				time.Duration(t.routerConfig.Upstream.Timeouts.RouteTimeoutInMs) * time.Millisecond,
+				time.Duration(t.routerConfig.Upstream.Timeouts.RouteTimeoutMs) * time.Millisecond,
 			),
 			IdleTimeout: durationpb.New(
-				time.Duration(t.routerConfig.Upstream.Timeouts.RouteIdleTimeoutInMs) * time.Millisecond,
+				time.Duration(t.routerConfig.Upstream.Timeouts.RouteIdleTimeoutMs) * time.Millisecond,
 			),
 			ClusterSpecifier: &route.RouteAction_Cluster{
 				Cluster: clusterName,
@@ -1580,7 +1572,7 @@ func (t *Translator) createCluster(
 	if connectTimeout != nil {
 		effectiveConnectTimeout = *connectTimeout
 	} else {
-		effectiveConnectTimeout = time.Duration(t.routerConfig.Upstream.Timeouts.ConnectTimeoutInMs) * time.Millisecond
+		effectiveConnectTimeout = time.Duration(t.routerConfig.Upstream.Timeouts.ConnectTimeoutMs) * time.Millisecond
 		if effectiveConnectTimeout == 0 {
 			effectiveConnectTimeout = 5 * time.Second
 		}
@@ -1742,7 +1734,7 @@ func (t *Translator) createPolicyEngineCluster() *cluster.Cluster {
 
 // createALSCluster creates an Envoy cluster for the gRPC access log service
 func (t *Translator) createALSCluster() *cluster.Cluster {
-	grpcConfig := t.config.Analytics.GRPCAccessLogCfg
+	grpcConfig := t.config.Analytics.GRPCEventServerCfg
 
 	// Build the endpoint address (UDS or TCP)
 	var address *core.Address
@@ -1753,7 +1745,7 @@ func (t *Translator) createALSCluster() *cluster.Cluster {
 			Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
 					Protocol: core.SocketAddress_TCP,
-					Address:  grpcConfig.Host,
+					Address:  t.config.Router.PolicyEngine.Host,
 					PortSpecifier: &core.SocketAddress_PortValue{
 						PortValue: uint32(grpcConfig.Port),
 					},
@@ -1889,7 +1881,7 @@ func (t *Translator) createSDSCluster() *cluster.Cluster {
 		xdsHost = envHost
 	}
 
-	xdsPort := t.config.GatewayController.Server.XDSPort
+	xdsPort := t.config.Controller.Server.XDSPort
 	if xdsPort == 0 {
 		xdsPort = 18000 // Default xDS port
 	}
@@ -2374,12 +2366,12 @@ func (t *Translator) createAccessLogConfig() ([]*accesslog.AccessLog, error) {
 
 // createGRPCAccessLog creates a gRPC access log configuration for the gateway controller
 func (t *Translator) createGRPCAccessLog() (*accesslog.AccessLog, error) {
-	grpcConfig := t.config.Analytics.GRPCAccessLogCfg
+	grpcConfig := t.config.Analytics.GRPCEventServerCfg
 
 	httpGrpcAccessLog := &grpc_accesslogv3.HttpGrpcAccessLogConfig{
 		CommonConfig: &grpc_accesslogv3.CommonGrpcAccessLogConfig{
 			TransportApiVersion: corev3.ApiVersion_V3,
-			LogName:             grpcConfig.LogName,
+			LogName:             constants.DefaultALSLogName,
 			BufferFlushInterval: durationpb.New(time.Duration(grpcConfig.BufferFlushInterval)),
 			BufferSizeBytes:     wrapperspb.UInt32(uint32(grpcConfig.BufferSizeBytes)),
 			GrpcService: &corev3.GrpcService{
@@ -2414,7 +2406,7 @@ func (t *Translator) createTracingConfig() (*hcm.HttpConnectionManager_Tracing, 
 	}
 
 	// Determine service name with fallback
-	serviceName := t.config.GatewayController.Router.TracingServiceName
+	serviceName := t.config.Router.TracingServiceName
 	if serviceName == "" {
 		serviceName = "envoy-gateway"
 	}
@@ -2525,15 +2517,6 @@ func (t *Translator) createExtProcFilter() (*hcm.HttpFilter, error) {
 		routeCacheAction = extproc.ExternalProcessor_CLEAR
 	}
 
-	// Convert request header mode string to enum
-	requestHeaderMode := extproc.ProcessingMode_DEFAULT
-	switch policyEngine.RequestHeaderMode {
-	case constants.ExtProcHeaderModeSend:
-		requestHeaderMode = extproc.ProcessingMode_SEND
-	case constants.ExtProcHeaderModeSkip:
-		requestHeaderMode = extproc.ProcessingMode_SKIP
-	}
-
 	// Create ext_proc configuration
 	extProcConfig := &extproc.ExternalProcessor{
 		GrpcService: &core.GrpcService{
@@ -2549,7 +2532,7 @@ func (t *Translator) createExtProcFilter() (*hcm.HttpFilter, error) {
 		AllowModeOverride: policyEngine.AllowModeOverride,
 		RequestAttributes: []string{constants.ExtProcRequestAttributeRouteName, constants.ExtProcRequestAttributeRouteMetadata},
 		ProcessingMode: &extproc.ProcessingMode{
-			RequestHeaderMode: requestHeaderMode,
+			RequestHeaderMode: extproc.ProcessingMode_SEND,
 		},
 		MessageTimeout: durationpb.New(time.Duration(policyEngine.MessageTimeoutMs) * time.Millisecond),
 		MutationRules: &mutationrules.HeaderMutationRules{

@@ -55,7 +55,7 @@ const (
 
 	// Configuration Validation Constants
 	MaxReasonableTimeoutMs       = uint32(3600000) // 1 hour in milliseconds
-	MaxReasonablePolicyTimeoutMs = uint32(60000)  // 60 seconds in milliseconds
+	MaxReasonablePolicyTimeoutMs = uint32(60000)   // 60 seconds in milliseconds
 
 	// Cipher Suite Validation
 	CipherInvalidChars1 = ";"
@@ -81,12 +81,13 @@ const (
 	ExtProcRequestAttributeRouteMetadata = "xds.route_metadata"
 
 	// Policy Engine
-	PolicyEngineClusterName         = "api-platform/policy-engine"
-	DefaultPolicyEngineSocketPath   = "/var/run/api-platform/policy-engine.sock"
+	PolicyEngineClusterName       = "api-platform/policy-engine"
+	DefaultPolicyEngineSocketPath = "/var/run/api-platform/policy-engine.sock"
 
 	// gRPC Access Log Service
 	GRPCAccessLogClusterName = "apip_als_cluster"
 	DefaultALSSocketPath     = "/var/run/api-platform/gateway-analytics.sock"
+	DefaultALSLogName        = "envoy_access_log"
 
 	// MCP related constants
 	MCP_RESOURCE_PATH          = "/mcp"

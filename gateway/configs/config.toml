@@ -1,38 +1,22 @@
 
 [analytics]
 enabled = true
+allow_payloads = false
+enabled_publishers = ["moesif"]
 
-[[analytics.publishers]]
-type = "moesif"
-enabled = true
-
-[analytics.publishers.settings]
+[analytics.publishers.moesif]
 application_id = "<MOESIF_APPLICATION_ID>"
 
-[gateway_controller.router]
+[router]
 gateway_host = "*"
 
-[gateway_controller.router.access_logs]
+[router.access_logs]
 enabled = true
 
-[gateway_controller.auth.basic]
+[controller.auth.basic]
 enabled = true
 
-[[gateway_controller.auth.basic.users]]
+[[controller.auth.basic.users]]
 username = "admin"
 password = "admin"
 roles = ["admin"]
-
-# Remove policy_configurations once the issue is resolved: https://github.com/wso2/api-platform/issues/564
-[policy_configurations.ratelimit_v010]
-algorithm = "fixed-window"
-backend = "memory"
-
-[policy_configurations.ratelimit_v010.memory]
-max_entries = 10000
-cleanup_interval = "5m"
-
-[policy_configurations.ratelimit_v010.headers]
-include_x_rate_limit = true
-include_ietf = true
-include_retry_after = true

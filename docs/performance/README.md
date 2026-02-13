@@ -25,12 +25,6 @@ under incremental API scale and runtime traffic.
 
 ---
 
-## Policy Engine Memory vs API Count
-
-![Policy Engine Memory](policy_memory_vs_api_count.png)
-
----
-
 ## Throughput Over Time (TPS)
 
 ![TPS over Time](tps_over_time.png)

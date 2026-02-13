@@ -18,13 +18,13 @@ At a high level:
 1. A client sends a request to the gateway.
 2. The router selects the appropriate upstream cluster for the request.
 3. The router attempts to establish a TCP connection to one of the upstream endpoints.
-4. If the connection is not established within `connect_timeout_in_ms`, the attempt is aborted and the request fails with an upstream timeout.
+4. If the connection is not established within `connect_timeout_ms`, the attempt is aborted and the request fails with an upstream timeout.
 
 This is specifically about **connection establishment time**. It is separate from any overall request/route timeouts that may control how long the router waits for responses after a connection is established.
 
 ## Configuring the global connect timeout
 
-The global upstream connect timeout is configured in the gateway controller configuration under the `gateway_controller.router.upstream.timeouts` block.
+The global upstream connect timeout is configured in the gateway controller configuration under the `router.upstream.timeouts` block.
 
 You can use `gateway/configs/config-template.toml` as a reference when creating your own `config.toml`.
 
@@ -33,19 +33,19 @@ You can use `gateway/configs/config-template.toml` as a reference when creating 
 The following example shows how to set the upstream connect timeout to 6 seconds (6000 ms):
 
 ```toml
-[gateway_controller.router]
+[router]
 gateway_host = "*"
 listener_port = 8080
 https_enabled = true
 https_port = 8443
 
-[gateway_controller.router.upstream.timeouts]
-connect_timeout_in_ms = 6000
+[router.upstream.timeouts]
+connect_timeout_ms = 6000
 ```
 
 In this example:
 
-- `connect_timeout_in_ms = 6000` means the router will wait up to 6 seconds for a TCP connection to the upstream before failing the request.
+- `connect_timeout_ms = 6000` means the router will wait up to 6 seconds for a TCP connection to the upstream before failing the request.
 - If you do not override this value, the default from the controller configuration is used (typically 5000 ms).
 
 ### Changing the value in different deployments
@@ -55,31 +55,30 @@ In this example:
 For local or non-Kubernetes deployments, you configure the timeout directly in `gateway/configs/config.toml` using the same structure as shown above:
 
 ```toml
-[gateway_controller.router.upstream.timeouts]
-connect_timeout_in_ms = 5000
+[router.upstream.timeouts]
+connect_timeout_ms = 5000
 ```
 
 #### Kubernetes with Helm
 
-When deploying the gateway via the Helm chart, the same setting is controlled through Helm values under the `gateway.config.gateway_controller.router.upstream.timeouts` section.
+When deploying the gateway via the Helm chart, the same setting is controlled through Helm values under the `gateway.config.router.upstream.timeouts` section.
 
 Example Helm `values.yaml` snippet:
 
 ```yaml
 gateway:
   config:
-    gateway_controller:
-      router:
-        upstream:
-          timeouts:
-            connect_timeout_in_ms: 5000
+    router:
+      upstream:
+        timeouts:
+          connect_timeout_ms: 5000
 ```
 
 The chart then renders this value into the generated `config.toml` used by the gateway controller.
 
 ## Practical guidance
 
-When tuning `connect_timeout_in_ms`, consider the characteristics of your backends and network:
+When tuning `connect_timeout_ms`, consider the characteristics of your backends and network:
 
 - **Decrease the timeout** when:
   - Backends are expected to be highly available and respond quickly to connection attempts.
@@ -102,8 +101,8 @@ Consider an API whose upstream backend may take a few seconds to accept new conn
 You can configure:
 
 ```toml
-[gateway_controller.router.upstream.timeouts]
-connect_timeout_in_ms = 6000
+[router.upstream.timeouts]
+connect_timeout_ms = 6000
 ```
 
 With this configuration:

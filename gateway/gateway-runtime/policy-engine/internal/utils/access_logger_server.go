@@ -121,14 +121,14 @@ func StartAccessLogServiceServer(cfg *config.Config) *grpc.Server {
 			}
 		}()
 	case "tcp":
-		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort))
+		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.Analytics.AccessLogsServiceCfg.ServerPort))
 		if err != nil {
-			slog.Error("Failed to listen on ALS TCP port", "port", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort)
+			slog.Error("Failed to listen on ALS TCP port", "port", cfg.Analytics.AccessLogsServiceCfg.ServerPort)
 			panic(err)
 		}
 
 		go func() {
-			slog.Info("Starting to serve access log service server", "mode", "tcp", "port", cfg.Analytics.AccessLogsServiceCfg.ALSServerPort)
+			slog.Info("Starting to serve access log service server", "mode", "tcp", "port", cfg.Analytics.AccessLogsServiceCfg.ServerPort)
 			if err := server.Serve(listener); err != nil {
 				slog.Error("ALS server exited", "error", err)
 			}

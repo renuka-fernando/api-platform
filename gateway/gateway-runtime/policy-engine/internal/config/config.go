@@ -46,20 +46,29 @@ type Config struct {
 
 // AnalyticsConfig holds analytics configuration
 type AnalyticsConfig struct {
-	Enabled              bool                    `koanf:"enabled"`
-	Publishers           []PublisherConfig       `koanf:"publishers"`
-	GRPCAccessLogCfg     map[string]interface{}  `koanf:"grpc_access_logs"`
-	AccessLogsServiceCfg AccessLogsServiceConfig `koanf:"access_logs_service"`
+	Enabled              bool                      `koanf:"enabled"`
+	EnabledPublishers    []string                  `koanf:"enabled_publishers"`
+	Publishers           AnalyticsPublishersConfig `koanf:"publishers"`
+	GRPCEventServerCfg   map[string]interface{}    `koanf:"grpc_event_server"`
+	AccessLogsServiceCfg AccessLogsServiceConfig   `koanf:"access_logs_service"`
 	// AllowPayloads controls whether request and response bodies are captured
 	// into analytics metadata and forwarded to analytics publishers.
 	AllowPayloads bool `koanf:"allow_payloads"`
 }
 
-// PublisherConfig holds publisher configuration
-type PublisherConfig struct {
-	Enabled  bool                   `koanf:"enabled"`
-	Type     string                 `koanf:"type"`
-	Settings map[string]interface{} `koanf:"settings"`
+// AnalyticsPublishersConfig holds configuration for all analytics publishers
+type AnalyticsPublishersConfig struct {
+	Moesif MoesifPublisherConfig `koanf:"moesif"`
+}
+
+// MoesifPublisherConfig holds Moesif-specific configuration
+type MoesifPublisherConfig struct {
+	ApplicationID      string `koanf:"application_id"`
+	BaseURL            string `koanf:"moesif_base_url"`
+	PublishInterval    int    `koanf:"publish_interval"`
+	EventQueueSize     int    `koanf:"event_queue_size"`
+	BatchSize          int    `koanf:"batch_size"`
+	TimerWakeupSeconds int    `koanf:"timer_wakeup_seconds"`
 }
 
 // Config represents the complete policy engine configuration
@@ -146,15 +155,6 @@ type ConfigModeConfig struct {
 
 // XDSConfig holds xDS client configuration
 type XDSConfig struct {
-	// Enabled indicates whether xDS client should be started
-	Enabled bool `koanf:"enabled"`
-
-	// NodeID identifies this policy engine instance to the xDS server
-	NodeID string `koanf:"node_id"`
-
-	// Cluster identifies the cluster this policy engine belongs to
-	Cluster string `koanf:"cluster"`
-
 	// ConnectTimeout is the timeout for establishing initial connection
 	ConnectTimeout time.Duration `koanf:"connect_timeout"`
 
@@ -204,7 +204,7 @@ type LoggingConfig struct {
 // AccessLogsServiceConfig holds access logs service configuration
 type AccessLogsServiceConfig struct {
 	Mode                  string        `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
-	ALSServerPort         int           `koanf:"als_server_port"`
+	ServerPort            int           `koanf:"server_port"`
 	ShutdownTimeout       time.Duration `koanf:"shutdown_timeout"`
 	PublicKeyPath         string        `koanf:"public_key_path"`
 	PrivateKeyPath        string        `koanf:"private_key_path"`
@@ -293,9 +293,6 @@ func defaultConfig() *Config {
 				Mode: "xds",
 			},
 			XDS: XDSConfig{
-				Enabled:               true,
-				NodeID:                "policy-engine",
-				Cluster:               "policy-engine-cluster",
 				ConnectTimeout:        10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -314,32 +311,27 @@ func defaultConfig() *Config {
 			TracingServiceName: "policy-engine",
 		},
 		Analytics: AnalyticsConfig{
-			Enabled:    false,
-			Publishers: []PublisherConfig{
-				{
-					Type:    "moesif",
-					Enabled: true,
-					Settings: map[string]interface{}{
-						"application_id":       "",
-						"moesif_base_url":      "https://api.moesif.net",
-						"publish_interval":     5,
-						"event_queue_size":     10000,
-						"batch_size":           50,
-						"timer_wakeup_seconds": 3,
-					},
+			Enabled:           false,
+			EnabledPublishers: []string{"moesif"},
+			Publishers: AnalyticsPublishersConfig{
+				Moesif: MoesifPublisherConfig{
+					ApplicationID:      "",
+					BaseURL:            "https://api.moesif.net",
+					PublishInterval:    5,
+					EventQueueSize:     10000,
+					BatchSize:          50,
+					TimerWakeupSeconds: 3,
 				},
 			},
-			GRPCAccessLogCfg: map[string]interface{}{
-				"host":                  "policy-engine",
-				"port":                  18090,
-				"log_name":              "envoy_access_log",
+			GRPCEventServerCfg: map[string]interface{}{
+				"server_port":           18090,
 				"buffer_flush_interval": 1000000000,
 				"buffer_size_bytes":     16384,
 				"grpc_request_timeout":  20000000000,
 			},
 			AccessLogsServiceCfg: AccessLogsServiceConfig{
 				Mode:                  "", // Empty defaults to "uds"
-				ALSServerPort:         18090,
+				ServerPort:            18090,
 				ShutdownTimeout:       600 * time.Second,
 				PublicKeyPath:         "",
 				PrivateKeyPath:        "",
@@ -411,9 +403,6 @@ func (c *Config) Validate() error {
 
 	// Validate based on config mode
 	if c.PolicyEngine.ConfigMode.Mode == "xds" {
-		if !c.PolicyEngine.XDS.Enabled {
-			return fmt.Errorf("xds.enabled must be true when config_mode.mode is 'xds'")
-		}
 		if err := c.validateXDSConfig(); err != nil {
 			return err
 		}
@@ -459,14 +448,6 @@ func (c *Config) Validate() error {
 
 // validateXDSConfig validates xDS configuration
 func (c *Config) validateXDSConfig() error {
-	if c.PolicyEngine.XDS.NodeID == "" {
-		return fmt.Errorf("xds.node_id is required when xDS is enabled")
-	}
-
-	if c.PolicyEngine.XDS.Cluster == "" {
-		return fmt.Errorf("xds.cluster is required when xDS is enabled")
-	}
-
 	if c.PolicyEngine.XDS.ConnectTimeout <= 0 {
 		return fmt.Errorf("xds.connect_timeout must be positive")
 	}
@@ -511,8 +492,8 @@ func (c *Config) validateAnalyticsConfig() error {
 			// UDS mode (default) - port is unused
 		case "tcp":
 			// TCP mode - validate port
-			if als.ALSServerPort <= 0 || als.ALSServerPort > 65535 {
-				return fmt.Errorf("analytics.access_logs_service.als_server_port must be between 1 and 65535, got %d", als.ALSServerPort)
+			if als.ServerPort <= 0 || als.ServerPort > 65535 {
+				return fmt.Errorf("analytics.access_logs_service.server_port must be between 1 and 65535, got %d", als.ServerPort)
 			}
 		default:
 			return fmt.Errorf("analytics.access_logs_service.mode must be 'uds' or 'tcp', got: %s", als.Mode)
@@ -527,54 +508,24 @@ func (c *Config) validateAnalyticsConfig() error {
 			return fmt.Errorf("analytics.access_logs_service.max_header_limit must be positive, got %d", als.ExtProcMaxHeaderLimit)
 		}
 
-		// Validate publishers
-		for i, pub := range c.Analytics.Publishers {
-			if !pub.Enabled {
-				continue
-			}
-			if pub.Type == "" {
-				return fmt.Errorf("analytics.publishers[%d].type is required when enabled", i)
-			}
-
-			switch pub.Type {
+		// Validate enabled publishers
+		for _, publisherName := range c.Analytics.EnabledPublishers {
+			switch publisherName {
 			case "moesif":
-				if pub.Settings == nil {
-					return fmt.Errorf("analytics.publishers[%d].settings is required for type 'moesif'", i)
+				moesifCfg := c.Analytics.Publishers.Moesif
+				if moesifCfg.ApplicationID == "" {
+					return fmt.Errorf("analytics.publishers.moesif.application_id is required when moesif is enabled")
 				}
-				rawAppID, ok := pub.Settings["application_id"]
-				appID, okStr := rawAppID.(string)
-				if !ok || !okStr || appID == "" {
-					return fmt.Errorf("analytics.publishers[%d].settings.application_id is required and must be a non-empty string for type 'moesif'", i)
+				if moesifCfg.PublishInterval <= 0 {
+					return fmt.Errorf("analytics.publishers.moesif.publish_interval must be > 0 seconds, got %d", moesifCfg.PublishInterval)
 				}
-
-				if rawInterval, ok := pub.Settings["publish_interval"]; ok {
-					switch v := rawInterval.(type) {
-					case int:
-						if v <= 0 {
-							return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be > 0 seconds, got %d", i, v)
-						}
-					case int64:
-						if v <= 0 {
-							return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be > 0 seconds, got %d", i, v)
-						}
-					default:
-						return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be an integer (seconds) when set", i)
-					}
-				}
-
-				if rawBaseURL, ok := pub.Settings["moesif_base_url"]; ok && rawBaseURL != nil {
-					baseURL, okStr := rawBaseURL.(string)
-					if !okStr {
-						return fmt.Errorf("analytics.publishers[%d].settings.moesif_base_url must be a string", i)
-					}
-					if baseURL != "" {
-						if u, err := url.Parse(baseURL); err != nil || u.Scheme == "" || u.Host == "" {
-							return fmt.Errorf("analytics.publishers[%d].settings.moesif_base_url must be a valid URL (e.g. https://api.moesif.net), got %q", i, baseURL)
-						}
+				if moesifCfg.BaseURL != "" {
+					if u, err := url.Parse(moesifCfg.BaseURL); err != nil || u.Scheme == "" || u.Host == "" {
+						return fmt.Errorf("analytics.publishers.moesif.moesif_base_url must be a valid URL (e.g. https://api.moesif.net), got %q", moesifCfg.BaseURL)
 					}
 				}
 			default:
-				return fmt.Errorf("unknown publisher type: %s", pub.Type)
+				return fmt.Errorf("unknown publisher type in enabled_publishers: %s", publisherName)
 			}
 		}
 	}

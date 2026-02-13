@@ -94,7 +94,7 @@ func NewAPIServer(
 	apiKeyXDSManager *apikeyxds.APIKeyStateManager,
 	systemConfig *config.Config,
 ) *APIServer {
-	deploymentService := utils.NewAPIDeploymentService(store, db, snapshotManager, validator, &systemConfig.GatewayController.Router)
+	deploymentService := utils.NewAPIDeploymentService(store, db, snapshotManager, validator, &systemConfig.Router)
 	policyVersionResolver := utils.NewLoadedPolicyVersionResolver(policyDefinitions)
 	policyValidator := config.NewPolicyValidator(policyDefinitions)
 	server := &APIServer{
@@ -109,12 +109,12 @@ func NewAPIServer(
 		deploymentService:    deploymentService,
 		mcpDeploymentService: utils.NewMCPDeploymentService(store, db, snapshotManager),
 		llmDeploymentService: utils.NewLLMDeploymentService(store, db, snapshotManager, lazyResourceManager, templateDefinitions,
-			deploymentService, &systemConfig.GatewayController.Router, policyVersionResolver, policyValidator),
+			deploymentService, &systemConfig.Router, policyVersionResolver, policyValidator),
 		apiKeyService: utils.NewAPIKeyService(store, db, apiKeyXDSManager,
-			&systemConfig.GatewayController.APIKey),
+			&systemConfig.APIKey),
 		apiKeyXDSManager:   apiKeyXDSManager,
 		controlPlaneClient: controlPlaneClient,
-		routerConfig:       &systemConfig.GatewayController.Router,
+		routerConfig:       &systemConfig.Router,
 		httpClient:         &http.Client{Timeout: 10 * time.Second},
 		systemConfig:       systemConfig,
 	}

@@ -48,9 +48,6 @@ func validConfig() *Config {
 				Mode: "file",
 			},
 			XDS: XDSConfig{
-				Enabled:               false,
-				NodeID:                "policy-engine",
-				Cluster:               "policy-engine-cluster",
 				ConnectTimeout:        10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -438,12 +435,8 @@ func TestValidate_ConfigMode(t *testing.T) {
 			cfg := validConfig()
 			cfg.PolicyEngine.ConfigMode.Mode = tt.mode
 
-			// For xds mode, enable xDS with valid config
+			// For xds mode, set valid config
 			if tt.mode == "xds" {
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -481,54 +474,9 @@ func TestValidate_XDSConfig(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "xds mode without xds enabled",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = false
-			},
-			expectErr: true,
-			errMsg:    "xds.enabled must be true when config_mode.mode is 'xds'",
-		},
-		{
-			name: "xds enabled - missing node ID",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = ""
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
-				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
-				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
-				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
-				cfg.PolicyEngine.XDS.MaxReconnectDelay = 60 * time.Second
-			},
-			expectErr: true,
-			errMsg:    "xds.node_id is required",
-		},
-		{
-			name: "xds enabled - missing cluster",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = ""
-				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
-				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
-				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
-				cfg.PolicyEngine.XDS.MaxReconnectDelay = 60 * time.Second
-			},
-			expectErr: true,
-			errMsg:    "xds.cluster is required",
-		},
-		{
 			name: "xds enabled - invalid connect timeout",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 0
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -541,10 +489,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid request timeout",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 0
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -557,10 +501,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid initial reconnect delay",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 0
@@ -573,10 +513,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid max reconnect delay",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -615,10 +551,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS disabled - no validation",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -631,10 +563,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing cert path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -651,10 +579,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing key path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -671,10 +595,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing CA path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -691,10 +611,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - valid config",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -952,7 +868,7 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
 					Mode:                  "tcp",
-					ALSServerPort:         18090,
+					ServerPort:            18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
@@ -980,14 +896,14 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
 					Mode:                  "tcp",
-					ALSServerPort:         0,
+					ServerPort:            0,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
 			},
 			expectErr: true,
-			errMsg:    "als_server_port must be between 1 and 65535",
+			errMsg:    "server_port must be between 1 and 65535",
 		},
 		{
 			name: "analytics enabled - UDS mode skips port validation",
@@ -995,7 +911,7 @@ func TestValidate_AnalyticsConfig(t *testing.T) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
 					Mode:                  "uds",
-					ALSServerPort:         0, // Invalid port, but irrelevant in UDS mode
+					ServerPort:            0, // Invalid port, but irrelevant in UDS mode
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
@@ -1069,181 +985,101 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "publisher disabled - no validation",
+			name: "no publishers enabled",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
+					ServerPort:            18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: false, Type: ""},
-				}
+				cfg.Analytics.EnabledPublishers = []string{}
 			},
 			expectErr: false,
 		},
 		{
-			name: "publisher enabled - missing type",
+			name: "unknown publisher type",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
+					ServerPort:            18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: ""},
-				}
-			},
-			expectErr: true,
-			errMsg:    "type is required when enabled",
-		},
-		{
-			name: "publisher enabled - unknown type",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "unknown"},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"unknown"}
 			},
 			expectErr: true,
 			errMsg:    "unknown publisher type",
-		},
-		{
-			name: "moesif publisher - missing settings",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "moesif", Settings: nil},
-				}
-			},
-			expectErr: true,
-			errMsg:    "settings is required for type 'moesif'",
 		},
 		{
 			name: "moesif publisher - missing application_id",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
+					ServerPort:            18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "moesif", Settings: map[string]interface{}{}},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = ""
 			},
 			expectErr: true,
 			errMsg:    "application_id is required",
+		},
+		{
+			name: "moesif publisher - invalid publish_interval",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					ServerPort:            18090,
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = -1
+			},
+			expectErr: true,
+			errMsg:    "publish_interval must be > 0",
+		},
+		{
+			name: "moesif publisher - invalid base_url",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					ServerPort:            18090,
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = 5
+				cfg.Analytics.Publishers.Moesif.BaseURL = "not-a-url"
+			},
+			expectErr: true,
+			errMsg:    "must be a valid URL",
 		},
 		{
 			name: "moesif publisher - valid config",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
+					ServerPort:            18090,
 					ShutdownTimeout:       600 * time.Second,
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id": "test-app-id",
-						},
-					},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.BaseURL = "https://api.moesif.net"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = 5
 			},
 			expectErr: false,
-		},
-		{
-			name: "moesif publisher - invalid publish_interval (zero)",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": 0,
-						},
-					},
-				}
-			},
-			expectErr: true,
-			errMsg:    "publish_interval must be > 0",
-		},
-		{
-			name: "moesif publisher - valid publish_interval",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": 30,
-						},
-					},
-				}
-			},
-			expectErr: false,
-		},
-		{
-			name: "moesif publisher - invalid publish_interval type",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ALSServerPort:         18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": "30s",
-						},
-					},
-				}
-			},
-			expectErr: true,
-			errMsg:    "publish_interval must be an integer",
 		},
 	}
 

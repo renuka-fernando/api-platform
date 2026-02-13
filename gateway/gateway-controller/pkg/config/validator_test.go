@@ -154,7 +154,7 @@ func TestValidator_URLFriendlyName(t *testing.T) {
 func TestValidateAuthConfig_BothAuthDisabled_AllowsNoAuthMode(t *testing.T) {
 	// Test that validation allows no-auth mode when both auth methods are disabled
 	config := &Config{
-		GatewayController: GatewayController{
+		Controller: Controller{
 			Auth: AuthConfig{
 				Basic: BasicAuth{
 					Enabled: false,
@@ -173,7 +173,7 @@ func TestValidateAuthConfig_BothAuthDisabled_AllowsNoAuthMode(t *testing.T) {
 func TestValidateAuthConfig_BasicAuthEnabled(t *testing.T) {
 	// Test that validation passes when basic auth is enabled
 	config := &Config{
-		GatewayController: GatewayController{
+		Controller: Controller{
 			Auth: AuthConfig{
 				Basic: BasicAuth{
 					Enabled: true,
@@ -195,7 +195,7 @@ func TestValidateAuthConfig_BasicAuthEnabled(t *testing.T) {
 func TestValidateAuthConfig_IDPAuthEnabled(t *testing.T) {
 	// Test that validation passes when IDP auth is enabled
 	config := &Config{
-		GatewayController: GatewayController{
+		Controller: Controller{
 			Auth: AuthConfig{
 				Basic: BasicAuth{
 					Enabled: false,
@@ -215,7 +215,7 @@ func TestValidateAuthConfig_IDPAuthEnabled(t *testing.T) {
 func TestValidateAuthConfig_BothAuthEnabled(t *testing.T) {
 	// Test that validation passes when both auth methods are enabled
 	config := &Config{
-		GatewayController: GatewayController{
+		Controller: Controller{
 			Auth: AuthConfig{
 				Basic: BasicAuth{
 					Enabled: true,
@@ -238,15 +238,14 @@ func TestValidateAuthConfig_BothAuthEnabled(t *testing.T) {
 func TestValidateEventGWConfig_Enabled(t *testing.T) {
 	// Test that validation passes when event gateway is enabled with valid config
 	config := &Config{
-		GatewayController: GatewayController{
-			Router: RouterConfig{
-				EventGateway: EventGatewayConfig{
-					Enabled:               true,
-					WebSubHubURL:          "http://example.com",
-					WebSubHubPort:         9098,
-					WebSubHubListenerPort: 8083,
-					TimeoutSeconds:        10,
-				},
+		Controller: Controller{},
+		Router: RouterConfig{
+			EventGateway: EventGatewayConfig{
+				Enabled:               true,
+				WebSubHubURL:          "http://example.com",
+				WebSubHubPort:         9098,
+				WebSubHubListenerPort: 8083,
+				TimeoutSeconds:        10,
 			},
 		},
 	}
@@ -258,15 +257,14 @@ func TestValidateEventGWConfig_Enabled(t *testing.T) {
 func TestValidateWebSubURLConfig_WithoutSchema(t *testing.T) {
 	// Test that validation fails when there's no scheme in WebSubHubURL
 	config := &Config{
-		GatewayController: GatewayController{
-			Router: RouterConfig{
-				EventGateway: EventGatewayConfig{
-					Enabled:               true,
-					WebSubHubURL:          "example.com",
-					WebSubHubPort:         9098,
-					WebSubHubListenerPort: 8083,
-					TimeoutSeconds:        10,
-				},
+		Controller: Controller{},
+		Router: RouterConfig{
+			EventGateway: EventGatewayConfig{
+				Enabled:               true,
+				WebSubHubURL:          "example.com",
+				WebSubHubPort:         9098,
+				WebSubHubListenerPort: 8083,
+				TimeoutSeconds:        10,
 			},
 		},
 	}
@@ -660,7 +658,7 @@ func TestValidateUpstreamDefinitions_NoUpstreams(t *testing.T) {
 
 	definitions := &[]api.UpstreamDefinition{
 		{
-			Name:      "my-upstream",
+			Name: "my-upstream",
 			Upstreams: []struct {
 				Urls   []string `json:"urls" yaml:"urls"`
 				Weight *int     `json:"weight,omitempty" yaml:"weight,omitempty"`

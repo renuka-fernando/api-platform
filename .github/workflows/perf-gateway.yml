@@ -142,7 +142,7 @@ jobs:
           from collections import defaultdict
 
           # ---------- Memory graphs ----------
-          api, router_mem, controller_mem, policy_mem = [], [], [], []
+          api, router_mem, controller_mem = [], [], []
 
           def mib(v): return float(v.replace("MiB","").strip())
 
@@ -155,7 +155,6 @@ jobs:
               api.append(int(row["api_count"]))
               router_mem.append(mib(row["router_mem_used"]))
               controller_mem.append(mib(row["controller_mem_used"]))
-              policy_mem.append(mib(row["policy_mem_used"]))
 
           def plot(x, y, title, out):
             plt.figure(figsize=(9,4))
@@ -172,8 +171,6 @@ jobs:
               "docs/performance/router_memory_vs_api_count.png")
           plot(api, controller_mem, "Controller Memory vs API Count",
               "docs/performance/controller_memory_vs_api_count.png")
-          plot(api, policy_mem, "Policy Engine Memory vs API Count",
-              "docs/performance/policy_memory_vs_api_count.png")
 
           # ---------- TPS over time ----------
           buckets = defaultdict(int)
@@ -232,7 +229,6 @@ jobs:
           path: |
             router_memory_vs_api_count.png
             controller_memory_vs_api_count.png
-            policy_memory_vs_api_count.png
             tps_over_time.png
 
 
