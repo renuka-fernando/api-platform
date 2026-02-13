@@ -15,7 +15,7 @@ env:
   VERSION: test
   KIND_CLUSTER_NAME: operator-test
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 jobs:
   integration-test:
