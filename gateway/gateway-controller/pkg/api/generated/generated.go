@@ -186,6 +186,12 @@ const (
 	LLMProxyListItemStatusPending  LLMProxyListItemStatus = "pending"
 )
 
+// Defines values for LLMUpstreamAuthType.
+const (
+	LLMUpstreamAuthTypeApiKey LLMUpstreamAuthType = "api-key"
+	LLMUpstreamAuthTypeBearer LLMUpstreamAuthType = "bearer"
+)
+
 // Defines values for MCPDetailResponseMcpMetadataStatus.
 const (
 	MCPDetailResponseMcpMetadataStatusDeployed MCPDetailResponseMcpMetadataStatus = "deployed"
@@ -250,8 +256,8 @@ const (
 
 // Defines values for UpstreamAuthAuthType.
 const (
-	ApiKey UpstreamAuthAuthType = "api-key"
-	Bearer UpstreamAuthAuthType = "bearer"
+	UpstreamAuthAuthTypeApiKey UpstreamAuthAuthType = "api-key"
+	UpstreamAuthAuthTypeBearer UpstreamAuthAuthType = "bearer"
 )
 
 // Defines values for ListAPIsParamsStatus.
@@ -835,10 +841,8 @@ type LLMProxyConfigData struct {
 	DisplayName string `json:"displayName" yaml:"displayName"`
 
 	// Policies List of policies applied only to this operation (overrides or adds to API-level policies)
-	Policies *[]LLMPolicy `json:"policies,omitempty" yaml:"policies,omitempty"`
-
-	// Provider Unique id of a deployed llm provider
-	Provider string `json:"provider" yaml:"provider"`
+	Policies *[]LLMPolicy     `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Provider LLMProxyProvider `json:"provider" yaml:"provider"`
 
 	// Version Semantic version of the LLM proxy
 	Version string `json:"version" yaml:"version"`
@@ -906,6 +910,14 @@ type LLMProxyListItem struct {
 // LLMProxyListItemStatus defines model for LLMProxyListItem.Status.
 type LLMProxyListItemStatus string
 
+// LLMProxyProvider defines model for LLMProxyProvider.
+type LLMProxyProvider struct {
+	Auth *LLMUpstreamAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
+
+	// Id Unique id of a deployed llm provider
+	Id string `json:"id" yaml:"id"`
+}
+
 // LLMProxyUpdateResponse defines model for LLMProxyUpdateResponse.
 type LLMProxyUpdateResponse struct {
 	Id        *string    `json:"id,omitempty" yaml:"id,omitempty"`
@@ -913,6 +925,16 @@ type LLMProxyUpdateResponse struct {
 	Status    *string    `json:"status,omitempty" yaml:"status,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
 }
+
+// LLMUpstreamAuth defines model for LLMUpstreamAuth.
+type LLMUpstreamAuth struct {
+	Header *string             `json:"header,omitempty" yaml:"header,omitempty"`
+	Type   LLMUpstreamAuthType `json:"type" yaml:"type"`
+	Value  *string             `json:"value,omitempty" yaml:"value,omitempty"`
+}
+
+// LLMUpstreamAuthType defines model for LLMUpstreamAuth.Type.
+type LLMUpstreamAuthType string
 
 // MCPDetailResponse defines model for MCPDetailResponse.
 type MCPDetailResponse struct {
