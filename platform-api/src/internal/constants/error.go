@@ -133,8 +133,10 @@ var (
 	ErrLLMProviderTemplateNotFound = errors.New("llm provider template not found")
 	ErrLLMProviderExists           = errors.New("llm provider already exists")
 	ErrLLMProviderNotFound         = errors.New("llm provider not found")
+	ErrLLMProviderLimitReached     = errors.New("llm provider limit reached for organization")
 	ErrLLMProxyExists              = errors.New("llm proxy already exists")
 	ErrLLMProxyNotFound            = errors.New("llm proxy not found")
+	ErrLLMProxyLimitReached        = errors.New("llm proxy limit reached for organization")
 )
 
 var (
