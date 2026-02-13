@@ -829,13 +829,11 @@ These values can be configured in the gateway controller configuration under the
 The platform implements comprehensive security measures for API key management:
 
 #### Secure Hashing
-API keys are securely hashed before being stored in the database using configurable cryptographic algorithms:
+API keys are securely hashed before being stored in the database using the SHA-256 cryptographic algorithm:
 
 - **SHA-256**: Fast and secure hashing with salt
-- **bcrypt**: Adaptive hashing with configurable cost factor  
-- **Argon2id**: Memory-hard hashing algorithm resistant to GPU attacks
 
-The hashing algorithm can be configured by administrators. If no algorithm is specified, SHA-256 is used by default.
+SHA-256 is the only supported hashing algorithm for API keys.
 
 #### Masked Display
 For security reasons, API keys are masked when displayed in list operations:
@@ -896,7 +894,7 @@ API keys used with this policy are managed by the platform's key management syst
 ## Security Considerations
 
 1. **HTTPS Only**: Always use API key authentication over HTTPS to prevent key interception during transmission
-2. **Cryptographic Hashing**: API keys are automatically hashed using secure algorithms (SHA-256, bcrypt, or Argon2id) before storage
+2. **Cryptographic Hashing**: API keys are automatically hashed using SHA-256 before storage
 3. **Key Masking**: API keys are masked in list operations showing only the first 10 characters to prevent accidental exposure
 4. **Secure Storage**: Keys are never stored in plain text - only cryptographic hashes are persisted
 5. **Regular Regeneration**: Use the regenerate endpoint to regenerate API keys regularly without affecting your quota
