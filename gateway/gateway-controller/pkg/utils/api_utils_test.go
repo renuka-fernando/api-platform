@@ -258,7 +258,7 @@ func TestAPIUtilsService_NotifyAPIDeployment(t *testing.T) {
 		}
 		svc := NewAPIUtilsService(cfg, logger)
 
-		// Actually call the method with revision ID
+		// Actually call the method with deployment ID
 		err := svc.NotifyAPIDeployment("test-api", createTestStoredConfig(), "rev-123")
 		assert.NoError(t, err)
 	})

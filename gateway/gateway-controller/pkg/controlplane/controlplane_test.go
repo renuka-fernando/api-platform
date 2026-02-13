@@ -93,10 +93,9 @@ func TestAPIDeployedEvent(t *testing.T) {
 	event := APIDeployedEvent{
 		Type: "api.deployed",
 		Payload: APIDeployedEventPayload{
-			APIID:       "api-123",
-			Environment: "production",
-			RevisionID:  "rev-1",
-			VHost:       "api.example.com",
+			APIID:        "api-123",
+			DeploymentID: "rev-1",
+			VHost:        "api.example.com",
 		},
 		Timestamp:     "2025-01-30T12:00:00Z",
 		CorrelationID: "corr-789",
@@ -108,11 +107,8 @@ func TestAPIDeployedEvent(t *testing.T) {
 	if event.Payload.APIID != "api-123" {
 		t.Errorf("Payload.APIID = %q, want %q", event.Payload.APIID, "api-123")
 	}
-	if event.Payload.Environment != "production" {
-		t.Errorf("Payload.Environment = %q, want %q", event.Payload.Environment, "production")
-	}
-	if event.Payload.RevisionID != "rev-1" {
-		t.Errorf("Payload.RevisionID = %q, want %q", event.Payload.RevisionID, "rev-1")
+	if event.Payload.DeploymentID != "rev-1" {
+		t.Errorf("Payload.DeploymentID = %q, want %q", event.Payload.DeploymentID, "rev-1")
 	}
 	if event.Payload.VHost != "api.example.com" {
 		t.Errorf("Payload.VHost = %q, want %q", event.Payload.VHost, "api.example.com")
@@ -124,20 +120,16 @@ func TestAPIDeployedEvent(t *testing.T) {
 
 func TestAPIDeployedEventPayload(t *testing.T) {
 	payload := APIDeployedEventPayload{
-		APIID:       "test-api",
-		Environment: "staging",
-		RevisionID:  "rev-2",
-		VHost:       "staging.example.com",
+		APIID:        "test-api",
+		DeploymentID: "rev-2",
+		VHost:        "staging.example.com",
 	}
 
 	if payload.APIID != "test-api" {
 		t.Errorf("APIID = %q, want %q", payload.APIID, "test-api")
 	}
-	if payload.Environment != "staging" {
-		t.Errorf("Environment = %q, want %q", payload.Environment, "staging")
-	}
-	if payload.RevisionID != "rev-2" {
-		t.Errorf("RevisionID = %q, want %q", payload.RevisionID, "rev-2")
+	if payload.DeploymentID != "rev-2" {
+		t.Errorf("DeploymentID = %q, want %q", payload.DeploymentID, "rev-2")
 	}
 	if payload.VHost != "staging.example.com" {
 		t.Errorf("VHost = %q, want %q", payload.VHost, "staging.example.com")
