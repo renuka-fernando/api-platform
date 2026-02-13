@@ -506,7 +506,7 @@ func (s *APIKeyService) UpdateAPIKey(params APIKeyUpdateParams) (*APIKeyUpdateRe
 	if err != nil {
 		// Only create a new API key if it's a "not found" error
 		// For other errors (DB connection, etc.), return the error
-		if storage.IsNotFoundError(err) {
+		if storage.IsNotFoundError(err) && params.Request.ApiKey != nil && strings.TrimSpace(*params.Request.ApiKey) != "" {
 			logger.Info("API key not found for update, creating new API key",
 				slog.String("handle", params.Handle),
 				slog.String("api_key_name", params.APIKeyName),
