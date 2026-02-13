@@ -30,7 +30,6 @@ type ConnectionAckMessage struct {
 // APIDeployedEventPayload represents the payload of an API deployment event
 type APIDeployedEventPayload struct {
 	APIID        string `json:"apiId"`
-	Environment  string `json:"environment"`
 	DeploymentID string `json:"deploymentId"`
 	VHost        string `json:"vhost"`
 }

@@ -463,9 +463,6 @@ func TestAPIDeployedEvent_JSONParsing(t *testing.T) {
 	if event.Payload.APIID != "api-123" {
 		t.Errorf("Payload.APIID = %q, want %q", event.Payload.APIID, "api-123")
 	}
-	if event.Payload.Environment != "production" {
-		t.Errorf("Payload.Environment = %q, want %q", event.Payload.Environment, "production")
-	}
 }
 
 func TestConnectionAckMessage_JSONParsing(t *testing.T) {

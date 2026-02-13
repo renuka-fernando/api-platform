@@ -57,9 +57,6 @@ type DeploymentEvent struct {
 
 	// Vhost specifies the virtual host where the API is deployed
 	Vhost string `json:"vhost"`
-
-	// Environment specifies the deployment environment (e.g., "production", "sandbox")
-	Environment string `json:"environment"`
 }
 
 // APIUndeploymentEvent contains payload data for "api.undeployed" event type.
@@ -70,9 +67,6 @@ type APIUndeploymentEvent struct {
 
 	// Vhost specifies the virtual host from which the API is undeployed
 	Vhost string `json:"vhost"`
-
-	// Environment specifies the deployment environment
-	Environment string `json:"environment"`
 }
 
 // APIDeletionEvent contains payload data for "api.deleted" event type.

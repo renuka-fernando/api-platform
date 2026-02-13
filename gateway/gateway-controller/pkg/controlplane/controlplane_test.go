@@ -94,7 +94,6 @@ func TestAPIDeployedEvent(t *testing.T) {
 		Type: "api.deployed",
 		Payload: APIDeployedEventPayload{
 			APIID:        "api-123",
-			Environment:  "production",
 			DeploymentID: "rev-1",
 			VHost:        "api.example.com",
 		},
@@ -107,9 +106,6 @@ func TestAPIDeployedEvent(t *testing.T) {
 	}
 	if event.Payload.APIID != "api-123" {
 		t.Errorf("Payload.APIID = %q, want %q", event.Payload.APIID, "api-123")
-	}
-	if event.Payload.Environment != "production" {
-		t.Errorf("Payload.Environment = %q, want %q", event.Payload.Environment, "production")
 	}
 	if event.Payload.DeploymentID != "rev-1" {
 		t.Errorf("Payload.DeploymentID = %q, want %q", event.Payload.DeploymentID, "rev-1")
@@ -125,16 +121,12 @@ func TestAPIDeployedEvent(t *testing.T) {
 func TestAPIDeployedEventPayload(t *testing.T) {
 	payload := APIDeployedEventPayload{
 		APIID:        "test-api",
-		Environment:  "staging",
 		DeploymentID: "rev-2",
 		VHost:        "staging.example.com",
 	}
 
 	if payload.APIID != "test-api" {
 		t.Errorf("APIID = %q, want %q", payload.APIID, "test-api")
-	}
-	if payload.Environment != "staging" {
-		t.Errorf("Environment = %q, want %q", payload.Environment, "staging")
 	}
 	if payload.DeploymentID != "rev-2" {
 		t.Errorf("DeploymentID = %q, want %q", payload.DeploymentID, "rev-2")
