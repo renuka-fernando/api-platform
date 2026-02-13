@@ -512,10 +512,8 @@ func (s *APIKeyService) UpdateAPIKey(params APIKeyUpdateParams) (*APIKeyUpdateRe
 				slog.String("api_key_name", params.APIKeyName),
 				slog.String("correlation_id", params.CorrelationID))
 
-			// Ensure the created key uses the name from the URL path if not explicitly provided in the request
-			if params.Request.Name == nil || *params.Request.Name == "" {
-				params.Request.Name = &params.APIKeyName
-			}
+			// Always use the name from the URL path instead of the request body when creating a new key
+			params.Request.Name = &params.APIKeyName
 
 			// Create the new API key using the provided request
 			creationParams := APIKeyCreationParams{
