@@ -19,10 +19,10 @@
 package utils
 
 import (
+	"testing"
+
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/constants"
-	"strings"
-	"testing"
 )
 
 
@@ -48,9 +48,9 @@ func TestSHA256APIKeyHashing(t *testing.T) {
 		t.Error("SHA256 hashed key should be different from plain key")
 	}
 
-	// Verify the hash starts with SHA256 prefix
-	if !strings.HasPrefix(hashedKey, "$sha256$") {
-		t.Error("SHA256 hashed key should start with $sha256$ prefix")
+	// Verify the hash is 64 characters (SHA256 hex encoding)
+	if len(hashedKey) != 64 {
+		t.Errorf("SHA256 hashed key should be 64 characters, got %d", len(hashedKey))
 	}
 
 	// Test validation with correct key
@@ -88,18 +88,14 @@ func TestSHA256APIKeyHashDeterminism(t *testing.T) {
 		t.Fatalf("Failed to hash API key with SHA256 (2): %v", err)
 	}
 
-	// Hashes should be different due to random salt
-	if hash1 == hash2 {
-		t.Error("Two SHA256 hashes of the same key should be different (SHA256 uses random salt)")
+	// Hashes should be identical (deterministic hashing - no salt)
+	if hash1 != hash2 {
+		t.Error("Two SHA256 hashes of the same key should be identical (deterministic hashing)")
 	}
 
-	// But both should validate against the same plain key
+	// Hash should validate against the plain key
 	if !service.compareAPIKeys(plainKey, hash1) {
-		t.Error("First SHA256 hash should validate correctly")
-	}
-
-	if !service.compareAPIKeys(plainKey, hash2) {
-		t.Error("Second SHA256 hash should validate correctly")
+		t.Error("SHA256 hash should validate correctly")
 	}
 }
 
@@ -123,11 +119,6 @@ func TestAPIKeyHashingDefaultBehavior(t *testing.T) {
 	// With empty algorithm, should default to SHA256 hashing
 	if result == plainKey {
 		t.Error("Empty algorithm should default to SHA256 hashing, not return plain key")
-	}
-
-	// Should start with SHA256 prefix since it defaults to SHA256
-	if !strings.HasPrefix(result, "$sha256$") {
-		t.Error("Default algorithm should produce SHA256 hash with $sha256$ prefix")
 	}
 
 	// Test validation with default SHA256 algorithm
@@ -181,9 +172,9 @@ func TestAPIKeyHashingDefaultBehaviorDeterminism(t *testing.T) {
 		t.Fatalf("Failed to hash API key with default algorithm (2): %v", err)
 	}
 
-	// Results should be different due to random salt in SHA256
-	if result1 == result2 {
-		t.Error("SHA256 hashes should be different due to random salt")
+	// Results should be identical (deterministic SHA256 - no salt)
+	if result1 != result2 {
+		t.Error("SHA256 hashes should be identical (deterministic hashing)")
 	}
 
 	// Both should be SHA256 hashes, not plain keys
@@ -191,10 +182,6 @@ func TestAPIKeyHashingDefaultBehaviorDeterminism(t *testing.T) {
 		t.Error("Default algorithm should produce SHA256 hashes, not plain keys")
 	}
 
-	// Both should start with SHA256 prefix
-	if !strings.HasPrefix(result1, "$sha256$") || !strings.HasPrefix(result2, "$sha256$") {
-		t.Error("Default algorithm should produce SHA256 hashes with proper prefix")
-	}
 
 	// Both should validate correctly against the same plain key
 	if !service.compareAPIKeys(plainKey, result1) {
@@ -223,9 +210,6 @@ func TestHashingConfigurationSwitching(t *testing.T) {
 	if defaultResult == plainKey {
 		t.Error("Default algorithm should hash the key, not return plain key")
 	}
-	if !strings.HasPrefix(defaultResult, "$sha256$") {
-		t.Error("Default algorithm should produce SHA256 hash")
-	}
 
 	// Test switching to SHA256
 	service.SetHashingConfig(&config.APIKeyConfig{
@@ -235,9 +219,6 @@ func TestHashingConfigurationSwitching(t *testing.T) {
 	sha256Result, err := service.hashAPIKey(plainKey)
 	if err != nil {
 		t.Fatalf("Failed to hash with SHA256: %v", err)
-	}
-	if !strings.HasPrefix(sha256Result, "$sha256$") {
-		t.Error("SHA256 hash should start with $sha256$ prefix")
 	}
 
 	// Validate that the hash works with the same plain key
@@ -267,11 +248,6 @@ func TestAPIKeyHashingMixedScenario(t *testing.T) {
 		t.Fatalf("Failed to hash key with default algorithm: %v", err)
 	}
 
-	// New key should be SHA256 format
-	if !strings.HasPrefix(newHashedKey, "$sha256$") {
-		t.Error("Default algorithm should produce SHA256 hash")
-	}
-
 	// Plain key should validate against the newly generated SHA256 hash
 	valid := service.compareAPIKeys(plainKey, newHashedKey)
 	if !valid {
@@ -279,7 +255,7 @@ func TestAPIKeyHashingMixedScenario(t *testing.T) {
 	}
 
 	// Test with SHA256 format hash (should still be validated by compareAPIKeys)
-	sha256Hash := "$sha256$73616c74$68617368" // Example format
+	sha256Hash := "73616c74$68617368" // Example format
 	valid = service.compareAPIKeys(plainKey, sha256Hash)
 	if valid {
 		t.Error("Plain key should not validate against invalid SHA256 hash")
@@ -338,11 +314,6 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 		t.Error("Plain key should validate against SHA256 hash")
 	}
 
-	// Verify SHA256 format
-	if !strings.HasPrefix(sha256Hashed, "$sha256$") {
-		t.Error("SHA256 hash should start with $sha256$ prefix")
-	}
-
 	// Test cross-validation (should fail)
 
 	// Plain key 1 should not validate against other hashes
@@ -394,7 +365,7 @@ func TestMixedAPIKeyFormatsValidationWithDefaultAlgorithm(t *testing.T) {
 	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 	// Simulate pre-existing hashed keys
-	sha256Hash := "$sha256$73616c74$abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	sha256Hash := "73616c74$abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 
 	// compareAPIKeys should handle various hash formats regardless of current algorithm
 	// Plain key should not validate against invalid hashes
@@ -412,10 +383,6 @@ func TestMixedAPIKeyFormatsValidationWithDefaultAlgorithm(t *testing.T) {
 	// Should be SHA256 hash, not plain key
 	if result == plainKey {
 		t.Error("Default algorithm should hash the key, not return plain key")
-	}
-
-	if !strings.HasPrefix(result, "$sha256$") {
-		t.Error("Default algorithm should produce SHA256 hash")
 	}
 
 	// The generated hash should validate against the plain key

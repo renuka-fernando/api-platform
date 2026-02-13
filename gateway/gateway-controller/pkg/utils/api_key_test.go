@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	commonmodels "github.com/wso2/api-platform/common/models"
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
@@ -540,37 +539,6 @@ func TestBuildAPIKeyResponse(t *testing.T) {
 	})
 }
 
-func TestCompareSHA256Hash(t *testing.T) {
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			Algorithm: constants.HashingAlgorithmSHA256,
-		},
-	}
-
-	t.Run("Empty inputs return false", func(t *testing.T) {
-		result := service.compareSHA256Hash("", "hash")
-		assert.False(t, result)
-
-		result = service.compareSHA256Hash("key", "")
-		assert.False(t, result)
-	})
-
-	t.Run("Invalid format returns false", func(t *testing.T) {
-		result := service.compareSHA256Hash("key", "not-a-valid-hash")
-		assert.False(t, result)
-	})
-
-	t.Run("Valid hash comparison works", func(t *testing.T) {
-		plainKey := "apip_test123456789"
-		hash, err := service.hashAPIKeyWithSHA256(plainKey)
-		require.NoError(t, err)
-
-		result := service.compareSHA256Hash(plainKey, hash)
-		assert.True(t, result)
-	})
-}
-
-
 func TestCompareAPIKeys(t *testing.T) {
 	service := &APIKeyService{
 		apiKeyConfig: &config.APIKeyConfig{
@@ -592,14 +560,6 @@ func TestCompareAPIKeys(t *testing.T) {
 
 		result := service.compareAPIKeys(plainKey, hash)
 		assert.True(t, result)
-	})
-
-	t.Run("Plain text fallback comparison", func(t *testing.T) {
-		result := service.compareAPIKeys("same-key", "same-key")
-		assert.True(t, result)
-
-		result = service.compareAPIKeys("key1", "key2")
-		assert.False(t, result)
 	})
 }
 

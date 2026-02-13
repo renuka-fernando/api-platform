@@ -198,8 +198,7 @@ type APIKeyData struct {
 	CreatedBy  string     `json:"createdBy"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ExpiresAt  *time.Time `json:"expiresAt"`
-	Source     string     `json:"source"`   // "local" | "external"
-	IndexKey   string     `json:"indexKey"` // Pre-computed SHA-256 hash for O(1) lookup (external plain text keys only)
+	Source     string     `json:"source"` // "local" | "external"
 }
 
 // TranslateAPIKeys translates API key configurations to xDS resources
@@ -209,10 +208,6 @@ func (t *APIKeyTranslator) TranslateAPIKeys(apiKeys []*models.APIKey) (map[strin
 	// Convert all API keys to a single state resource
 	apiKeyData := make([]APIKeyData, 0, len(apiKeys))
 	for _, apiKey := range apiKeys {
-		var indexKey string
-		if apiKey.IndexKey != nil {
-			indexKey = *apiKey.IndexKey
-		}
 		data := APIKeyData{
 			ID:         apiKey.ID,
 			Name:       apiKey.Name,
@@ -225,7 +220,6 @@ func (t *APIKeyTranslator) TranslateAPIKeys(apiKeys []*models.APIKey) (map[strin
 			UpdatedAt:  apiKey.UpdatedAt,
 			ExpiresAt:  apiKey.ExpiresAt,
 			Source:     apiKey.Source,
-			IndexKey:   indexKey,
 		}
 		apiKeyData = append(apiKeyData, data)
 	}
