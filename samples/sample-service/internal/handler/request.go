@@ -42,7 +42,9 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if codeStr := r.URL.Query().Get("statusCode"); codeStr != "" {
 		if code, err := strconv.Atoi(codeStr); err == nil {
-			w.WriteHeader(code)
+			if code >= 100 && code <= 999 {
+				w.WriteHeader(code)
+			}
 		}
 	}
 	h.writeJSON(w, info)
