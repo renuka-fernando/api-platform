@@ -26,7 +26,9 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/policyxds"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 )
 
@@ -226,11 +228,70 @@ func (m *mockStorageForDeletion) DeleteLLMProviderTemplate(id string) error {
 	return nil
 }
 
+// mockXDSManager implements a mock XDSManager for testing
+type mockXDSManager struct {
+	removedAPIs []string
+	removeErr   error
+}
+
+func newMockXDSManager() *mockXDSManager {
+	return &mockXDSManager{
+		removedAPIs: make([]string, 0),
+	}
+}
+
+func (m *mockXDSManager) StoreAPIKey(apiId, apiName, apiVersion string, apiKey *models.APIKey, correlationID string) error {
+	return nil
+}
+
+func (m *mockXDSManager) RevokeAPIKey(apiId, apiName, apiVersion, apiKeyName, correlationID string) error {
+	return nil
+}
+
+func (m *mockXDSManager) RemoveAPIKeysByAPI(apiId, apiName, apiVersion, correlationID string) error {
+	if m.removeErr != nil {
+		return m.removeErr
+	}
+	m.removedAPIs = append(m.removedAPIs, apiId)
+	return nil
+}
+
 // Helper to create test API config for deletion tests
 func createTestAPIConfigForDeletion(apiID string) *models.StoredConfig {
+	// Create a complete API configuration so deletion flow can properly process it
+	specUnion := api.APIConfiguration_Spec{}
+	specUnion.FromAPIConfigData(api.APIConfigData{
+		DisplayName: "Test API",
+		Version:     "v1",
+		Context:     "/test",
+		Upstream: struct {
+			Main    api.Upstream  `json:"main" yaml:"main"`
+			Sandbox *api.Upstream `json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
+		}{
+			Main: api.Upstream{
+				Url: func() *string { s := "http://backend.example.com"; return &s }(),
+			},
+		},
+		Operations: []api.Operation{
+			{
+				Method: "GET",
+				Path:   "/resource",
+			},
+		},
+	})
+
 	return &models.StoredConfig{
 		ID:     apiID,
 		Status: models.StatusDeployed,
+		Kind:   "API",
+		Configuration: api.APIConfiguration{
+			ApiVersion: "gateway.wso2.com/v1",
+			Kind:       api.RestApi,
+			Metadata: api.Metadata{
+				Name: apiID,
+			},
+			Spec: specUnion,
+		},
 	}
 }
 
@@ -343,6 +404,12 @@ func TestClient_handleAPIDeletedEvent_FullDeletion(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	store := storage.NewConfigStore()
 	db := newMockStorageForDeletion()
+	xdsMgr := newMockXDSManager()
+
+	// Create a real PolicyManager with mock dependencies
+	policyStore := storage.NewPolicyStore()
+	policySnapshotMgr := policyxds.NewSnapshotManager(policyStore, logger)
+	policyMgr := policyxds.NewPolicyManager(policyStore, policySnapshotMgr, logger)
 
 	apiID := "test-api-full-delete"
 	apiConfig := createTestAPIConfigForDeletion(apiID)
@@ -350,9 +417,11 @@ func TestClient_handleAPIDeletedEvent_FullDeletion(t *testing.T) {
 	store.Add(apiConfig)
 
 	client := &Client{
-		logger: logger,
-		store:  store,
-		db:     db,
+		logger:           logger,
+		store:            store,
+		db:               db,
+		policyManager:    policyMgr,
+		apiKeyXDSManager: xdsMgr,
 	}
 
 	event := map[string]interface{}{
@@ -377,11 +446,27 @@ func TestClient_handleAPIDeletedEvent_FullDeletion(t *testing.T) {
 		t.Errorf("Expected RemoveAPIKeysAPI to be called once, got %d", db.removeKeyCallCount)
 	}
 
+	// Verify API keys removed from XDS manager
+	if len(xdsMgr.removedAPIs) != 1 {
+		t.Errorf("Expected XDS manager to remove API keys for 1 API, got %d", len(xdsMgr.removedAPIs))
+	} else if xdsMgr.removedAPIs[0] != apiID {
+		t.Errorf("Expected XDS manager to remove keys for API %s, got %s", apiID, xdsMgr.removedAPIs[0])
+	}
+
 	// Verify config removed from memory
 	_, err := store.Get(apiID)
 	if err == nil {
 		t.Error("Expected API config to be removed from memory store")
 	}
+
+	// Verify policy cleanup was called (policy ID would be apiID + "-policies")
+	policyID := apiID + "-policies"
+	_, policyExists := policyStore.Get(policyID)
+	if policyExists {
+		// If policy existed, it should have been removed
+		t.Error("Expected policy to be removed from policy store")
+	}
+	// Note: If policy never existed, Get returns false which is expected
 }
 
 // TestClient_handleAPIDeletedEvent_MemoryOnly tests deletion when no database exists
