@@ -57,8 +57,8 @@ type APIListItem struct {
 	Version     string `json:"version"`
 	Context     string `json:"context"`
 	Status      string `json:"status"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
 }
 
 // APIListResponse represents the response from GET /apis

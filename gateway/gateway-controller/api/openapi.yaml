@@ -759,7 +759,7 @@ paths:
                   message:
                     type: string
                     example: Certificates reloaded and SDS updated successfully
-                  total_bytes:
+                  totalBytes:
                     type: integer
                     description: Total bytes of all loaded certificates
                     example: 221599
@@ -891,7 +891,7 @@ paths:
                   count:
                     type: integer
                     example: 5
-                  mcp_proxies:
+                  mcpProxies:
                     type: array
                     items:
                       $ref: "#/components/schemas/MCPProxyListItem"
@@ -2268,7 +2268,7 @@ components:
           type: string
           description: Logical message name.
           example: IssueEvent
-        content_type:
+        contentType:
           type: string
           description: Content type of the payload.
           example: application/json
@@ -2301,7 +2301,7 @@ components:
           type: string
           description: Unique id for the created API configuration
           example: weather-api-v1.0
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
@@ -2317,7 +2317,7 @@ components:
         id:
           type: string
           example: weather-api-v1.0
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-10-11T11:45:00Z
@@ -2543,11 +2543,11 @@ components:
             - failed
             - undeployed
           example: deployed
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
@@ -2576,15 +2576,15 @@ components:
                     - deployed
                     - failed
                   example: deployed
-                created_at:
+                createdAt:
                   type: string
                   format: date-time
                   example: 2025-10-11T10:30:00Z
-                updated_at:
+                updatedAt:
                   type: string
                   format: date-time
                   example: 2025-10-11T10:30:00Z
-                deployed_at:
+                deployedAt:
                   type: string
                   format: date-time
                   example: 2025-10-11T10:30:05Z
@@ -2769,7 +2769,7 @@ components:
           type: string
           description: Unique handle (metadata.name) for the created MCP proxy configuration
           example: some-mcp-v1.0
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-12-12T10:30:00Z
@@ -2787,7 +2787,7 @@ components:
           type: string
           description: Unique handle (metadata.name) for the created MCP proxy configuration
           example: some-mcp-v1.0
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-12-12T11:45:00Z
@@ -2817,11 +2817,11 @@ components:
             - deployed
             - failed
           example: deployed
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-11-24T10:30:00Z
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-11-24T10:30:00Z
@@ -2851,15 +2851,15 @@ components:
                     - deployed
                     - failed
                   example: deployed
-                created_at:
+                createdAt:
                   type: string
                   format: date-time
                   example: 2025-11-24T10:30:00Z
-                updated_at:
+                updatedAt:
                   type: string
                   format: date-time
                   example: 2025-11-24T10:30:00Z
-                deployed_at:
+                deployedAt:
                   type: string
                   format: date-time
                   example: 2025-11-24T10:30:05Z
@@ -2976,7 +2976,7 @@ components:
         id:
           type: string
           example: openai
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
@@ -2993,7 +2993,7 @@ components:
         id:
           type: string
           example: openai
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-10-11T11:45:00Z
@@ -3007,11 +3007,11 @@ components:
         displayName:
           type: string
           example: OpenAI
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-10-11T10:30:00Z
@@ -3033,11 +3033,11 @@ components:
             metadata:
               type: object
               properties:
-                created_at:
+                createdAt:
                   type: string
                   format: date-time
                   example: 2025-10-11T10:30:00Z
-                updated_at:
+                updatedAt:
                   type: string
                   format: date-time
                   example: 2025-10-11T10:30:00Z
@@ -3054,7 +3054,7 @@ components:
         id:
           type: string
           example: openai
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
@@ -3071,7 +3071,7 @@ components:
         id:
           type: string
           example: wso2-con-assistant
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
@@ -3088,7 +3088,7 @@ components:
         id:
           type: string
           example: wso2-openai-provider
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-11-25T11:45:00Z
@@ -3105,7 +3105,7 @@ components:
         id:
           type: string
           example: wso2-con-assistant
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-11-25T11:45:00Z
@@ -3132,11 +3132,11 @@ components:
             - deployed
             - failed
           example: deployed
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
@@ -3164,11 +3164,11 @@ components:
             - deployed
             - failed
           example: deployed
-        created_at:
+        createdAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
           example: 2025-11-25T10:30:00Z
@@ -3187,7 +3187,7 @@ components:
               example: wso2-openai
             configuration:
               $ref: '#/components/schemas/LLMProviderConfiguration'
-            deployment_status:
+            deploymentStatus:
               type: string
               enum:
                 - pending
@@ -3197,15 +3197,15 @@ components:
             metadata:
               type: object
               properties:
-                created_at:
+                createdAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:30:00Z
-                updated_at:
+                updatedAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:30:00Z
-                deployed_at:
+                deployedAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:35:00Z
@@ -3224,7 +3224,7 @@ components:
               example: wso2-docs-assistant
             configuration:
               $ref: '#/components/schemas/LLMProxyConfiguration'
-            deployment_status:
+            deploymentStatus:
               type: string
               enum:
                 - pending
@@ -3234,15 +3234,15 @@ components:
             metadata:
               type: object
               properties:
-                created_at:
+                createdAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:30:00Z
-                updated_at:
+                updatedAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:30:00Z
-                deployed_at:
+                deployedAt:
                   type: string
                   format: date-time
                   example: 2025-11-25T10:35:00Z

@@ -336,7 +336,7 @@ func (s *APIServer) ReloadCertificates(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
 		"message":     "Certificates reloaded and SDS updated successfully",
-		"total_bytes": len(combinedCerts),
+		"totalBytes": len(combinedCerts),
 	})
 }
 

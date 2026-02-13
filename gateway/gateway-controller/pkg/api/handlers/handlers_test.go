@@ -721,7 +721,7 @@ func TestSearchDeploymentsMCP(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Contains(t, response, "mcp_proxies")
+	assert.Contains(t, response, "mcpProxies")
 }
 
 // TestListPolicies tests listing all policies
@@ -1530,7 +1530,7 @@ func TestGetAPIByIdWithDeployedAt(t *testing.T) {
 
 	apiData := response["api"].(map[string]interface{})
 	metadata := apiData["metadata"].(map[string]interface{})
-	assert.Contains(t, metadata, "deployed_at")
+	assert.Contains(t, metadata, "deployedAt")
 }
 
 // TestGetAPIByNameVersionWithDeployedAt tests GetAPIByNameVersion with deployed_at in response
@@ -1553,7 +1553,7 @@ func TestGetAPIByNameVersionWithDeployedAt(t *testing.T) {
 
 	apiData := response["api"].(map[string]interface{})
 	metadata := apiData["metadata"].(map[string]interface{})
-	assert.Contains(t, metadata, "deployed_at")
+	assert.Contains(t, metadata, "deployedAt")
 }
 
 // TestTimePtr tests the timePtr helper function
@@ -1833,7 +1833,7 @@ func TestGetLLMProviderByIdWithDeployedAt(t *testing.T) {
 	require.NoError(t, err)
 	provider := response["provider"].(map[string]interface{})
 	metadata := provider["metadata"].(map[string]interface{})
-	assert.Contains(t, metadata, "deployed_at")
+	assert.Contains(t, metadata, "deployedAt")
 }
 
 // TestGetLLMProxyByIdWithDeployedAt tests GetLLMProxyById with deployed_at

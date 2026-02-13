@@ -56,15 +56,15 @@ type MCPListItem struct {
 	Version     string `json:"version"`
 	Context     string `json:"context"`
 	Status      string `json:"status"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
 }
 
 // MCPListResponse represents the response from GET /mcp-proxies
 type MCPListResponse struct {
 	Status     string        `json:"status"`
 	Count      int           `json:"count"`
-	MCPProxies []MCPListItem `json:"mcp_proxies"`
+	MCPProxies []MCPListItem `json:"mcpProxies"`
 }
 
 func runListCommand() error {
