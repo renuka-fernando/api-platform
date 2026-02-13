@@ -77,9 +77,6 @@ type APIDeletionEvent struct {
 
 	// Vhost specifies the virtual host from which the API should be removed
 	Vhost string `json:"vhost"`
-
-	// Environment specifies the deployment environment
-	Environment string `json:"environment"`
 }
 
 // LLMProviderDeploymentEvent contains payload data for "llmprovider.deployed" event type.

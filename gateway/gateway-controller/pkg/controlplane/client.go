@@ -1132,7 +1132,6 @@ func (c *Client) handleAPIDeletedEvent(event map[string]interface{}) {
 
 	c.logger.Info("Processing API deletion",
 		slog.String("api_id", apiID),
-		slog.String("environment", deletedEvent.Payload.Environment),
 		slog.String("vhost", deletedEvent.Payload.VHost),
 		slog.String("correlation_id", deletedEvent.CorrelationID),
 	)

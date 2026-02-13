@@ -59,9 +59,8 @@ type APIUndeployedEvent struct {
 
 // APIDeletedEventPayload represents the payload of an API deletion event
 type APIDeletedEventPayload struct {
-	APIID       string `json:"apiId"`
-	Environment string `json:"environment"`
-	VHost       string `json:"vhost"`
+	APIID string `json:"apiId"`
+	VHost string `json:"vhost"`
 }
 
 // APIDeletedEvent represents the complete API deletion event

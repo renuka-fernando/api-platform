@@ -339,9 +339,8 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 
 			// Create and send API deletion event
 			deletionEvent := &model.APIDeletionEvent{
-				ApiId:       apiUUID,
-				Vhost:       gateway.Vhost,
-				Environment: "production",
+				ApiId: apiUUID,
+				Vhost: gateway.Vhost,
 			}
 
 			if err := s.gatewayEventsService.BroadcastAPIDeletionEvent(assoc.ResourceID, deletionEvent); err != nil {
