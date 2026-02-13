@@ -58,7 +58,7 @@ allowed_ips = ["*"]
 [controller.policy_server]
 port = 18001
 
-[controller.policyserver.tls]
+[controller.policy_server.tls]
 enabled = false
 cert_file = "./certs/server.crt"
 key_file = "./certs/server.key"
