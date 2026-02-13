@@ -814,7 +814,7 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 	// They will be reused if the API is redeployed
 
 	// Update xDS snapshot asynchronously (undeployed APIs will be filtered out)
-	c.updateXDSSnapshotAsync(apiID, undeployedEvent.CorrelationID, false)
+	c.updateXDSSnapshotAsync(apiID, undeployedEvent.CorrelationID, false, true)
 
 	c.logger.Info("Successfully processed API undeployment event",
 		slog.String("api_id", apiID),
@@ -854,9 +854,9 @@ func (c *Client) findAPIConfig(apiID string) (*models.StoredConfig, error) {
 
 // removePolicyConfiguration removes policy configuration with proper error handling
 // Returns true if resources were actually removed (not just "not found")
-func (c *Client) removePolicyConfiguration(apiID, correlationID string, isOrphaned bool) bool {
+func (c *Client) removePolicyConfiguration(apiID, correlationID string, isOrphaned bool) {
 	if c.policyManager == nil {
-		return false
+		return
 	}
 
 	policyID := apiID + "-policies"
@@ -864,52 +864,42 @@ func (c *Client) removePolicyConfiguration(apiID, correlationID string, isOrphan
 		// Only treat "policy not found" as non-error (API may never have had policies)
 		// Other errors (storage failures, snapshot update failures) should be logged as warnings
 		if storage.IsPolicyNotFoundError(err) {
-			if isOrphaned {
-				c.logger.Debug("No orphaned policy configuration found to clean up",
-					slog.String("policy_id", policyID),
-				)
-			} else {
-				c.logger.Debug("No derived policy configuration to remove (API had no policies)",
-					slog.String("api_id", apiID),
-					slog.String("policy_id", policyID),
-				)
-			}
-			return false
-		}
-
-		// Real error
-		if isOrphaned {
-			c.logger.Warn("Failed to remove orphaned policy configuration",
+			c.logger.Debug("No derived policy configuration to remove (API had no policies)",
 				slog.String("api_id", apiID),
 				slog.String("policy_id", policyID),
-				slog.Any("error", err),
+				slog.String("correlation_id", correlationID),
 			)
-		} else {
-			c.logger.Warn("Failed to remove derived policy configuration",
-				slog.Any("error", err),
-				slog.String("api_id", apiID),
-				slog.String("policy_id", policyID),
-			)
+			return
 		}
-		return false
+		c.logger.Warn("Failed to remove derived policy configuration",
+			slog.Any("error", err),
+			slog.String("api_id", apiID),
+			slog.String("policy_id", policyID),
+			slog.String("correlation_id", correlationID),
+		)
+		return
 	}
 
 	// Successfully removed
 	if isOrphaned {
 		c.logger.Debug("Checked and cleaned up orphaned policy configuration",
 			slog.String("policy_id", policyID),
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", correlationID),
 		)
 	} else {
 		c.logger.Info("Successfully removed derived policy configuration",
 			slog.String("api_id", apiID),
 			slog.String("policy_id", policyID),
+			slog.String("correlation_id", correlationID),
 		)
 	}
-	return true
 }
 
 // updateXDSSnapshotAsync updates xDS snapshot in the background
-func (c *Client) updateXDSSnapshotAsync(apiID, correlationID string, isOrphaned bool) {
+// isOrphaned: true for orphaned resource cleanup (logs at WARN level)
+// isUndeployment: true for undeployment, false for deletion (only relevant when !isOrphaned)
+func (c *Client) updateXDSSnapshotAsync(apiID, correlationID string, isOrphaned, isUndeployment bool) {
 	if c.snapshotManager == nil {
 		return
 	}
@@ -926,14 +916,24 @@ func (c *Client) updateXDSSnapshotAsync(apiID, correlationID string, isOrphaned 
 					slog.Any("error", err),
 				)
 			} else {
-				c.logger.Error("Failed to update xDS snapshot after API deletion",
+				operation := "deletion"
+				if isUndeployment {
+					operation = "undeployment"
+				}
+				c.logger.Error("Failed to update xDS snapshot after API "+operation,
 					slog.String("api_id", apiID),
+					slog.String("operation", operation),
 					slog.Any("error", err),
 				)
 			}
 		} else if !isOrphaned {
-			c.logger.Info("Successfully updated xDS snapshot after API deletion",
+			operation := "deletion"
+			if isUndeployment {
+				operation = "undeployment"
+			}
+			c.logger.Info("Successfully updated xDS snapshot after API "+operation,
 				slog.String("api_id", apiID),
+				slog.String("operation", operation),
 			)
 		}
 	}()
@@ -946,8 +946,6 @@ func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
 		slog.String("correlation_id", correlationID),
 	)
 
-	hasOrphanedResources := false
-
 	// Check and clean up orphaned API keys from database
 	if c.db != nil {
 		if err := c.db.RemoveAPIKeysAPI(apiID); err != nil {
@@ -956,7 +954,6 @@ func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
 				slog.Any("error", err),
 			)
 		} else {
-			hasOrphanedResources = true
 			c.logger.Debug("Checked and cleaned up orphaned API keys from database",
 				slog.String("api_id", apiID),
 			)
@@ -970,7 +967,6 @@ func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
 			slog.Any("error", err),
 		)
 	} else {
-		hasOrphanedResources = true
 		c.logger.Debug("Checked and cleaned up orphaned API keys from memory store",
 			slog.String("api_id", apiID),
 		)
@@ -984,24 +980,10 @@ func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
 	)
 
 	// Check and clean up orphaned policy configuration
-	if c.removePolicyConfiguration(apiID, correlationID, true) {
-		hasOrphanedResources = true
-	}
+	c.removePolicyConfiguration(apiID, correlationID, true)
 
 	// Update xDS snapshot to remove any stale routes
-	c.updateXDSSnapshotAsync(apiID, correlationID, true)
-
-	if hasOrphanedResources {
-		c.logger.Info("Orphaned resource cleanup completed",
-			slog.String("api_id", apiID),
-			slog.String("correlation_id", correlationID),
-		)
-	} else {
-		c.logger.Info("No orphaned resources found, API was never deployed to this gateway",
-			slog.String("api_id", apiID),
-			slog.String("correlation_id", correlationID),
-		)
-	}
+	c.updateXDSSnapshotAsync(apiID, correlationID, true, false)
 }
 
 // performFullAPIDeletion performs complete deletion of API and all related resources
@@ -1097,7 +1079,7 @@ func (c *Client) performFullAPIDeletion(apiID string, apiConfig *models.StoredCo
 	}
 
 	// 6. Update xDS snapshot asynchronously (API will be removed from routes)
-	c.updateXDSSnapshotAsync(apiID, correlationID, false)
+	c.updateXDSSnapshotAsync(apiID, correlationID, false, false)
 
 	// 7. Remove derived policy configuration (after all other operations)
 	c.removePolicyConfiguration(apiID, correlationID, false)
