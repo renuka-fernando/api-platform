@@ -2328,19 +2328,19 @@ type GetLLMProviderDeploymentsParamsStatus string
 // RestoreLLMProviderDeploymentParams defines parameters for RestoreLLMProviderDeployment.
 type RestoreLLMProviderDeploymentParams struct {
 	// DeploymentId UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // UndeployLLMProviderDeploymentParams defines parameters for UndeployLLMProviderDeployment.
 type UndeployLLMProviderDeploymentParams struct {
 	// DeploymentId UUID of the deployment to undeploy
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // ListLLMProxiesByProviderParams defines parameters for ListLLMProxiesByProvider.
@@ -2379,19 +2379,19 @@ type GetLLMProxyDeploymentsParamsStatus string
 // RestoreLLMProxyDeploymentParams defines parameters for RestoreLLMProxyDeployment.
 type RestoreLLMProxyDeploymentParams struct {
 	// DeploymentId UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // UndeployLLMProxyDeploymentParams defines parameters for UndeployLLMProxyDeployment.
 type UndeployLLMProxyDeploymentParams struct {
 	// DeploymentId UUID of the deployment to undeploy
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // ListRESTAPIsParams defines parameters for ListRESTAPIs.
@@ -2430,19 +2430,19 @@ type GetDeploymentsParamsStatus string
 // RestoreDeploymentParams defines parameters for RestoreDeployment.
 type RestoreDeploymentParams struct {
 	// DeploymentId UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // UndeployDeploymentParams defines parameters for UndeployDeployment.
 type UndeployDeploymentParams struct {
 	// DeploymentId UUID of the deployment to undeploy
-	DeploymentId openapi_types.UUID `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
+	DeploymentId string `form:"deploymentId" json:"deploymentId" yaml:"deploymentId"`
 
 	// GatewayId UUID of the gateway (validated against deployment's bound gateway)
-	GatewayId openapi_types.UUID `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
+	GatewayId string `form:"gatewayId" json:"gatewayId" yaml:"gatewayId"`
 }
 
 // AddGatewaysToAPIJSONBody defines parameters for AddGatewaysToAPI.

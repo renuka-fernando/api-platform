@@ -152,8 +152,8 @@ func (h *LLMProviderDeploymentHandler) UndeployLLMProviderDeployment(c *gin.Cont
 		return
 	}
 
-	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
-	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	deploymentId := params.DeploymentId
+	gatewayId := params.GatewayId
 
 	if providerId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -209,8 +209,8 @@ func (h *LLMProviderDeploymentHandler) RestoreLLMProviderDeployment(c *gin.Conte
 		return
 	}
 
-	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
-	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	deploymentId := params.DeploymentId
+	gatewayId := params.GatewayId
 
 	if providerId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -506,8 +506,8 @@ func (h *LLMProxyDeploymentHandler) UndeployLLMProxyDeployment(c *gin.Context) {
 		return
 	}
 
-	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
-	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	deploymentId := params.DeploymentId
+	gatewayId := params.GatewayId
 
 	if proxyId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -563,8 +563,8 @@ func (h *LLMProxyDeploymentHandler) RestoreLLMProxyDeployment(c *gin.Context) {
 		return
 	}
 
-	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
-	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	deploymentId := params.DeploymentId
+	gatewayId := params.GatewayId
 
 	if proxyId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",

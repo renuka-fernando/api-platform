@@ -1063,14 +1063,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to undeploy
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
@@ -1111,14 +1109,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
@@ -2398,14 +2394,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to undeploy
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
@@ -2451,14 +2445,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
@@ -2651,14 +2643,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to undeploy
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
@@ -2704,14 +2694,12 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
         - name: gatewayId
           in: query
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the gateway (validated against deployment's bound gateway)
       responses:
         '200':
