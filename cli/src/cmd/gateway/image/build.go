@@ -229,31 +229,24 @@ func runUnifiedBuild() error {
 	if err != nil {
 		return fmt.Errorf("failed to setup workspace: %w", err)
 	}
-
-	// Policies were copied into the workspace by SetupTempGatewayWorkspace
+	defer os.RemoveAll(tempDir)
 
 	fmt.Printf("  ✓ Workspace ready: %s\n\n", tempDir)
 
 	// Step 6: Run Docker build (gateway-builder + image build)
 	fmt.Println("[6/6] Building Gateway Images")
-	if err := runDockerBuild(); err != nil {
+	if err := runDockerBuild(tempDir); err != nil {
 		return fmt.Errorf("failed to build gateway images: %w", err)
 	}
 	fmt.Println("  ✓ All images built successfully")
 
-	// Get temp directory for summary
-	tempGatewayImageBuildDir, err := utils.GetTempGatewayImageBuildDir()
-	if err != nil {
-		return fmt.Errorf("failed to get temp gateway image build directory path: %w", err)
-	}
-
 	// Display Summary
-	displayBuildSummary(manifest, manifestFilePath, processed, tempGatewayImageBuildDir)
+	displayBuildSummary(processed)
 
 	return nil
 }
 
-func displayBuildSummary(manifest *policy.PolicyManifest, manifestFilePath string, processed []policy.ProcessedPolicy, workspaceDir string) {
+func displayBuildSummary(processed []policy.ProcessedPolicy) {
 	fmt.Println("=== Build Summary ===")
 	fmt.Println()
 
@@ -277,27 +270,16 @@ func displayBuildSummary(manifest *policy.PolicyManifest, manifestFilePath strin
 	}
 	fmt.Println()
 
-	// Workspace and output
-	// Workspace output
-	outputPath := filepath.Join(workspaceDir, "output")
-	fmt.Printf("✓ Temporary Build output: %s\n", outputPath)
 	if outputDir != "" {
 		fmt.Printf("✓ Output artifacts copied to: %s\n", outputDir)
+		fmt.Println()
 	}
-	// Explain workspace cleanup behavior
-	fmt.Printf("\nNote: Workspace may be cleared on the next run of this command.\n")
-	fmt.Println()
 }
 
 // runDockerBuild executes the docker build process for gateway images
-func runDockerBuild() error {
-	tempGatewayImageBuildDir, err := utils.GetTempGatewayImageBuildDir()
-	if err != nil {
-		return fmt.Errorf("failed to get temp gateway image build directory: %w", err)
-	}
-
+func runDockerBuild(tempDir string) error {
 	// Create logs directory
-	logsDir := filepath.Join(tempGatewayImageBuildDir, "logs")
+	logsDir := filepath.Join(tempDir, "logs")
 	if err := utils.EnsureDir(logsDir); err != nil {
 		return fmt.Errorf("failed to create logs directory: %w", err)
 	}
@@ -306,7 +288,7 @@ func runDockerBuild() error {
 
 	// Prepare build configuration
 	config := gateway.DockerBuildConfig{
-		TempDir:                    tempGatewayImageBuildDir,
+		TempDir:                    tempDir,
 		GatewayBuilder:             gatewayBuilder,
 		GatewayControllerBaseImage: gatewayControllerBaseImg,
 		GatewayRuntimeBaseImage:    gatewayRuntimeBaseImg,

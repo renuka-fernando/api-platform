@@ -253,43 +253,6 @@ func EnsureDir(dirPath string) error {
 	return nil
 }
 
-// CleanTempDir removes all contents of the temp directory
-func CleanTempDir() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	tempDir := filepath.Join(homeDir, TempPath)
-
-	// Check if temp directory exists
-	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
-		return nil // Nothing to clean
-	}
-
-	// Remove all contents
-	if err := os.RemoveAll(tempDir); err != nil {
-		return fmt.Errorf("failed to clean temp directory: %w", err)
-	}
-
-	return nil
-}
-
-// GetTempDir returns the path to the temp directory, creating it if necessary
-func GetTempDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	tempDir := filepath.Join(homeDir, TempPath)
-	if err := EnsureDir(tempDir); err != nil {
-		return "", err
-	}
-
-	return tempDir, nil
-}
-
 // GetCacheDir returns the path to the policies cache directory
 func GetCacheDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -363,86 +326,24 @@ func Unzip(src, dest string) error {
 	return nil
 }
 
-// GetTempGatewayImageBuildDir returns the path to the temp gateway image build output directory (.wso2ap/.tmp/gateway-image-build)
-func GetTempGatewayImageBuildDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	tempGatewayImageBuildDir := filepath.Join(homeDir, TempPath, "gateway-image-build")
-	return tempGatewayImageBuildDir, nil
-}
-
-// SetupTempGatewayImageBuildDir creates the temp "gateway-image-build" directory structure for the build
-// This includes: output/, policies/<name>/<version>/ and a copy of the lock file
-// Location: .wso2ap/.tmp/gateway-image-build
-// If a "gateway-image-build" directory already exists, it will be removed first
-func SetupTempGatewayImageBuildDir(lockFilePath string) error {
-	tempGatewayImageBuildDir, err := GetTempGatewayImageBuildDir()
-	if err != nil {
-		return fmt.Errorf("failed to get temp gateway image build directory path: %w", err)
-	}
-
-	// Remove existing "gateway-image-build" directory if it exists
-	if _, err := os.Stat(tempGatewayImageBuildDir); err == nil {
-		if err := os.RemoveAll(tempGatewayImageBuildDir); err != nil {
-			return fmt.Errorf("failed to remove existing temp gateway image build directory: %w", err)
-		}
-	}
-
-	// Create the temp gateway image build directory structure
-	if err := EnsureDir(tempGatewayImageBuildDir); err != nil {
-		return fmt.Errorf("failed to create temp gateway image build directory: %w", err)
-	}
-
-	// Create output directory
-	outputDir := filepath.Join(tempGatewayImageBuildDir, "output")
-	if err := EnsureDir(outputDir); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Create policies directory
-	policiesDir := filepath.Join(tempGatewayImageBuildDir, "policies")
-	if err := EnsureDir(policiesDir); err != nil {
-		return fmt.Errorf("failed to create policies directory: %w", err)
-	}
-
-	// Copy lock file to temp gateway image build directory if provided
-	if lockFilePath != "" {
-		lockFileContent, err := os.ReadFile(lockFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to read lock file: %w", err)
-		}
-
-		lockPath := filepath.Join(tempGatewayImageBuildDir, "policy-manifest-lock.yaml")
-		if err := os.WriteFile(lockPath, lockFileContent, 0644); err != nil {
-			return fmt.Errorf("failed to write lock file to temp gateway image build directory: %w", err)
-		}
-	}
-
-	return nil
-}
-
 // SetupTempGatewayWorkspace prepares the workspace by creating required folders, copying
 // local policies into the workspace, updating the manifest's filePath entries to point
 // to the workspace paths, and writing the modified manifest as policy-manifest.yaml
 // (renamed from the original build.yaml file for Docker build compatibility).
 func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
-	tempGatewayImageBuildDir, err := GetTempGatewayImageBuildDir()
+	// Use a parent directory under the user's home dir so the path is
+	// Docker-accessible on macOS (Docker Desktop shares /Users by default,
+	// but may not share the OS temp dir under /var/folders).
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get temp gateway image build directory path: %w", err)
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
-
-	// Remove existing "gateway-image-build" directory if it exists
-	if _, err := os.Stat(tempGatewayImageBuildDir); err == nil {
-		if err := os.RemoveAll(tempGatewayImageBuildDir); err != nil {
-			return "", fmt.Errorf("failed to remove existing temp gateway image build directory: %w", err)
-		}
+	baseDir := filepath.Join(homeDir, ".wso2ap", ".tmp")
+	if err := EnsureDir(baseDir); err != nil {
+		return "", fmt.Errorf("failed to create temp base directory: %w", err)
 	}
-
-	// Create the temp gateway image build directory structure
-	if err := EnsureDir(tempGatewayImageBuildDir); err != nil {
+	tempGatewayImageBuildDir, err := os.MkdirTemp(baseDir, "gateway-image-build-*")
+	if err != nil {
 		return "", fmt.Errorf("failed to create temp gateway image build directory: %w", err)
 	}
 
@@ -492,7 +393,7 @@ func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
 		}
 
 		// Copy into workspace (requires directory)
-		workspaceRel, err := CopyPolicyToWorkspace(p.Name, p.Version, srcPath, true)
+		workspaceRel, err := CopyPolicyToWorkspace(p.Name, p.Version, srcPath, true, tempGatewayImageBuildDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to copy local policy %s v%s into workspace: %w", p.Name, p.Version, err)
 		}
@@ -515,19 +416,13 @@ func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
 	return tempGatewayImageBuildDir, nil
 }
 
-// CopyPolicyToWorkspace copies a policy to the workspace
-// For local policies: copies the source directory into workspace/policies/<original-dir-name>/
-// Final structure in workspace: .wso2ap/.tmp/gateway-image-build/policies/<original-dir-name>/
-func CopyPolicyToWorkspace(policyName, policyVersion, sourcePath string, isLocal bool) (string, error) {
-	tempGatewayImageBuildDir, err := GetTempGatewayImageBuildDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get temp gateway image build directory path: %w", err)
-	}
-
+// CopyPolicyToWorkspace copies a policy to the workspace directory.
+// For local policies: copies the source directory into workspaceDir/policies/<original-dir-name>/
+func CopyPolicyToWorkspace(policyName, policyVersion, sourcePath string, isLocal bool, workspaceDir string) (string, error) {
 	if isLocal {
 		// Use the original directory name from the source path (e.g., 'my-policy')
 		dirName := filepath.Base(filepath.Clean(sourcePath))
-		workspacePolicyDir := filepath.Join(tempGatewayImageBuildDir, "policies", dirName)
+		workspacePolicyDir := filepath.Join(workspaceDir, "policies", dirName)
 
 		// Ensure destination directory exists
 		if err := EnsureDir(workspacePolicyDir); err != nil {
