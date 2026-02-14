@@ -29,8 +29,9 @@ import (
 )
 
 func TestBuildOptions_Default(t *testing.T) {
-	// Ensure COVERAGE env is not set
+	// Ensure COVERAGE and TARGETARCH env are not set
 	os.Unsetenv("COVERAGE")
+	os.Unsetenv("TARGETARCH")
 
 	metadata := &types.BuildMetadata{
 		Version:   "v1.0.0",
@@ -44,12 +45,30 @@ func TestBuildOptions_Default(t *testing.T) {
 	assert.False(t, opts.EnableUPX)
 	assert.False(t, opts.CGOEnabled)
 	assert.Equal(t, "linux", opts.TargetOS)
-	assert.Equal(t, runtime.GOARCH, opts.TargetArch)
+	assert.Equal(t, runtime.GOARCH, opts.TargetArch) // Falls back to native when TARGETARCH not set
 	assert.False(t, opts.EnableCoverage)
 	assert.Contains(t, opts.LDFlags, "-s -w")
 	assert.Contains(t, opts.LDFlags, "-X main.Version=v1.0.0")
 	assert.Contains(t, opts.LDFlags, "-X main.GitCommit=abc123")
 	assert.Contains(t, opts.LDFlags, "-X main.BuildDate=")
+}
+
+func TestBuildOptions_WithTargetArch(t *testing.T) {
+	// Test cross-compilation via TARGETARCH env var (used by Docker buildx)
+	os.Unsetenv("COVERAGE")
+	os.Setenv("TARGETARCH", "amd64")
+	defer os.Unsetenv("TARGETARCH")
+
+	metadata := &types.BuildMetadata{
+		Version:   "v1.0.0",
+		GitCommit: "abc123",
+		Timestamp: time.Now(),
+	}
+
+	opts := BuildOptions("/output/binary", metadata)
+
+	assert.Equal(t, "amd64", opts.TargetArch) // Should use TARGETARCH, not runtime.GOARCH
+	assert.Equal(t, "linux", opts.TargetOS)
 }
 
 func TestBuildOptions_WithCoverageEnabled(t *testing.T) {
