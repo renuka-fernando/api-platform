@@ -27,24 +27,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ParseManifest reads and parses a policy manifest file
-func ParseManifest(manifestPath string) (*PolicyManifest, error) {
-	data, err := os.ReadFile(manifestPath)
+// ParseBuildFile reads and parses a build file
+func ParseBuildFile(buildFilePath string) (*BuildFile, error) {
+	data, err := os.ReadFile(buildFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read manifest file: %w", err)
+		return nil, fmt.Errorf("failed to read build file: %w", err)
 	}
 
-	var manifest PolicyManifest
-	if err := yaml.Unmarshal(data, &manifest); err != nil {
-		return nil, fmt.Errorf("failed to parse manifest file: %w", err)
+	var buildFile BuildFile
+	if err := yaml.Unmarshal(data, &buildFile); err != nil {
+		return nil, fmt.Errorf("failed to parse build file: %w", err)
 	}
 
-	// Validate manifest
-	if err := validateManifest(&manifest); err != nil {
+	// Validate build file
+	if err := validateBuildFile(&buildFile); err != nil {
 		return nil, err
 	}
 
-	return &manifest, nil
+	return &buildFile, nil
 }
 
 // ParseLockFile reads and parses a policy lock file
@@ -62,23 +62,23 @@ func ParseLockFile(lockPath string) (*PolicyLock, error) {
 	return &lock, nil
 }
 
-// validateManifest validates the manifest structure
-func validateManifest(manifest *PolicyManifest) error {
-	if len(manifest.Policies) == 0 {
-		return fmt.Errorf("manifest must contain at least one policy")
+// validateBuildFile validates the build file structure
+func validateBuildFile(buildFile *BuildFile) error {
+	if len(buildFile.Policies) == 0 {
+		return fmt.Errorf("build file must contain at least one policy")
 	}
 
-	for i, policy := range manifest.Policies {
+	for i, policy := range buildFile.Policies {
 		if policy.Name == "" {
 			return fmt.Errorf("policy at index %d: name is required", i)
 		}
 
 		// Validate local policy when a filePath is provided
 		if policy.FilePath != "" {
-			// Resolve relative paths relative to manifest directory
+			// Resolve relative paths relative to build file directory
 			policyPath := policy.FilePath
 			if !filepath.IsAbs(policyPath) {
-				// If relative, assume it's relative to working directory or manifest location
+				// If relative, assume it's relative to working directory or build file location
 				policyPath = filepath.Clean(policyPath)
 			}
 
@@ -98,7 +98,7 @@ func validateManifest(manifest *PolicyManifest) error {
 			if err := utils.ValidateLocalPolicyDir(policyPath, policy.Name); err != nil {
 				return fmt.Errorf("policy %s: validation failed:\n%w\n\nLocal policies must:\n"+
 					"  1. Be a directory containing policy-definition.yaml at the root\n"+
-					"  2. Ensure 'name' matches the manifest", policy.Name, err)
+					"  2. Ensure 'name' matches the build file", policy.Name, err)
 			}
 		}
 	}
@@ -106,9 +106,9 @@ func validateManifest(manifest *PolicyManifest) error {
 	return nil
 }
 
-// SeparatePolicies separates manifest policies into local and hub policies
-func SeparatePolicies(manifest *PolicyManifest) (local, hub []ManifestPolicy) {
-	for _, policy := range manifest.Policies {
+// SeparatePolicies separates build file policies into local and hub policies
+func SeparatePolicies(buildFile *BuildFile) (local, hub []BuildFilePolicy) {
+	for _, policy := range buildFile.Policies {
 		if policy.IsLocal() {
 			local = append(local, policy)
 		} else {

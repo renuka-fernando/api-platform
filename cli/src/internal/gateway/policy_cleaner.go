@@ -29,12 +29,12 @@ type CleanedPolicy struct {
 	VersionResolution string `json:"versionResolution,omitempty"`
 }
 
-// CleanPolicyManifestForPolicyHub removes filePath and root-level fields,
+// CleanBuildFileForPolicyHub removes filePath and root-level fields,
 // returning only the policies array suitable for PolicyHub API
-func CleanPolicyManifestForPolicyHub(manifest *PolicyManifest) ([]byte, error) {
-	cleanedPolicies := make([]CleanedPolicy, len(manifest.Policies))
+func CleanBuildFileForPolicyHub(buildFile *BuildFile) ([]byte, error) {
+	cleanedPolicies := make([]CleanedPolicy, len(buildFile.Policies))
 
-	for i, policy := range manifest.Policies {
+	for i, policy := range buildFile.Policies {
 		cleanedPolicies[i] = CleanedPolicy{
 			Name:              policy.Name,
 			Version:           policy.Version,

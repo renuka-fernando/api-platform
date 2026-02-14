@@ -26,11 +26,9 @@ ap gateway image build \
 The `--path` flag must point to a directory containing:
 - `build.yaml` (required)
 
-Or execute in manifest location
+Or execute in the build file location.
 
-Note: The `build.yaml` file is internally renamed to `policy-manifest.yaml` when copied to the Docker build workspace.
-
-## Policy Manifest Format
+## Build File Format
 
 ### Basic Example
 ```yaml

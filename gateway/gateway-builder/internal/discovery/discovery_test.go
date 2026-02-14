@@ -29,9 +29,9 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/testutils"
 )
 
-// ==== LoadManifest tests ====
+// ==== LoadBuildFile tests ====
 
-func TestLoadManifest_Success(t *testing.T) {
+func TestLoadBuildFile_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
@@ -39,10 +39,10 @@ policies:
   - name: test-policy
     filePath: ./policies/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	manifest, err := LoadManifest(lockPath)
+	manifest, err := LoadBuildFile(lockPath)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v1", manifest.Version)
@@ -50,42 +50,42 @@ policies:
 	assert.Equal(t, "test-policy", manifest.Policies[0].Name)
 }
 
-func TestLoadManifest_FileNotFound(t *testing.T) {
-	_, err := LoadManifest("/nonexistent/path.yaml")
+func TestLoadBuildFile_FileNotFound(t *testing.T) {
+	_, err := LoadBuildFile("/nonexistent/path.yaml")
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read manifest lock file")
+	assert.Contains(t, err.Error(), "failed to read build file")
 }
 
-func TestLoadManifest_InvalidYAML(t *testing.T) {
+func TestLoadBuildFile_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, "invalid: yaml: content: -")
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse manifest YAML")
+	assert.Contains(t, err.Error(), "failed to parse build file YAML")
 }
 
-func TestLoadManifest_MissingVersion(t *testing.T) {
+func TestLoadBuildFile_MissingVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `policies:
   - name: test-policy
     filePath: ./policies/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "manifest version is required")
+	assert.Contains(t, err.Error(), "build file version is required")
 }
 
-func TestLoadManifest_UnsupportedVersion(t *testing.T) {
+func TestLoadBuildFile_UnsupportedVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v2
@@ -93,63 +93,63 @@ policies:
   - name: test-policy
     filePath: ./policies/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported manifest version")
+	assert.Contains(t, err.Error(), "unsupported build file version")
 }
 
-func TestLoadManifest_NoPolicies(t *testing.T) {
+func TestLoadBuildFile_NoPolicies(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
 policies: []
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "manifest must declare at least one policy")
+	assert.Contains(t, err.Error(), "build file must declare at least one policy")
 }
 
-func TestLoadManifest_PolicyMissingName(t *testing.T) {
+func TestLoadBuildFile_PolicyMissingName(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
 policies:
   - filePath: ./policies/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 }
 
-func TestLoadManifest_PolicyMissingPathAndModule(t *testing.T) {
+func TestLoadBuildFile_PolicyMissingPathAndModule(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
 policies:
   - name: test-policy
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "either filePath or gomodule must be provided")
 }
 
-func TestLoadManifest_DuplicatePolicy(t *testing.T) {
+func TestLoadBuildFile_DuplicatePolicy(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
@@ -159,16 +159,16 @@ policies:
   - name: test-policy
     filePath: ./policies/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	_, err := LoadManifest(lockPath)
+	_, err := LoadBuildFile(lockPath)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate policy entry")
 }
 
-func TestLoadManifest_BothFilePathAndGomodule(t *testing.T) {
+func TestLoadBuildFile_BothFilePathAndGomodule(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// This should succeed but warn (filePath preferred)
@@ -178,10 +178,10 @@ policies:
     filePath: ./policies/test
     gomodule: github.com/example/test
 `
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, lockPath, manifestContent)
 
-	manifest, err := LoadManifest(lockPath)
+	manifest, err := LoadBuildFile(lockPath)
 
 	require.NoError(t, err)
 	assert.Equal(t, "./policies/test", manifest.Policies[0].FilePath)
@@ -359,9 +359,9 @@ func TestCollectSourceFiles_IgnoresDirectories(t *testing.T) {
 	assert.Len(t, files, 1)
 }
 
-// ==== DiscoverPoliciesFromManifest tests ====
+// ==== DiscoverPoliciesFromBuildFile tests ====
 
-func TestDiscoverPoliciesFromManifest_Success(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create policy directory with all required files using testutils
@@ -382,11 +382,11 @@ policies:
   - name: ratelimit
     filePath: ./policies/ratelimit/v1.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
 	// Discover policies
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
@@ -396,7 +396,7 @@ policies:
 	assert.Len(t, policies[0].SourceFiles, 1)
 }
 
-func TestDiscoverPoliciesFromManifest_MultiplePolicies(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_MultiplePolicies(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create two policy directories
@@ -423,10 +423,10 @@ policies:
   - name: jwt-auth
     filePath: ./policies/jwt-auth
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
@@ -434,15 +434,15 @@ policies:
 	assert.Equal(t, "jwt-auth", policies[1].Name)
 }
 
-func TestDiscoverPoliciesFromManifest_ManifestNotFound(t *testing.T) {
-	policies, err := DiscoverPoliciesFromManifest("/nonexistent/manifest.yaml", "")
+func TestDiscoverPoliciesFromBuildFile_ManifestNotFound(t *testing.T) {
+	policies, err := DiscoverPoliciesFromBuildFile("/nonexistent/manifest.yaml", "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
-	assert.Contains(t, err.Error(), "failed to read manifest lock")
+	assert.Contains(t, err.Error(), "failed to read build file")
 }
 
-func TestDiscoverPoliciesFromManifest_PolicyPathNotFound(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_PolicyPathNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
@@ -450,10 +450,10 @@ policies:
   - name: missing-policy
     filePath: ./nonexistent-policy
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
@@ -461,24 +461,24 @@ policies:
 	assert.Contains(t, err.Error(), "failed to read module path from go.mod for missing-policy")
 }
 
-func TestDiscoverPoliciesFromManifest_NoFilePathOrGomodule(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_NoFilePathOrGomodule(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
 policies:
   - name: incomplete-policy
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
 	assert.Contains(t, err.Error(), "either filePath or gomodule must be provided")
 }
 
-func TestDiscoverPoliciesFromManifest_NameMismatch(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_NameMismatch(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create policy directory with different name in definition
@@ -495,17 +495,17 @@ policies:
   - name: my-policy
     filePath: ./policies/my-policy
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
 	assert.Contains(t, err.Error(), "policy name mismatch")
 }
 
-func TestDiscoverPoliciesFromManifest_MissingVersion(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_MissingVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	policyDir := filepath.Join(tmpDir, "policies", "noversion")
@@ -521,17 +521,17 @@ policies:
   - name: noversion
     filePath: ./policies/noversion
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
 	assert.Contains(t, err.Error(), "policy version is required")
 }
 
-func TestDiscoverPoliciesFromManifest_InvalidPolicyStructure(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_InvalidPolicyStructure(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create policy directory without go.mod
@@ -546,10 +546,10 @@ policies:
   - name: invalid
     filePath: ./policies/invalid
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
@@ -557,7 +557,7 @@ policies:
 	assert.Contains(t, err.Error(), "failed to read module path from go.mod for invalid")
 }
 
-func TestDiscoverPoliciesFromManifest_WithBaseDir(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_WithBaseDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create policy in a different location
@@ -575,28 +575,28 @@ policies:
   - name: ratelimit
     filePath: ./ratelimit
 `
-	manifestPath := filepath.Join(tmpDir, "manifest", "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "manifest", "build-lock.yaml")
 	testutils.CreateDir(t, filepath.Dir(manifestPath))
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
 	// Provide custom baseDir
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, policiesBaseDir)
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, policiesBaseDir)
 
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, "ratelimit", policies[0].Name)
 }
 
-func TestDiscoverPoliciesFromManifest_EmptyManifest(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_EmptyManifest(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
 policies: []
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	// Empty manifest is an error per the implementation
 	require.Error(t, err)
@@ -604,7 +604,7 @@ policies: []
 	assert.Contains(t, err.Error(), "must declare at least one policy")
 }
 
-func TestDiscoverPoliciesFromManifest_InvalidPolicyDefinition(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_InvalidPolicyDefinition(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	policyDir := filepath.Join(tmpDir, "policies", "baddef")
@@ -620,17 +620,17 @@ policies:
   - name: baddef
     filePath: ./policies/baddef
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.Error(t, err)
 	assert.Nil(t, policies)
 	assert.Contains(t, err.Error(), "failed to parse")
 }
 
-func TestDiscoverPoliciesFromManifest_WithSystemParameters(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_WithSystemParameters(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	policyDir := filepath.Join(tmpDir, "policies", "sysparam-policy")
@@ -655,10 +655,10 @@ policies:
   - name: sysparam-policy
     filePath: ./policies/sysparam-policy
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
@@ -771,9 +771,9 @@ func TestValidateDirectoryStructure_UnreadableDirectory(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ==== Tests for DiscoverPoliciesFromManifest with gomodule entries ====
+// ==== Tests for DiscoverPoliciesFromBuildFile with gomodule entries ====
 
-func TestDiscoverPoliciesFromManifest_GomoduleEntry_InvalidModule(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_GomoduleEntry_InvalidModule(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifestContent := `version: v1
@@ -781,16 +781,16 @@ policies:
   - name: remote-policy
     gomodule: github.com/nonexistent-org-12345/fake-policy@v1.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	_, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	_, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve gomodule")
 }
 
-func TestDiscoverPoliciesFromManifest_MixedEntries(t *testing.T) {
+func TestDiscoverPoliciesFromBuildFile_MixedEntries(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a local policy
@@ -810,10 +810,10 @@ policies:
   - name: local-policy
     filePath: ./policies/local-policy
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	manifestPath := filepath.Join(tmpDir, "build-lock.yaml")
 	testutils.WriteFile(t, manifestPath, manifestContent)
 
-	policies, err := DiscoverPoliciesFromManifest(manifestPath, "")
+	policies, err := DiscoverPoliciesFromBuildFile(manifestPath, "")
 
 	require.NoError(t, err)
 	require.Len(t, policies, 1)

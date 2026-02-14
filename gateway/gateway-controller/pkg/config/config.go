@@ -404,7 +404,7 @@ func LoadConfig(configPath string) (*Config, error) {
 
 		// Custom mappings for control plane variables
 		switch s {
-		case "controller_controlplane_host":
+		case "controlplane_host":
 			return "controller.controlplane.host"
 		case "registration_token":
 			return "controller.controlplane.token"

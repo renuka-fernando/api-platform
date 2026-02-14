@@ -26,10 +26,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/wso2/api-platform/gateway/gateway-builder/internal/buildfile"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/compilation"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/discovery"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/docker"
-	"github.com/wso2/api-platform/gateway/gateway-builder/internal/manifest"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/policyengine"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/validation"
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/errors"
@@ -37,10 +37,10 @@ import (
 )
 
 const (
-	DefaultManifestFile                 = "policy-manifest.yaml"
-	DefaultSystemPolicyManifestLockFile = "system-policy-manifest-lock.yaml"
-	DefaultOutputDir                    = "output"
-	DefaultPolicyEngineSrc              = "/api-platform/gateway/gateway-runtime/policy-engine"
+	DefaultBuildFile            = "build.yaml"
+	DefaultSystemBuildLockFile  = "system-build-lock.yaml"
+	DefaultOutputDir            = "output"
+	DefaultPolicyEngineSrc      = "/api-platform/gateway/gateway-runtime/policy-engine"
 )
 
 // Version information (set via ldflags during build)
@@ -55,8 +55,8 @@ func main() {
 	defaultGatewayRuntimeBaseImage := "ghcr.io/wso2/api-platform/gateway-runtime:" + Version
 
 	// Parse command-line flags
-	manifestPath := flag.String("manifest", DefaultManifestFile, "Path to policy manifest file")
-	systemManifestLockPath := flag.String("system-manifest-lock", DefaultSystemPolicyManifestLockFile, "Path to system policy manifest lock file")
+	buildFilePath := flag.String("build-file", DefaultBuildFile, "Path to build file")
+	systemBuildLockPath := flag.String("system-build-lock", DefaultSystemBuildLockFile, "Path to system build lock file")
 	policyEngineSrc := flag.String("policy-engine-src", DefaultPolicyEngineSrc, "Path to policy-engine runtime source directory")
 	outputDir := flag.String("out-dir", DefaultOutputDir, "Output directory for generated Dockerfiles and artifacts")
 
@@ -75,21 +75,21 @@ func main() {
 	initLogger(*logFormat, *logLevel)
 
 	// Resolve paths to absolute paths
-	absManifestPath, err := filepath.Abs(*manifestPath)
+	absBuildFilePath, err := filepath.Abs(*buildFilePath)
 	if err != nil {
-		slog.Error("Failed to resolve manifest path", "path", *manifestPath, "error", err)
+		slog.Error("Failed to resolve build file path", "path", *buildFilePath, "error", err)
 		os.Exit(1)
 	}
-	manifestPath = &absManifestPath
+	buildFilePath = &absBuildFilePath
 
-	var absSystemManifestLockPath string
-	if *systemManifestLockPath != "" {
-		absSystemManifestLockPath, err = filepath.Abs(*systemManifestLockPath)
+	var absSystemBuildLockPath string
+	if *systemBuildLockPath != "" {
+		absSystemBuildLockPath, err = filepath.Abs(*systemBuildLockPath)
 		if err != nil {
-			slog.Error("Failed to resolve system manifest lock path", "path", *systemManifestLockPath, "error", err)
+			slog.Error("Failed to resolve system build lock path", "path", *systemBuildLockPath, "error", err)
 			os.Exit(1)
 		}
-		systemManifestLockPath = &absSystemManifestLockPath
+		systemBuildLockPath = &absSystemBuildLockPath
 	}
 
 	absPolicyEngineSrc, err := filepath.Abs(*policyEngineSrc)
@@ -110,32 +110,32 @@ func main() {
 		"version", Version,
 		"git_commit", GitCommit,
 		"build_date", BuildDate,
-		"manifest", *manifestPath,
-		"system_manifest_lock", *systemManifestLockPath,
+		"build_file", *buildFilePath,
+		"system_build_lock", *systemBuildLockPath,
 	}
 	slog.Info("Policy Builder starting", logFields...)
 
-	var outManifestPath string
+	var outBuildInfoPath string
 
 	// Phase 1: Discovery
 	slog.Info("Starting Phase 1: Discovery", "phase", "discovery")
 
-	// Discover policies from main manifest
-	policies, err := discovery.DiscoverPoliciesFromManifest(*manifestPath, "")
+	// Discover policies from build file
+	policies, err := discovery.DiscoverPoliciesFromBuildFile(*buildFilePath, "")
 	if err != nil {
 		errors.FatalError(err)
 	}
-	slog.Info("Loaded manifest",
+	slog.Info("Loaded build file",
 		"count", len(policies),
 		"phase", "discovery")
 
-	// Discover system policies from system manifest if provided
-	if *systemManifestLockPath != "" {
-		systemPolicies, err := discovery.DiscoverPoliciesFromManifest(absSystemManifestLockPath, "")
+	// Discover system policies from system build lock if provided
+	if *systemBuildLockPath != "" {
+		systemPolicies, err := discovery.DiscoverPoliciesFromBuildFile(absSystemBuildLockPath, "")
 		if err != nil {
 			errors.FatalError(err)
 		}
-		slog.Info("Loaded system manifest",
+		slog.Info("Loaded system build lock",
 			"count", len(systemPolicies),
 			"phase", "discovery")
 		// Merge system policies with regular policies
@@ -144,7 +144,7 @@ func main() {
 			"count", len(policies),
 			"phase", "discovery")
 	} else {
-		slog.Info("No system manifest provided; skipping system policies", "phase", "discovery")
+		slog.Info("No system build lock provided; skipping system policies", "phase", "discovery")
 	}
 
 	// Print discovered policies
@@ -253,27 +253,26 @@ func main() {
 		errors.FatalError(errors.NewDockerError("Dockerfile generation failed", err))
 	}
 
-	// Phase 6: Manifest Generation
-	slog.Info("Starting Phase 6: Manifest Generation", "phase", "manifest")
+	// Phase 6: Build Info Generation
+	slog.Info("Starting Phase 6: Build Info Generation", "phase", "build-info")
 
-	buildManifest := manifest.CreateManifest(Version, policies, *outputDir)
+	buildInfo := buildfile.CreateBuildInfo(Version, policies, *outputDir)
 
-	// Write manifest to file
-	outManifestPath = filepath.Join(*outputDir, "build-manifest.json")
-	if err := buildManifest.WriteToFile(outManifestPath); err != nil {
-		slog.Error("Failed to write manifest file", "error", err)
-		errors.FatalError(errors.NewGenerationError("failed to write manifest", err))
+	outBuildInfoPath = filepath.Join(*outputDir, "build-info.json")
+	if err := buildInfo.WriteToFile(outBuildInfoPath); err != nil {
+		slog.Error("Failed to write build info file", "error", err)
+		errors.FatalError(errors.NewGenerationError("failed to write build info", err))
 	}
 
-	slog.Info("Build manifest written", "path", outManifestPath)
+	slog.Info("Build info written", "path", outBuildInfoPath)
 
-	// Print success summary with manifest
-	printDockerfileGenerationSummary(generateResult, buildManifest, outManifestPath)
+	// Print success summary
+	printDockerfileGenerationSummary(generateResult, buildInfo, outBuildInfoPath)
 
-	if err := manifest.WriteManifestLockWithVersions(*manifestPath, policies); err != nil {
-		slog.Warn("Failed to write policy lock file with versions", "error", err)
+	if err := buildfile.WriteBuildLockWithVersions(*buildFilePath, policies); err != nil {
+		slog.Warn("Failed to write build lock file with versions", "error", err)
 	} else {
-		slog.Info("Policy lock file generated with versions", "path", filepath.Join(filepath.Dir(*manifestPath), "policy-manifest-lock.yaml"))
+		slog.Info("Build lock file generated with versions", "path", filepath.Join(filepath.Dir(*buildFilePath), "build-lock.yaml"))
 	}
 }
 
@@ -319,7 +318,7 @@ func initLogger(format, level string) {
 }
 
 // printDockerfileGenerationSummary displays the Dockerfile generation summary
-func printDockerfileGenerationSummary(result *docker.GenerateResult, buildManifest *manifest.Manifest, manifestPath string) {
+func printDockerfileGenerationSummary(result *docker.GenerateResult, buildInfo *buildfile.BuildInfo, buildInfoPath string) {
 	slog.Info("Dockerfile generation completed successfully", "phase", "complete")
 
 	fmt.Println("\n========================================")
@@ -329,14 +328,13 @@ func printDockerfileGenerationSummary(result *docker.GenerateResult, buildManife
 	fmt.Printf("  1. Gateway Runtime:    %s\n", result.GatewayRuntimeDockerfile)
 	fmt.Printf("  2. Gateway Controller: %s\n", result.GatewayControllerDockerfile)
 
-	fmt.Printf("Manifest: %s\n", manifestPath)
+	fmt.Printf("Build Info: %s\n", buildInfoPath)
 
-	// Print manifest as JSON
-	fmt.Println("\nBuild Manifest:")
-	manifestJSON, err := buildManifest.ToJSON()
+	fmt.Println("\nBuild Info:")
+	infoJSON, err := buildInfo.ToJSON()
 	if err != nil {
-		slog.Error("Failed to convert manifest to JSON", "error", err)
+		slog.Error("Failed to convert build info to JSON", "error", err)
 	} else {
-		fmt.Println(manifestJSON)
+		fmt.Println(infoJSON)
 	}
 }

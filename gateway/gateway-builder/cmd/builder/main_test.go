@@ -25,8 +25,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wso2/api-platform/gateway/gateway-builder/internal/buildfile"
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/docker"
-	"github.com/wso2/api-platform/gateway/gateway-builder/internal/manifest"
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/types"
 )
 
@@ -84,19 +84,18 @@ func TestPrintDockerfileGenerationSummary(t *testing.T) {
 		{Name: "test-policy", Version: "v1.0.0"},
 	}
 
-	// Create mock manifest
-	buildManifest := manifest.CreateManifest("test-version", policies, "/tmp/output")
+	buildInfo := buildfile.CreateBuildInfo("test-version", policies, "/tmp/output")
 
 	// Capture stdout
 	output := captureOutput(func() {
-		printDockerfileGenerationSummary(result, buildManifest, "/tmp/output/build-manifest.json")
+		printDockerfileGenerationSummary(result, buildInfo, "/tmp/output/build-info.json")
 	})
 
 	// Verify expected content in output
 	assert.Contains(t, output, "Gateway Dockerfiles Generated")
 	assert.Contains(t, output, "Gateway Runtime")
 	assert.Contains(t, output, "Gateway Controller")
-	assert.Contains(t, output, "build-manifest.json")
+	assert.Contains(t, output, "build-info.json")
 }
 
 func TestPrintDockerfileGenerationSummary_WithMultiplePolicies(t *testing.T) {
@@ -112,13 +111,12 @@ func TestPrintDockerfileGenerationSummary_WithMultiplePolicies(t *testing.T) {
 		{Name: "cors", Version: "v1.5.0"},
 	}
 
-	buildManifest := manifest.CreateManifest("1.0.0", policies, "/output")
+	buildInfo := buildfile.CreateBuildInfo("1.0.0", policies, "/output")
 
 	output := captureOutput(func() {
-		printDockerfileGenerationSummary(result, buildManifest, "/output/manifest.json")
+		printDockerfileGenerationSummary(result, buildInfo, "/output/build-info.json")
 	})
 
-	// Should contain policy count info in JSON manifest
 	assert.Contains(t, output, "auth-policy")
 	assert.Contains(t, output, "rate-limit")
 	assert.Contains(t, output, "cors")
@@ -134,8 +132,8 @@ func TestVersionVariables(t *testing.T) {
 
 // TestDefaultConstants tests the default constant values
 func TestDefaultConstants(t *testing.T) {
-	assert.Equal(t, "policy-manifest.yaml", DefaultManifestFile)
-	assert.Equal(t, "system-policy-manifest-lock.yaml", DefaultSystemPolicyManifestLockFile)
+	assert.Equal(t, "build.yaml", DefaultBuildFile)
+	assert.Equal(t, "system-build-lock.yaml", DefaultSystemBuildLockFile)
 	assert.Equal(t, "output", DefaultOutputDir)
 	assert.Equal(t, "/api-platform/gateway/gateway-runtime/policy-engine", DefaultPolicyEngineSrc)
 }

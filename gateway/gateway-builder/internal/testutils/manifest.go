@@ -30,38 +30,38 @@ import (
 )
 
 const (
-	// ManifestFileName is the default name for the policy manifest file.
-	ManifestFileName = "policy-manifest.yaml"
-	// ManifestLockFileName is the default name for the policy manifest lock file.
-	ManifestLockFileName = "policy-manifest-lock.yaml"
+	// BuildFileName is the default name for the build file.
+	BuildFileName = "build.yaml"
+	// BuildLockFileName is the default name for the build lock file.
+	BuildLockFileName = "build-lock.yaml"
 )
 
-// CreateManifest writes a manifest file with the given raw YAML content.
-func CreateManifest(t *testing.T, dir, content string) {
+// CreateBuildFile writes a build file with the given raw YAML content.
+func CreateBuildFile(t *testing.T, dir, content string) {
 	t.Helper()
-	WriteFile(t, filepath.Join(dir, ManifestFileName), content)
+	WriteFile(t, filepath.Join(dir, BuildFileName), content)
 }
 
-// CreateManifestLock writes a manifest lock file with the given raw YAML content.
-func CreateManifestLock(t *testing.T, dir, content string) {
+// CreateBuildLock writes a build lock file with the given raw YAML content.
+func CreateBuildLock(t *testing.T, dir, content string) {
 	t.Helper()
-	WriteFile(t, filepath.Join(dir, ManifestLockFileName), content)
+	WriteFile(t, filepath.Join(dir, BuildLockFileName), content)
 }
 
-// ManifestPolicy represents a policy entry for manifest generation helpers.
-type ManifestPolicy struct {
+// BuildFilePolicy represents a policy entry for build file generation helpers.
+type BuildFilePolicy struct {
 	Name     string
 	FilePath string // For local policies
 	GoModule string // For remote policies (gomodule field value)
 }
 
-// CreateManifestWithPolicies creates a properly structured manifest file.
-func CreateManifestWithPolicies(t *testing.T, dir string, policies []ManifestPolicy) {
+// CreateBuildFileWithPolicies creates a properly structured build file.
+func CreateBuildFileWithPolicies(t *testing.T, dir string, policies []BuildFilePolicy) {
 	t.Helper()
 
-	entries := make([]types.ManifestEntry, 0, len(policies))
+	entries := make([]types.BuildEntry, 0, len(policies))
 	for _, p := range policies {
-		entry := types.ManifestEntry{Name: p.Name}
+		entry := types.BuildEntry{Name: p.Name}
 		if p.FilePath != "" {
 			entry.FilePath = p.FilePath
 		}
@@ -71,28 +71,28 @@ func CreateManifestWithPolicies(t *testing.T, dir string, policies []ManifestPol
 		entries = append(entries, entry)
 	}
 
-	manifest := types.PolicyManifest{
+	bf := types.BuildFile{
 		Version:  "v1",
 		Policies: entries,
 	}
 
-	data, err := yaml.Marshal(&manifest)
-	require.NoError(t, err, "failed to marshal manifest")
-	WriteFile(t, filepath.Join(dir, ManifestFileName), string(data))
+	data, err := yaml.Marshal(&bf)
+	require.NoError(t, err, "failed to marshal build file")
+	WriteFile(t, filepath.Join(dir, BuildFileName), string(data))
 }
 
-// CreateSimpleManifest creates a manifest with a single local policy.
-func CreateSimpleManifest(t *testing.T, dir, policyName, policyPath string) {
+// CreateSimpleBuildFile creates a build file with a single local policy.
+func CreateSimpleBuildFile(t *testing.T, dir, policyName, policyPath string) {
 	t.Helper()
-	CreateManifestWithPolicies(t, dir, []ManifestPolicy{
+	CreateBuildFileWithPolicies(t, dir, []BuildFilePolicy{
 		{Name: policyName, FilePath: policyPath},
 	})
 }
 
-// CreateRemoteManifest creates a manifest with a single remote (gomodule) policy.
-func CreateRemoteManifest(t *testing.T, dir, policyName, modulePath string) {
+// CreateRemoteBuildFile creates a build file with a single remote (gomodule) policy.
+func CreateRemoteBuildFile(t *testing.T, dir, policyName, modulePath string) {
 	t.Helper()
-	CreateManifestWithPolicies(t, dir, []ManifestPolicy{
+	CreateBuildFileWithPolicies(t, dir, []BuildFilePolicy{
 		{Name: policyName, GoModule: modulePath},
 	})
 }

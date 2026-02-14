@@ -37,7 +37,7 @@ ap gateway image build
 # Build with custom name
 ap gateway image build --name my-gateway
 
-# Build with custom path containing manifest files
+# Build with custom path containing build files
 ap gateway image build --name my-gateway --path ./my-policies --repository myregistry
 
 # Build with platform specification
@@ -48,7 +48,7 @@ var (
 	// Optional flags
 	gatewayName              string
 	gatewayVersion           string
-	manifestPath             string
+	buildFilePath            string
 	imageRepository          string
 	gatewayBuilder           string
 	gatewayControllerBaseImg string
@@ -65,7 +65,7 @@ var (
 var buildCmd = &cobra.Command{
 	Use:     BuildCmdLiteral,
 	Short:   "Build gateway Docker image with policies",
-	Long:    "Build a WSO2 API Platform Gateway Docker image with specified policies from manifest file.",
+	Long:    "Build a WSO2 API Platform Gateway Docker image with specified policies from build file.",
 	Example: BuildCmdExample,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runBuildCommand(); err != nil {
@@ -78,7 +78,7 @@ var buildCmd = &cobra.Command{
 func init() {
 	// Optional flags with defaults
 	buildCmd.Flags().StringVar(&gatewayName, "name", "", "Gateway name (defaults to directory name)")
-	buildCmd.Flags().StringVarP(&manifestPath, "path", "p", ".", "Path to directory containing policy manifest files (default: current directory)")
+	buildCmd.Flags().StringVarP(&buildFilePath, "path", "p", ".", "Path to directory containing build files (default: current directory)")
 	buildCmd.Flags().StringVar(&imageRepository, "repository", utils.DefaultImageRepository, "Docker image repository")
 	buildCmd.Flags().BoolVar(&push, "push", false, "Push image to registry after build")
 	buildCmd.Flags().BoolVar(&noCache, "no-cache", false, "Build without using cache")
@@ -87,37 +87,37 @@ func init() {
 }
 
 // initializeDefaults sets smart defaults for gateway name and constructs the image tag
-func initializeDefaults(manifest *policy.PolicyManifest) error {
+func initializeDefaults(buildFile *policy.BuildFile) error {
 	// Default gateway name from directory name if not provided
 	if gatewayName == "" {
-		absPath, err := filepath.Abs(manifestPath)
+		absPath, err := filepath.Abs(buildFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to get absolute path: %w", err)
 		}
 		gatewayName = filepath.Base(absPath)
 	}
 
-	// Default gateway version from manifest if not provided via flag
-	if manifest.Gateway.Version == "" {
+	// Default gateway version from build file if not provided via flag
+	if buildFile.Gateway.Version == "" {
 		return fmt.Errorf("gateway version is required: set gateway.version in build.yaml")
 	}
-	gatewayVersion = manifest.Gateway.Version
+	gatewayVersion = buildFile.Gateway.Version
 
-	// Use custom images from manifest if provided, otherwise construct from defaults
-	if manifest.Gateway.Images.Builder != "" {
-		gatewayBuilder = manifest.Gateway.Images.Builder
+	// Use custom images from build file if provided, otherwise construct from defaults
+	if buildFile.Gateway.Images.Builder != "" {
+		gatewayBuilder = buildFile.Gateway.Images.Builder
 	} else {
 		gatewayBuilder = fmt.Sprintf(utils.DefaultGatewayBuilder, gatewayVersion)
 	}
 
-	if manifest.Gateway.Images.Controller != "" {
-		gatewayControllerBaseImg = manifest.Gateway.Images.Controller
+	if buildFile.Gateway.Images.Controller != "" {
+		gatewayControllerBaseImg = buildFile.Gateway.Images.Controller
 	} else {
 		gatewayControllerBaseImg = fmt.Sprintf(utils.DefaultGatewayController, gatewayVersion)
 	}
 
-	if manifest.Gateway.Images.Runtime != "" {
-		gatewayRuntimeBaseImg = manifest.Gateway.Images.Runtime
+	if buildFile.Gateway.Images.Runtime != "" {
+		gatewayRuntimeBaseImg = buildFile.Gateway.Images.Runtime
 	} else {
 		gatewayRuntimeBaseImg = fmt.Sprintf(utils.DefaultGatewayRuntime, gatewayVersion)
 	}
@@ -151,8 +151,8 @@ func runBuildCommand() error {
 	return runUnifiedBuild()
 }
 
-// getManifestFilePath returns the full path to the manifest file
-func getManifestFilePath(basePath string) (string, error) {
+// getBuildFilePath returns the full path to the build file
+func getBuildFilePath(basePath string) (string, error) {
 	// Check if path exists
 	info, err := os.Stat(basePath)
 	if err != nil {
@@ -162,40 +162,40 @@ func getManifestFilePath(basePath string) (string, error) {
 		return "", fmt.Errorf("failed to access path: %w", err)
 	}
 
-	// If it's a directory, look for the manifest file
+	// If it's a directory, look for the build file
 	if info.IsDir() {
-		manifestFile := filepath.Join(basePath, utils.DefaultManifestFile)
-		if _, err := os.Stat(manifestFile); err != nil {
+		buildFile := filepath.Join(basePath, utils.DefaultBuildFile)
+		if _, err := os.Stat(buildFile); err != nil {
 			if os.IsNotExist(err) {
-				return "", fmt.Errorf("manifest file '%s' not found in directory: %s\n\nExpected file: %s\n\nPlease create a %s file or specify a different path", utils.DefaultManifestFile, basePath, manifestFile, utils.DefaultManifestFile)
+				return "", fmt.Errorf("build file '%s' not found in directory: %s\n\nExpected file: %s\n\nPlease create a %s file or specify a different path", utils.DefaultBuildFile, basePath, buildFile, utils.DefaultBuildFile)
 			}
-			return "", fmt.Errorf("failed to access manifest file: %w", err)
+			return "", fmt.Errorf("failed to access build file: %w", err)
 		}
-		return manifestFile, nil
+		return buildFile, nil
 	}
 
 	// If it's a file, that's an error - we expect a directory
-	return "", fmt.Errorf("--path must be a directory, not a file: %s\n\nPlease provide the directory path containing %s", basePath, utils.DefaultManifestFile)
+	return "", fmt.Errorf("--path must be a directory, not a file: %s\n\nPlease provide the directory path containing %s", basePath, utils.DefaultBuildFile)
 }
 
 func runUnifiedBuild() error {
-	// Step 2: Read Policy Manifest
-	fmt.Println("[2/6] Reading Policy Manifest")
+	// Step 2: Read Build File
+	fmt.Println("[2/6] Reading Build File")
 
-	// Get manifest file path
-	manifestFilePath, err := getManifestFilePath(manifestPath)
+	// Get build file path
+	resolvedBuildFilePath, err := getBuildFilePath(buildFilePath)
 	if err != nil {
 		return err
 	}
 
-	manifest, err := policy.ParseManifest(manifestFilePath)
+	buildFile, err := policy.ParseBuildFile(resolvedBuildFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to parse manifest file at '%s': %w", manifestFilePath, err)
+		return fmt.Errorf("failed to parse build file at '%s': %w", resolvedBuildFilePath, err)
 	}
-	fmt.Printf("  ✓ Loaded manifest with %d policies\n\n", len(manifest.Policies))
+	fmt.Printf("  ✓ Loaded build file with %d policies\n\n", len(buildFile.Policies))
 
 	// Initialize computed values
-	if err := initializeDefaults(manifest); err != nil {
+	if err := initializeDefaults(buildFile); err != nil {
 		return err
 	}
 
@@ -205,9 +205,9 @@ func runUnifiedBuild() error {
 	fmt.Printf("    • Gateway Controller: %s\n", gatewayControllerBaseImg)
 	fmt.Printf("    • Gateway Runtime:    %s\n\n", gatewayRuntimeBaseImg)
 
-	// Step 3: Validate Manifest and Separate Policies
-	fmt.Println("[3/6] Validating manifest")
-	localPolicies, hubPolicies := policy.SeparatePolicies(manifest)
+	// Step 3: Validate Build File and Separate Policies
+	fmt.Println("[3/6] Validating build file")
+	localPolicies, hubPolicies := policy.SeparatePolicies(buildFile)
 	fmt.Printf("  → Hub policies: %d\n", len(hubPolicies))
 	fmt.Printf("  → Local policies: %d\n\n", len(localPolicies))
 
@@ -222,10 +222,10 @@ func runUnifiedBuild() error {
 		fmt.Printf("  ✓ Processed %d local policies\n\n", len(processed))
 	}
 
-	// Step 5: Prepare workspace and copy manifest + policies
+	// Step 5: Prepare workspace and copy build file + policies
 	fmt.Println()
 	fmt.Println("[5/6] Preparing workspace and copying policies")
-	tempDir, err := utils.SetupTempGatewayWorkspace(manifestFilePath)
+	tempDir, err := utils.SetupTempGatewayWorkspace(resolvedBuildFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to setup workspace: %w", err)
 	}
@@ -239,6 +239,17 @@ func runUnifiedBuild() error {
 		return fmt.Errorf("failed to build gateway images: %w", err)
 	}
 	fmt.Println("  ✓ All images built successfully")
+
+	// Copy build-lock.yaml back to user's directory
+	lockSrc := filepath.Join(tempDir, "build-lock.yaml")
+	lockDst := filepath.Join(filepath.Dir(resolvedBuildFilePath), "build-lock.yaml")
+	if lockData, err := os.ReadFile(lockSrc); err != nil {
+		fmt.Fprintf(os.Stderr, "  Warning: could not read build lock file: %v\n", err)
+	} else if err := os.WriteFile(lockDst, lockData, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "  Warning: could not write build lock file: %v\n", err)
+	} else {
+		fmt.Printf("  ✓ Build lock file written: build-lock.yaml\n")
+	}
 
 	// Display Summary
 	displayBuildSummary(processed)

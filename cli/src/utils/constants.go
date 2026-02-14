@@ -30,7 +30,7 @@ const (
 // Gateway
 const (
 	// Image Build Defaults
-	DefaultManifestFile      = "build.yaml"
+	DefaultBuildFile         = "build.yaml"
 	DefaultImageRepository   = "ghcr.io/wso2/api-platform"
 	DefaultGatewayBuilder    = "ghcr.io/wso2/api-platform/gateway-builder:%s"    // %s = version
 	DefaultGatewayController = "ghcr.io/wso2/api-platform/gateway-controller:%s" // %s = version

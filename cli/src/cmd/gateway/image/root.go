@@ -27,8 +27,8 @@ const (
 	ImageCmdExample = `# Build gateway image
 ap gateway image build --image-tag v0.2.0-policy1
 
-# Build with custom manifest file
-ap gateway image build --image-tag v0.2.0 -f custom-manifest.yaml
+# Build with custom build file
+ap gateway image build --image-tag v0.2.0 -f custom-build.yaml
 
 # Build in offline mode
 ap gateway image build --image-tag v0.2.0 --offline`

@@ -37,7 +37,7 @@ var versionDirRegex = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`)
 // ValidateLocalPolicyZip validates a local policy zip file structure and content.
 // It ensures that the provided zip contains a policy-definition.yaml at the root
 // of the archive (no nested single top-level folder is allowed). Name and version
-// are not returned from the zip; they are expected to come from the manifest.
+// are not returned from the zip; they are expected to come from the build file.
 func ValidateLocalPolicyZip(zipPath, expectedName, expectedVersion string) error {
 	// Ensure file is a zip
 	zipFileName := filepath.Base(zipPath)
@@ -82,7 +82,7 @@ func ValidateLocalPolicyZip(zipPath, expectedName, expectedVersion string) error
 	}
 
 	if expectedName != "" && pd.Name != expectedName {
-		return fmt.Errorf("name mismatch: manifest specifies '%s' but policy-definition.yaml contains '%s'", expectedName, pd.Name)
+		return fmt.Errorf("name mismatch: build file specifies '%s' but policy-definition.yaml contains '%s'", expectedName, pd.Name)
 	}
 
 	return nil
@@ -122,7 +122,7 @@ func ValidateLocalPolicyDir(dirPath string, expectedName string) error {
 	}
 
 	if expectedName != "" && pd.Name != expectedName {
-		return fmt.Errorf("name mismatch: manifest specifies '%s' but policy-definition.yaml contains '%s'", expectedName, pd.Name)
+		return fmt.Errorf("name mismatch: build file specifies '%s' but policy-definition.yaml contains '%s'", expectedName, pd.Name)
 	}
 
 	return nil
@@ -327,10 +327,9 @@ func Unzip(src, dest string) error {
 }
 
 // SetupTempGatewayWorkspace prepares the workspace by creating required folders, copying
-// local policies into the workspace, updating the manifest's filePath entries to point
-// to the workspace paths, and writing the modified manifest as policy-manifest.yaml
-// (renamed from the original build.yaml file for Docker build compatibility).
-func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
+// local policies into the workspace, updating the build file's filePath entries to point
+// to the workspace paths, and writing the modified build file as build.yaml.
+func SetupTempGatewayWorkspace(buildFilePath string) (string, error) {
 	// Use a parent directory under the user's home dir so the path is
 	// Docker-accessible on macOS (Docker Desktop shares /Users by default,
 	// but may not share the OS temp dir under /var/folders).
@@ -359,13 +358,13 @@ func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
 		return "", fmt.Errorf("failed to create policies directory: %w", err)
 	}
 
-	// Read and parse manifest YAML (using a lightweight local struct to avoid import cycles)
-	manifestData, err := os.ReadFile(manifestFilePath)
+	// Read and parse build file YAML (using a lightweight local struct to avoid import cycles)
+	buildFileData, err := os.ReadFile(buildFilePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read manifest file: %w", err)
+		return "", fmt.Errorf("failed to read build file: %w", err)
 	}
 
-	var manifest struct {
+	var buildFile struct {
 		Version  string `yaml:"version"`
 		Policies []struct {
 			Name     string `yaml:"name"`
@@ -374,22 +373,22 @@ func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
 			Gomodule string `yaml:"gomodule,omitempty"`
 		} `yaml:"policies"`
 	}
-	if err := yaml.Unmarshal(manifestData, &manifest); err != nil {
-		return "", fmt.Errorf("failed to parse manifest YAML: %w", err)
+	if err := yaml.Unmarshal(buildFileData, &buildFile); err != nil {
+		return "", fmt.Errorf("failed to parse build file YAML: %w", err)
 	}
 
 	// For each local policy with a filePath, copy it into the workspace and update the filePath
-	manifestDir := filepath.Dir(manifestFilePath)
-	for i := range manifest.Policies {
-		p := &manifest.Policies[i]
+	buildFileDir := filepath.Dir(buildFilePath)
+	for i := range buildFile.Policies {
+		p := &buildFile.Policies[i]
 		if p.FilePath == "" {
 			continue // Skip Gomodule policies
 		}
 
-		// Resolve source path relative to manifest
+		// Resolve source path relative to build file
 		srcPath := p.FilePath
 		if !filepath.IsAbs(srcPath) {
-			srcPath = filepath.Join(manifestDir, srcPath)
+			srcPath = filepath.Join(buildFileDir, srcPath)
 		}
 
 		// Copy into workspace (requires directory)
@@ -398,19 +397,19 @@ func SetupTempGatewayWorkspace(manifestFilePath string) (string, error) {
 			return "", fmt.Errorf("failed to copy local policy %s v%s into workspace: %w", p.Name, p.Version, err)
 		}
 
-		// Update manifest entry to point to workspace-relative path
+		// Update build file entry to point to workspace-relative path
 		p.FilePath = workspaceRel
 	}
 
-	// Marshal updated manifest and write into workspace as policy-manifest.yaml
-	newManifestData, err := yaml.Marshal(&manifest)
+	// Marshal updated build file and write into workspace as build.yaml
+	newBuildFileData, err := yaml.Marshal(&buildFile)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal updated manifest: %w", err)
+		return "", fmt.Errorf("failed to marshal updated build file: %w", err)
 	}
 
-	manifestDst := filepath.Join(tempGatewayImageBuildDir, "policy-manifest.yaml")
-	if err := os.WriteFile(manifestDst, newManifestData, 0644); err != nil {
-		return "", fmt.Errorf("failed to write updated manifest to workspace: %w", err)
+	buildFileDst := filepath.Join(tempGatewayImageBuildDir, "build.yaml")
+	if err := os.WriteFile(buildFileDst, newBuildFileData, 0644); err != nil {
+		return "", fmt.Errorf("failed to write updated build file to workspace: %w", err)
 	}
 
 	return tempGatewayImageBuildDir, nil
@@ -442,7 +441,7 @@ func CopyPolicyToWorkspace(policyName, policyVersion, sourcePath string, isLocal
 			return "", fmt.Errorf("failed to copy local policy directory: %w", err)
 		}
 
-		// Return relative path for manifest: policies/<original-dir-name>
+		// Return relative path for build file: policies/<original-dir-name>
 		return filepath.Join("policies", dirName), nil
 	}
 
