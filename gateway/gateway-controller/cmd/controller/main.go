@@ -61,6 +61,7 @@ func toBackendConfig(cfg *config.Config) storage.BackendConfig {
 			ConnMaxIdleTime: pg.ConnMaxIdleTime,
 			ApplicationName: pg.ApplicationName,
 		},
+		GatewayID: cfg.Controller.Server.GatewayID,
 	}
 }
 

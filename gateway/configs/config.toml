@@ -13,6 +13,9 @@ gateway_host = "*"
 [router.access_logs]
 enabled = true
 
+[controller.server]
+gateway_id = "platform-gateway-id"
+
 [controller.auth.basic]
 enabled = true
 

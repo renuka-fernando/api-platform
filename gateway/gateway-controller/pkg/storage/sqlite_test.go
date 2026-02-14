@@ -77,7 +77,7 @@ func TestSQLiteStorage_SchemaInitialization(t *testing.T) {
 	var version int
 	err = storage.db.QueryRow("PRAGMA user_version").Scan(&version)
 	assert.NilError(t, err)
-	assert.Equal(t, version, 7) // Current schema version
+	assert.Equal(t, version, 8) // Current schema version
 
 	// Verify tables exist
 	tables := []string{
@@ -124,7 +124,7 @@ func TestSQLiteStorage_SchemaVersionUpgrade(t *testing.T) {
 	var version int
 	err = storage.db.QueryRow("PRAGMA user_version").Scan(&version)
 	assert.NilError(t, err)
-	assert.Equal(t, version, 7)
+	assert.Equal(t, version, 8)
 }
 
 func TestSQLiteStorage_DeleteConfig_NotFound(t *testing.T) {
@@ -186,9 +186,9 @@ func TestSQLiteStorage_GetConfig_JSONUnmarshalError(t *testing.T) {
 	// Insert invalid JSON manually
 	// Provide all NOT NULL fields for deployments table
 	_, err := storage.db.Exec(`
-		INSERT INTO deployments (id, display_name, version, context, kind, handle, status, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"test-id", "test-api-name", "v1.0.0", "/test-context", "api", "test-handle", "pending", time.Now(), time.Now())
+		INSERT INTO deployments (id, gateway_id, display_name, version, context, kind, handle, status, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"test-id", "platform-gateway-id", "test-api-name", "v1.0.0", "/test-context", "api", "test-handle", "pending", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.db.Exec(`
@@ -233,9 +233,9 @@ func TestSQLiteStorage_GetConfigByNameVersion_JSONError(t *testing.T) {
 	// Insert config with invalid JSON
 	// Provide all NOT NULL fields for deployments table
 	_, err := storage.db.Exec(`
-		INSERT INTO deployments (id, display_name, version, context, kind, handle, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"test-id", "test-api", "v1.0.0", "/test", "api", "test-api", "pending", time.Now(), time.Now())
+		INSERT INTO deployments (id, gateway_id, display_name, version, context, kind, handle, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"test-id", "platform-gateway-id", "test-api", "v1.0.0", "/test", "api", "test-api", "pending", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.db.Exec(`
@@ -297,9 +297,9 @@ func TestSQLiteStorage_GetAllConfigs_JSONUnmarshalError(t *testing.T) {
 	// Insert invalid JSON manually
 	// Provide all NOT NULL fields for deployments table
 	_, err := storage.db.Exec(`
-		INSERT INTO deployments (id, display_name, version, context, kind, handle, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"invalid-json-config", "invalid-api-name", "v1.0.0", "/invalid-context", "api", "invalid-handle", "pending", time.Now(), time.Now())
+		INSERT INTO deployments (id, gateway_id, display_name, version, context, kind, handle, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"invalid-json-config", "platform-gateway-id", "invalid-api-name", "v1.0.0", "/invalid-context", "api", "invalid-handle", "pending", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.db.Exec(`
@@ -381,9 +381,9 @@ func TestSQLiteStorage_GetAllConfigsByKind_JSONError(t *testing.T) {
 	// Insert config with invalid JSON
 	// Provide all NOT NULL fields for deployments table
 	_, err := storage.db.Exec(`
-		INSERT INTO deployments (id, display_name, version, context, kind, handle, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"invalid-config", "invalid-api-name-kind", "v1.0.0", "/invalid-context-kind", "api", "invalid-handle-kind", "pending", time.Now(), time.Now())
+		INSERT INTO deployments (id, gateway_id, display_name, version, context, kind, handle, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"invalid-config", "platform-gateway-id", "invalid-api-name-kind", "v1.0.0", "/invalid-context-kind", "api", "invalid-handle-kind", "pending", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.db.Exec(`
@@ -479,9 +479,9 @@ func TestSQLiteStorage_GetLLMProviderTemplate_JSONUnmarshalError(t *testing.T) {
 
 	// Insert template with invalid JSON
 	_, err := storage.db.Exec(`
-		INSERT INTO llm_provider_templates (id, handle, configuration, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?)`,
-		"invalid-template", "test-handle", "invalid-json", time.Now(), time.Now())
+		INSERT INTO llm_provider_templates (id, gateway_id, handle, configuration, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		"invalid-template", "platform-gateway-id", "test-handle", "invalid-json", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.GetLLMProviderTemplate("invalid-template")
@@ -526,9 +526,9 @@ func TestSQLiteStorage_GetAllLLMProviderTemplates_JSONError(t *testing.T) {
 
 	// Insert template with invalid JSON
 	_, err := storage.db.Exec(`
-		INSERT INTO llm_provider_templates (id, handle, configuration, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?)`,
-		"invalid-template", "test-handle", "invalid-json", time.Now(), time.Now())
+		INSERT INTO llm_provider_templates (id, gateway_id, handle, configuration, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		"invalid-template", "platform-gateway-id", "test-handle", "invalid-json", time.Now(), time.Now())
 	assert.NilError(t, err)
 
 	_, err = storage.GetAllLLMProviderTemplates()
@@ -832,7 +832,7 @@ func setupTestStorage(t *testing.T) *sqlStore {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	metrics.Init()
 
-	store, err := NewStorage(BackendConfig{Type: "sqlite", SQLitePath: dbPath}, logger)
+	store, err := NewStorage(BackendConfig{Type: "sqlite", SQLitePath: dbPath, GatewayID: "platform-gateway-id"}, logger)
 	assert.NilError(t, err)
 
 	return store.(*sqlStore)

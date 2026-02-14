@@ -32,12 +32,12 @@ import (
 var schemaSQL string
 
 const (
-	sqliteUniqueDeploymentsNameVersion = "UNIQUE constraint failed: deployments.display_name, deployments.version"
+	sqliteUniqueDeploymentsNameVersion = "UNIQUE constraint failed: deployments.display_name, deployments.version, deployments.gateway_id"
 	sqliteUniqueDeploymentsID          = "UNIQUE constraint failed: deployments.id"
-	sqliteUniqueDeploymentsHandle      = "UNIQUE constraint failed: deployments.handle"
-	sqliteUniqueCertificatesName       = "UNIQUE constraint failed: certificates.name"
+	sqliteUniqueDeploymentsHandle      = "UNIQUE constraint failed: deployments.handle, deployments.gateway_id"
+	sqliteUniqueCertificatesName       = "UNIQUE constraint failed: certificates.name, certificates.gateway_id"
 	sqliteUniqueCertificatesID         = "UNIQUE constraint failed: certificates.id"
-	sqliteUniqueTemplatesHandle        = "UNIQUE constraint failed: llm_provider_templates.handle"
+	sqliteUniqueTemplatesHandle        = "UNIQUE constraint failed: llm_provider_templates.handle, llm_provider_templates.gateway_id"
 	sqliteUniqueAPIKeysKey             = "UNIQUE constraint failed: api_keys.api_key"
 	sqliteUniqueAPIKeysID              = "UNIQUE constraint failed: api_keys.id"
 	sqliteUniqueAPIKeysExternalIndex   = "UNIQUE constraint failed: api_keys.apiId, api_keys.index_key"
@@ -92,7 +92,7 @@ func (s *SQLiteStorage) initSchema() error {
 	}
 
 	if version == 0 {
-		s.logger.Info("Initializing database schema (version 7)")
+		s.logger.Info("Initializing database schema (version 8)")
 		s.logger.Debug("Creating schema with SQL", slog.String("schema_sql", schemaSQL))
 
 		// Execute schema creation SQL
@@ -308,9 +308,9 @@ func (s *SQLiteStorage) initSchema() error {
 			version = 6
 		}
 
-			if version == 6 {
-				// Rebuild deployments table to update CHECK constraint to include 'undeployed' status
-				s.logger.Info("Migrating schema to version 7 (adding 'undeployed' status to deployments)")
+		if version == 6 {
+			// Rebuild deployments table to update CHECK constraint to include 'undeployed' status
+			s.logger.Info("Migrating schema to version 7 (adding 'undeployed' status to deployments)")
 
 			// Disable foreign keys before migration (PRAGMA cannot be used inside transaction)
 			if _, err := s.db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
@@ -402,19 +402,266 @@ func (s *SQLiteStorage) initSchema() error {
 				return fmt.Errorf("failed to re-enable foreign keys after migration: %w", err)
 			}
 
-				s.logger.Info("Schema migrated to version 7 (deployments status includes 'undeployed')")
-				version = 7
+			s.logger.Info("Schema migrated to version 7 (deployments status includes 'undeployed')")
+			version = 7
+		}
+
+		if version == 7 {
+			s.logger.Info("Migrating schema to version 8 (adding the new column gateway_id)")
+
+			if _, err := s.db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+				return fmt.Errorf("failed to disable foreign keys for migration to version 8: %w", err)
 			}
 
-			// Ensure external API key uniqueness index exists for all migrated DBs.
-			if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
+			tx, err := s.db.BeginTx(context.Background(), nil)
+			if err != nil {
+				s.db.Exec("PRAGMA foreign_keys = ON")
+				return fmt.Errorf("failed to begin transaction for migration to version 8: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					if rbErr := tx.Rollback(); rbErr != nil {
+						s.logger.Error("Failed to rollback migration transaction", slog.Any("error", rbErr))
+					}
+					s.db.Exec("PRAGMA foreign_keys = ON")
+				}
+			}()
+
+			if _, err = tx.Exec(`CREATE TABLE deployments_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				display_name TEXT NOT NULL,
+				version TEXT NOT NULL,
+				context TEXT NOT NULL,
+				kind TEXT NOT NULL,
+				handle TEXT NOT NULL,
+				status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed', 'undeployed')),
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				deployed_at TIMESTAMP,
+				deployed_version INTEGER NOT NULL DEFAULT 0,
+				UNIQUE(display_name, version, gateway_id),
+				UNIQUE(handle, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create deployments_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`
+				INSERT INTO deployments_new_v8 (
+					id, display_name, version, context, kind, handle, status,
+					created_at, updated_at, deployed_at, deployed_version
+				)
+				SELECT id, display_name, version, context, kind, handle, status,
+				       created_at, updated_at, deployed_at, deployed_version
+				FROM deployments;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to deployments_new_v8: %w", err)
+			}
+
+			if _, err = tx.Exec(`DROP TABLE deployments;`); err != nil {
+				return fmt.Errorf("failed to drop deployments table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE deployments_new_v8 RENAME TO deployments;`); err != nil {
+				return fmt.Errorf("failed to rename deployments_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE TABLE certificates_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				name TEXT NOT NULL,
+				certificate BLOB NOT NULL,
+				subject TEXT NOT NULL,
+				issuer TEXT NOT NULL,
+				not_before TIMESTAMP NOT NULL,
+				not_after TIMESTAMP NOT NULL,
+				cert_count INTEGER NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(name, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create certificates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`
+				INSERT INTO certificates_new_v8 (
+					id, name, certificate, subject, issuer, not_before, not_after,
+					cert_count, created_at, updated_at
+				)
+				SELECT id, name, certificate, subject, issuer, not_before, not_after,
+				       cert_count, created_at, updated_at
+				FROM certificates;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to certificates_new_v8: %w", err)
+			}
+
+			if _, err = tx.Exec(`DROP TABLE certificates;`); err != nil {
+				return fmt.Errorf("failed to drop certificates table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE certificates_new_v8 RENAME TO certificates;`); err != nil {
+				return fmt.Errorf("failed to rename certificates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE TABLE llm_provider_templates_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				handle TEXT NOT NULL,
+				configuration TEXT NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(handle, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create llm_provider_templates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`
+				INSERT INTO llm_provider_templates_new_v8 (
+					id, handle, configuration, created_at, updated_at
+				)
+				SELECT id, handle, configuration, created_at, updated_at
+				FROM llm_provider_templates;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to llm_provider_templates_new_v8: %w", err)
+			}
+
+			if _, err = tx.Exec(`DROP TABLE llm_provider_templates;`); err != nil {
+				return fmt.Errorf("failed to drop llm_provider_templates table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE llm_provider_templates_new_v8 RENAME TO llm_provider_templates;`); err != nil {
+				return fmt.Errorf("failed to rename llm_provider_templates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE TABLE api_keys_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				name TEXT NOT NULL,
+				api_key TEXT NOT NULL UNIQUE,
+				masked_api_key TEXT NOT NULL,
+				apiId TEXT NOT NULL,
+				operations TEXT NOT NULL DEFAULT '*',
+				status TEXT NOT NULL CHECK(status IN ('active', 'revoked', 'expired')) DEFAULT 'active',
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				created_by TEXT NOT NULL DEFAULT 'system',
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				expires_at TIMESTAMP NULL,
+				expires_in_unit TEXT NULL,
+				expires_in_duration INTEGER NULL,
+				source TEXT NOT NULL DEFAULT 'local',
+				external_ref_id TEXT NULL,
+				index_key TEXT NULL,
+				display_name TEXT NOT NULL DEFAULT '',
+				FOREIGN KEY (apiId) REFERENCES deployments(id) ON DELETE CASCADE,
+				UNIQUE (apiId, name, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create api_keys_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`
+				INSERT INTO api_keys_new_v8 (
+					id, name, api_key, masked_api_key, apiId, operations, status,
+					created_at, created_by, updated_at, expires_at, expires_in_unit, expires_in_duration,
+					source, external_ref_id, index_key, display_name
+				)
+				SELECT id, name, api_key, masked_api_key, apiId, operations, status,
+				       created_at, created_by, updated_at, expires_at, expires_in_unit, expires_in_duration,
+				       source, external_ref_id, index_key, display_name
+				FROM api_keys;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to api_keys_new_v8: %w", err)
+			}
+
+			if _, err = tx.Exec(`DROP TABLE api_keys;`); err != nil {
+				return fmt.Errorf("failed to drop api_keys table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE api_keys_new_v8 RENAME TO api_keys;`); err != nil {
+				return fmt.Errorf("failed to rename api_keys_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_status ON deployments(status);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_status in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_context ON deployments(context);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_context in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_kind ON deployments(kind);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_kind in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_deployments_gateway_id ON deployments(gateway_id);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_deployments_gateway_id in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_certificates_gateway_id ON certificates(gateway_id);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_certificates_gateway_id in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cert_name ON certificates(name);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_cert_name in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cert_expiry ON certificates(not_after);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_cert_expiry in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_llm_provider_templates_gateway_id ON llm_provider_templates(gateway_id);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_llm_provider_templates_gateway_id in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_template_handle ON llm_provider_templates(handle);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_template_handle in version 8 migration: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key ON api_keys(api_key);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_api ON api_keys(apiId);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_api in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_status ON api_keys(status);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_status in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_expiry ON api_keys(expires_at);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_expiry in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_created_by ON api_keys(created_by);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_created_by in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_source ON api_keys(source);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_source in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_external_ref ON api_keys(external_ref_id);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_external_ref in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_index_key ON api_keys(index_key);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_key_index_key in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_keys_gateway_id ON api_keys(gateway_id);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_api_keys_gateway_id in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
 					ON api_keys(apiId, index_key)
 					WHERE source = 'external' AND index_key IS NOT NULL;`); err != nil {
-				return fmt.Errorf("failed to create api_keys external unique index: %w", err)
+				return fmt.Errorf("failed to recreate idx_unique_external_api_key in version 8 migration: %w", err)
 			}
 
-			s.logger.Info("Database schema up to date", slog.Int("version", version))
+			if _, err = tx.Exec("PRAGMA user_version = 8"); err != nil {
+				return fmt.Errorf("failed to set schema version to 8: %w", err)
+			}
+
+			if err = tx.Commit(); err != nil {
+				return fmt.Errorf("failed to commit migration to version 8: %w", err)
+			}
+
+			if _, err := s.db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+				return fmt.Errorf("failed to re-enable foreign keys after migration to version 8: %w", err)
+			}
+
+			s.logger.Info("Schema migrated to version 8 (added gateway_id column to tables.)")
+			version = 8
 		}
+
+		// Ensure external API key uniqueness index exists for all migrated DBs.
+		if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
+					ON api_keys(apiId, index_key)
+					WHERE source = 'external' AND index_key IS NOT NULL;`); err != nil {
+			return fmt.Errorf("failed to create api_keys external unique index: %w", err)
+		}
+
+		s.logger.Info("Database schema up to date", slog.Int("version", version))
+	}
 
 	return nil
 }

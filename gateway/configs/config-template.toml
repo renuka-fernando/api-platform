@@ -9,6 +9,9 @@ api_port = 9090
 xds_port = 18000
 # Graceful shutdown timeout
 shutdown_timeout = "15s"
+# Unique identifier for the gateway instance (used in persistent storage)
+# It is recommended to use a uuid_v7 for this to improve db efficiency.
+gateway_id = "platform-gateway-id"
 
 [controller.admin_server]
 # Dedicated admin/debug HTTP server for config dump and xDS sync endpoints

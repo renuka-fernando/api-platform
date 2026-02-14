@@ -31,6 +31,7 @@ type BackendConfig struct {
 	Type       string
 	SQLitePath string
 	Postgres   PostgresConnectionConfig
+	GatewayID  string
 }
 
 // NewStorage creates the configured persistent storage backend.
@@ -45,7 +46,7 @@ func NewStorage(cfg BackendConfig, logger *slog.Logger) (Storage, error) {
 			return nil, err
 		}
 
-		store := newSQLStore(backend.db, backend.logger, "sqlite")
+		store := newSQLStore(backend.db, backend.logger, "sqlite", cfg.GatewayID)
 		store.rebindQuery = func(query string) string { return query }
 		store.isConfigUniqueViolation = isUniqueConstraintError
 		store.isCertificateUniqueViolation = isCertificateUniqueConstraintError
@@ -59,7 +60,7 @@ func NewStorage(cfg BackendConfig, logger *slog.Logger) (Storage, error) {
 			return nil, err
 		}
 
-		store := newSQLStore(backend.db, backend.logger, "postgres")
+		store := newSQLStore(backend.db, backend.logger, "postgres", cfg.GatewayID)
 		store.rebindQuery = func(query string) string { return sqlx.Rebind(sqlx.DOLLAR, query) }
 		store.isConfigUniqueViolation = isPostgresUniqueConstraintError
 		store.isCertificateUniqueViolation = isPostgresCertificateUniqueConstraintError
