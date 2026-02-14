@@ -25,14 +25,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// PolicyManifest represents the policy-manifest file structure
-type PolicyManifest struct {
+// BuildFile represents the build file structure
+type BuildFile struct {
 	Version           string   `yaml:"version"`
 	VersionResolution string   `yaml:"versionResolution,omitempty"`
 	Policies          []Policy `yaml:"policies"`
 }
 
-// Policy represents a single policy in the manifest
+// Policy represents a single policy in the build file
 type Policy struct {
 	Name              string `yaml:"name"`
 	Version           string `yaml:"version"`
@@ -40,16 +40,16 @@ type Policy struct {
 	FilePath          string `yaml:"filePath,omitempty"`
 }
 
-// ValidatePolicyManifest validates the policy-manifest structure
-func ValidatePolicyManifest(manifest *PolicyManifest) error {
+// ValidateBuildFile validates the build file structure
+func ValidateBuildFile(buildFile *BuildFile) error {
 
 	// Validate policies array
-	if len(manifest.Policies) == 0 {
+	if len(buildFile.Policies) == 0 {
 		return fmt.Errorf("'policies' array is required and must not be empty")
 	}
 
 	// Validate each policy
-	for i, policy := range manifest.Policies {
+	for i, policy := range buildFile.Policies {
 		if err := validatePolicy(&policy, i); err != nil {
 			return err
 		}
@@ -75,24 +75,24 @@ func validatePolicy(policy *Policy, index int) error {
 	return nil
 }
 
-// LoadPolicyManifest loads and validates a policy-manifest file
-func LoadPolicyManifest(filePath string) (*PolicyManifest, error) {
+// LoadBuildFile loads and validates a build file
+func LoadBuildFile(filePath string) (*BuildFile, error) {
 	// Read the file
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read policy-manifest file: %w", err)
+		return nil, fmt.Errorf("failed to read build file: %w", err)
 	}
 
 	// Parse YAML
-	var manifest PolicyManifest
-	if err := yaml.Unmarshal(content, &manifest); err != nil {
-		return nil, fmt.Errorf("failed to parse policy-manifest YAML: %w", err)
+	var buildFile BuildFile
+	if err := yaml.Unmarshal(content, &buildFile); err != nil {
+		return nil, fmt.Errorf("failed to parse build file YAML: %w", err)
 	}
 
-	// Validate the manifest
-	if err := ValidatePolicyManifest(&manifest); err != nil {
+	// Validate the build file
+	if err := ValidateBuildFile(&buildFile); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	return &manifest, nil
+	return &buildFile, nil
 }

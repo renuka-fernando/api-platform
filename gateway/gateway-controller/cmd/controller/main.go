@@ -423,15 +423,15 @@ func main() {
 	go func() {
 		<-routerConnected
 		<-policyEngineConnected
-		fmt.Println()
-		fmt.Println()
-		fmt.Println("============================================================")
-		fmt.Println()
-		fmt.Println("          API Platform Gateway Started")
-		fmt.Println()
-		fmt.Println("============================================================")
-		fmt.Println()
-		fmt.Println()
+		fmt.Print("\n\n" +
+			"========================================================================\n" +
+			"\n" +
+			"\n" +
+			"                   API Platform Gateway Started\n" +
+			"\n" +
+			"\n" +
+			"========================================================================\n" +
+			"\n\n")
 	}()
 
 	// Wait for interrupt signal

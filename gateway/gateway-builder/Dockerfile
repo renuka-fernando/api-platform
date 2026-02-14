@@ -89,9 +89,9 @@ COPY --from=sdk . /api-platform/sdk
 # Set working directory
 WORKDIR /workspace
 
-# Set entrypoint to builder binary with system manifest lock
+# Set entrypoint to builder binary with system build lock
 ENTRYPOINT [ \
     "/usr/local/bin/gateway-builder", \
-    "-system-manifest-lock", \
-    "/api-platform/gateway/system-policies/system-policy-manifest-lock.yaml" \
+    "-system-build-lock", \
+    "/api-platform/gateway/system-policies/system-build-lock.yaml" \
 ]

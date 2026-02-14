@@ -25,13 +25,12 @@ const (
 	ConfigPath        = ".wso2ap/config.yaml"
 	CachePath         = ".wso2ap/cache"
 	PoliciesCachePath = ".wso2ap/cache/policies"
-	TempPath          = ".wso2ap/.tmp"
 )
 
 // Gateway
 const (
 	// Image Build Defaults
-	DefaultManifestFile      = "build.yaml"
+	DefaultBuildFile         = "build.yaml"
 	DefaultImageRepository   = "ghcr.io/wso2/api-platform"
 	DefaultGatewayBuilder    = "ghcr.io/wso2/api-platform/gateway-builder:%s"    // %s = version
 	DefaultGatewayController = "ghcr.io/wso2/api-platform/gateway-controller:%s" // %s = version

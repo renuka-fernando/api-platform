@@ -98,20 +98,20 @@ COPY --from=sdk . /api-platform/sdk
 COPY --from=common . /api-platform/common
 COPY --from=system-policies . /workspace/system-policies/
 COPY --from=dev-policies . /workspace/policies/dev-policies/
-COPY --from=target build.yaml /workspace/policies/policy-manifest.yaml
+COPY --from=target build.yaml /workspace/policies/build.yaml
 
 RUN mkdir -p /workspace/output
 
 WORKDIR /workspace
 
-# Run gateway builder with manifest, conditionally enable coverage
+# Run gateway builder with build file, conditionally enable coverage
 # Cache mounts let the builder's internal go build reuse compiled packages
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     [ "$ENABLE_COVERAGE" = "true" ] && export COVERAGE=true || true; \
     /usr/local/bin/gateway-builder \
-        -manifest /workspace/policies/policy-manifest.yaml \
-        -system-manifest-lock /workspace/system-policies/system-policy-manifest-lock.yaml \
+        -build-file /workspace/policies/build.yaml \
+        -system-build-lock /workspace/system-policies/system-build-lock.yaml \
         -policy-engine-src /api-platform/gateway/gateway-runtime/policy-engine \
         -out-dir /workspace/output
 

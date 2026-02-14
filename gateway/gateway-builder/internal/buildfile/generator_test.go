@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package manifest
+package buildfile
 
 import (
 	"encoding/json"
@@ -31,18 +31,18 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/types"
 )
 
-func TestCreateManifest_EmptyPolicies(t *testing.T) {
+func TestCreateBuildInfo_EmptyPolicies(t *testing.T) {
 	policies := []*types.DiscoveredPolicy{}
 
-	manifest := CreateManifest("v1.0.0", policies, "/output")
+	info := CreateBuildInfo("v1.0.0", policies, "/output")
 
-	assert.Equal(t, "v1.0.0", manifest.BuilderVersion)
-	assert.Equal(t, "/output", manifest.OutputDir)
-	assert.Empty(t, manifest.Policies)
-	assert.NotEmpty(t, manifest.BuildTimestamp)
+	assert.Equal(t, "v1.0.0", info.BuilderVersion)
+	assert.Equal(t, "/output", info.OutputDir)
+	assert.Empty(t, info.Policies)
+	assert.NotEmpty(t, info.BuildTimestamp)
 }
 
-func TestCreateManifest_SinglePolicy(t *testing.T) {
+func TestCreateBuildInfo_SinglePolicy(t *testing.T) {
 	policies := []*types.DiscoveredPolicy{
 		{
 			Name:    "ratelimit",
@@ -51,48 +51,48 @@ func TestCreateManifest_SinglePolicy(t *testing.T) {
 		},
 	}
 
-	manifest := CreateManifest("v2.0.0", policies, "/build/output")
+	info := CreateBuildInfo("v2.0.0", policies, "/build/output")
 
-	assert.Equal(t, "v2.0.0", manifest.BuilderVersion)
-	assert.Equal(t, "/build/output", manifest.OutputDir)
-	assert.Len(t, manifest.Policies, 1)
-	assert.Equal(t, "ratelimit", manifest.Policies[0].Name)
-	assert.Equal(t, "v1.0.0", manifest.Policies[0].Version)
+	assert.Equal(t, "v2.0.0", info.BuilderVersion)
+	assert.Equal(t, "/build/output", info.OutputDir)
+	assert.Len(t, info.Policies, 1)
+	assert.Equal(t, "ratelimit", info.Policies[0].Name)
+	assert.Equal(t, "v1.0.0", info.Policies[0].Version)
 }
 
-func TestCreateManifest_MultiplePolicies(t *testing.T) {
+func TestCreateBuildInfo_MultiplePolicies(t *testing.T) {
 	policies := []*types.DiscoveredPolicy{
 		{Name: "ratelimit", Version: "v1.0.0"},
 		{Name: "jwt-auth", Version: "v0.1.0"},
 		{Name: "cors", Version: "v2.0.0"},
 	}
 
-	manifest := CreateManifest("v1.5.0", policies, "/out")
+	info := CreateBuildInfo("v1.5.0", policies, "/out")
 
-	assert.Len(t, manifest.Policies, 3)
-	assert.Equal(t, "ratelimit", manifest.Policies[0].Name)
-	assert.Equal(t, "jwt-auth", manifest.Policies[1].Name)
-	assert.Equal(t, "cors", manifest.Policies[2].Name)
+	assert.Len(t, info.Policies, 3)
+	assert.Equal(t, "ratelimit", info.Policies[0].Name)
+	assert.Equal(t, "jwt-auth", info.Policies[1].Name)
+	assert.Equal(t, "cors", info.Policies[2].Name)
 }
 
-func TestManifest_ToJSON_EmptyPolicies(t *testing.T) {
-	manifest := &Manifest{
-		BuildTimestamp: "2025-01-01T00:00:00Z",
+func TestBuildInfo_ToJSON_EmptyPolicies(t *testing.T) {
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
 		BuilderVersion: "v1.0.0",
 		OutputDir:      "/output",
 		Policies:       []PolicyInfo{},
 	}
 
-	jsonStr, err := manifest.ToJSON()
+	jsonStr, err := info.ToJSON()
 	require.NoError(t, err)
 	assert.Contains(t, jsonStr, `"builderVersion": "v1.0.0"`)
 	assert.Contains(t, jsonStr, `"outputDir": "/output"`)
 	assert.Contains(t, jsonStr, `"policies": []`)
 }
 
-func TestManifest_ToJSON_WithPolicies(t *testing.T) {
-	manifest := &Manifest{
-		BuildTimestamp: "2025-01-01T00:00:00Z",
+func TestBuildInfo_ToJSON_WithPolicies(t *testing.T) {
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
 		BuilderVersion: "v1.0.0",
 		OutputDir:      "/output",
 		Policies: []PolicyInfo{
@@ -101,25 +101,25 @@ func TestManifest_ToJSON_WithPolicies(t *testing.T) {
 		},
 	}
 
-	jsonStr, err := manifest.ToJSON()
+	jsonStr, err := info.ToJSON()
 	require.NoError(t, err)
 
 	// Verify it's valid JSON
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal([]byte(jsonStr), &parsed)
 	require.NoError(t, err)
 
 	assert.Equal(t, "v1.0.0", parsed["builderVersion"])
-	policies := parsed["policies"].([]interface{})
+	policies := parsed["policies"].([]any)
 	assert.Len(t, policies, 2)
 }
 
-func TestManifest_WriteToFile_Success(t *testing.T) {
+func TestBuildInfo_WriteToFile_Success(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "manifest.json")
+	filePath := filepath.Join(tmpDir, "build-info.json")
 
-	manifest := &Manifest{
-		BuildTimestamp: "2025-01-01T00:00:00Z",
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
 		BuilderVersion: "v1.0.0",
 		OutputDir:      "/output",
 		Policies: []PolicyInfo{
@@ -127,7 +127,7 @@ func TestManifest_WriteToFile_Success(t *testing.T) {
 		},
 	}
 
-	err := manifest.WriteToFile(filePath)
+	err := info.WriteToFile(filePath)
 	require.NoError(t, err)
 
 	// Verify file exists and contains expected content
@@ -137,39 +137,36 @@ func TestManifest_WriteToFile_Success(t *testing.T) {
 	assert.Contains(t, string(content), "v1.0.0")
 }
 
-func TestManifest_WriteToFile_DirectoryNotExists(t *testing.T) {
+func TestBuildInfo_WriteToFile_DirectoryNotExists(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "nonexistent-dir", "manifest.json")
+	filePath := filepath.Join(tmpDir, "nonexistent-dir", "build-info.json")
 
-	manifest := &Manifest{
-		BuildTimestamp: "2025-01-01T00:00:00Z",
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
 		BuilderVersion: "v1.0.0",
 		OutputDir:      "/output",
 		Policies:       []PolicyInfo{},
 	}
 
-	err := manifest.WriteToFile(filePath)
+	err := info.WriteToFile(filePath)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to write manifest file")
+	assert.Contains(t, err.Error(), "failed to write build info file")
 }
 
-func TestWriteManifestLockWithVersions_Success(t *testing.T) {
+func TestWriteBuildLockWithVersions_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create a manifest file
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     filePath: ./policies/ratelimit
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create the policy directory structure
 	policyDir := filepath.Join(tmpDir, "policies", "ratelimit")
 	testutils.CreateDir(t, policyDir)
 
-	// Create discovered policies
 	discovered := []*types.DiscoveredPolicy{
 		{
 			Name:    "ratelimit",
@@ -178,84 +175,77 @@ policies:
 		},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	// Verify lock file was created
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "ratelimit")
 	assert.Contains(t, string(content), "v1.0.0")
 }
 
-func TestWriteManifestLockWithVersions_ManifestNotFound(t *testing.T) {
+func TestWriteBuildLockWithVersions_FileNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	manifestPath := filepath.Join(tmpDir, "nonexistent.yaml")
+	buildFilePath := filepath.Join(tmpDir, "nonexistent.yaml")
 
 	discovered := []*types.DiscoveredPolicy{}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read manifest file")
+	assert.Contains(t, err.Error(), "failed to read build file")
 }
 
-func TestWriteManifestLockWithVersions_EmptyManifest(t *testing.T) {
+func TestWriteBuildLockWithVersions_EmptyBuildFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with no policies (should succeed with empty lock)
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies: []
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
 	discovered := []*types.DiscoveredPolicy{}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	// Verify lock file was created
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	_, err = os.Stat(lockPath)
 	assert.NoError(t, err)
 }
 
-func TestWriteManifestLockWithVersions_PolicyNotFound(t *testing.T) {
+func TestWriteBuildLockWithVersions_PolicyNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create a manifest file with a policy that won't be discovered
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: unknown-policy
     filePath: ./policies/unknown
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Empty discovered policies
 	discovered := []*types.DiscoveredPolicy{}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to determine version for policy")
 }
 
-func TestWriteManifestLockWithVersions_MultiplePolicies(t *testing.T) {
+func TestWriteBuildLockWithVersions_MultiplePolicies(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create a manifest file with multiple policies
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     filePath: ./policies/ratelimit
   - name: jwt-auth
     filePath: ./policies/jwt-auth
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create the policy directories
 	ratelimitDir := filepath.Join(tmpDir, "policies", "ratelimit")
 	jwtAuthDir := filepath.Join(tmpDir, "policies", "jwt-auth")
 	testutils.CreateDir(t, ratelimitDir)
@@ -266,11 +256,10 @@ policies:
 		{Name: "jwt-auth", Version: "v0.1.0", Path: jwtAuthDir},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	// Verify lock file
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "ratelimit")
@@ -279,56 +268,48 @@ policies:
 	assert.Contains(t, string(content), "v0.1.0")
 }
 
-// ==== Phase 2a: Additional coverage for WriteManifestLockWithVersions ====
-
-func TestWriteManifestLockWithVersions_MultipleCandidatesWithFilePath(t *testing.T) {
+func TestWriteBuildLockWithVersions_MultipleCandidatesWithFilePath(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with a policy that has filePath
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     filePath: ./policies/ratelimit-v2
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create policy directories for both versions
 	v1Dir := filepath.Join(tmpDir, "policies", "ratelimit-v1")
 	v2Dir := filepath.Join(tmpDir, "policies", "ratelimit-v2")
 	testutils.CreateDir(t, v1Dir)
 	testutils.CreateDir(t, v2Dir)
 
-	// Multiple candidates with same name but different paths
 	discovered := []*types.DiscoveredPolicy{
 		{Name: "ratelimit", Version: "v1.0.0", Path: v1Dir},
 		{Name: "ratelimit", Version: "v2.0.0", Path: v2Dir},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	// Verify the correct version was selected (v2.0.0 based on filePath)
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "v2.0.0")
 	assert.NotContains(t, string(content), "v1.0.0")
 }
 
-func TestWriteManifestLockWithVersions_GomoduleWithVersion(t *testing.T) {
+func TestWriteBuildLockWithVersions_GomoduleWithVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with gomodule containing @version
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     gomodule: github.com/example/ratelimit@v1.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create policy directory with go.mod
 	policyDir := filepath.Join(tmpDir, "policies", "ratelimit")
 	testutils.CreateDir(t, policyDir)
 
@@ -344,29 +325,27 @@ policies:
 		},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "ratelimit")
 	assert.Contains(t, string(content), "v1.0.0")
 }
 
-func TestWriteManifestLockWithVersions_GomoduleWithoutVersion(t *testing.T) {
+func TestWriteBuildLockWithVersions_GomoduleWithoutVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with gomodule without @version
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     gomodule: github.com/example/ratelimit
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create policy directory with go.mod
 	policyDir := filepath.Join(tmpDir, "policies", "ratelimit")
 	testutils.CreateDir(t, policyDir)
 
@@ -382,48 +361,44 @@ policies:
 		},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "v2.0.0")
 }
 
-func TestWriteManifestLockWithVersions_GomoduleNoMatch(t *testing.T) {
+func TestWriteBuildLockWithVersions_GomoduleNoMatch(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with gomodule
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     gomodule: github.com/example/ratelimit@v1.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Empty discovered policies - no candidates at all
 	discovered := []*types.DiscoveredPolicy{}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to determine version for policy")
 }
 
-func TestWriteManifestLockWithVersions_GomoduleMultipleCandidates(t *testing.T) {
+func TestWriteBuildLockWithVersions_GomoduleMultipleCandidates(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with gomodule
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     gomodule: github.com/example/ratelimit@v2.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create two policy directories with go.mod
 	v1Dir := filepath.Join(tmpDir, "policies", "ratelimit-v1")
 	v2Dir := filepath.Join(tmpDir, "policies", "ratelimit-v2")
 	testutils.CreateDir(t, v1Dir)
@@ -434,34 +409,31 @@ policies:
 	testutils.WriteGoMod(t, v1Dir, "github.com/example/ratelimit")
 	testutils.WriteGoMod(t, v2Dir, "github.com/example/ratelimit")
 
-	// Multiple candidates - should pick the one matching version
 	discovered := []*types.DiscoveredPolicy{
 		{Name: "ratelimit", Version: "v1.0.0", Path: v1Dir, GoModPath: v1GoModPath},
 		{Name: "ratelimit", Version: "v2.0.0", Path: v2Dir, GoModPath: v2GoModPath},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "v2.0.0")
 }
 
-func TestWriteManifestLockWithVersions_GomoduleVersionNormalization(t *testing.T) {
+func TestWriteBuildLockWithVersions_GomoduleVersionNormalization(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with gomodule - version without 'v' prefix
-	manifestContent := `version: "1.0"
+	buildFileContent := `version: "1.0"
 policies:
   - name: ratelimit
     gomodule: github.com/example/ratelimit@1.0.0
 `
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, manifestContent)
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, buildFileContent)
 
-	// Create policy directory with go.mod
 	policyDir := filepath.Join(tmpDir, "policies", "ratelimit")
 	testutils.CreateDir(t, policyDir)
 
@@ -478,62 +450,60 @@ policies:
 		},
 	}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	require.NoError(t, err)
 
-	lockPath := filepath.Join(tmpDir, "policy-manifest-lock.yaml")
+	lockPath := filepath.Join(tmpDir, "build-lock.yaml")
 	content, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "v1.0.0")
 }
 
-func TestWriteManifestLockWithVersions_InvalidManifestYAML(t *testing.T) {
+func TestWriteBuildLockWithVersions_InvalidBuildFileYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create invalid YAML manifest
-	manifestPath := filepath.Join(tmpDir, "policy-manifest.yaml")
-	testutils.WriteFile(t, manifestPath, "invalid: yaml: content: -")
+	buildFilePath := filepath.Join(tmpDir, "build.yaml")
+	testutils.WriteFile(t, buildFilePath, "invalid: yaml: content: -")
 
 	discovered := []*types.DiscoveredPolicy{}
 
-	err := WriteManifestLockWithVersions(manifestPath, discovered)
+	err := WriteBuildLockWithVersions(buildFilePath, discovered)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse manifest YAML")
+	assert.Contains(t, err.Error(), "failed to parse build file YAML")
 }
 
-func TestManifest_WriteToFile_InvalidPath(t *testing.T) {
-	manifest := &Manifest{
-		BuildTimestamp: "2025-01-01T00:00:00Z",
+func TestBuildInfo_WriteToFile_InvalidPath(t *testing.T) {
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
 		BuilderVersion: "v1.0.0",
 		OutputDir:      "/output",
 		Policies:       []PolicyInfo{},
 	}
 
-	// Try to write to a path that doesn't exist
-	err := manifest.WriteToFile("/nonexistent/directory/manifest.json")
+	err := info.WriteToFile("/nonexistent/directory/build-info.json")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to write manifest file")
+	assert.Contains(t, err.Error(), "failed to write build info file")
 }
 
-func TestManifest_ToJSON_Success(t *testing.T) {
-manifest := &Manifest{
-BuildTimestamp: "2025-01-01T00:00:00Z",
-BuilderVersion: "v2.0.0",
-OutputDir:      "/output/dir",
-Policies: []PolicyInfo{
-{Name: "test", Version: "v1.0.0"},
-},
-}
+func TestBuildInfo_ToJSON_Success(t *testing.T) {
+	info := &BuildInfo{
+		BuildTimestamp:  "2025-01-01T00:00:00Z",
+		BuilderVersion: "v2.0.0",
+		OutputDir:      "/output/dir",
+		Policies: []PolicyInfo{
+			{Name: "test", Version: "v1.0.0"},
+		},
+	}
 
-jsonStr, err := manifest.ToJSON()
-require.NoError(t, err)
-assert.Contains(t, jsonStr, "v2.0.0")
-assert.Contains(t, jsonStr, "test")
-assert.Contains(t, jsonStr, "v1.0.0")
+	jsonStr, err := info.ToJSON()
+	require.NoError(t, err)
+	assert.Contains(t, jsonStr, "v2.0.0")
+	assert.Contains(t, jsonStr, "test")
+	assert.Contains(t, jsonStr, "v1.0.0")
 
-// Verify it's valid JSON
-var parsed Manifest
-err = json.Unmarshal([]byte(jsonStr), &parsed)
-require.NoError(t, err)
-assert.Equal(t, manifest.BuilderVersion, parsed.BuilderVersion)
+	// Verify it's valid JSON
+	var parsed BuildInfo
+	err = json.Unmarshal([]byte(jsonStr), &parsed)
+	require.NoError(t, err)
+	assert.Equal(t, info.BuilderVersion, parsed.BuilderVersion)
 }

@@ -18,14 +18,14 @@
 
 package types
 
-// PolicyManifest represents the policy-manifest.yaml file
-type PolicyManifest struct {
-	Version  string          `yaml:"version"`
-	Policies []ManifestEntry `yaml:"policies"`
+// BuildFile represents the build file (build.yaml) structure
+type BuildFile struct {
+	Version  string       `yaml:"version"`
+	Policies []BuildEntry `yaml:"policies"`
 }
 
-// ManifestEntry represents a single policy entry in the manifest
-type ManifestEntry struct {
+// BuildEntry represents a single policy entry in the build file
+type BuildEntry struct {
 	Name     string `yaml:"name"`
 	FilePath string `yaml:"filePath,omitempty"`
 	Gomodule string `yaml:"gomodule,omitempty"`
