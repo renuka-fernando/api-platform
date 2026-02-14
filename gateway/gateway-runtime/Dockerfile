@@ -70,9 +70,11 @@ ARG VERSION
 ARG GIT_COMMIT
 ARG BUILD_DATE
 ARG ENABLE_COVERAGE
+ARG TARGETARCH
 ENV VERSION=${VERSION}
 ENV GIT_COMMIT=${GIT_COMMIT}
 ENV BUILD_DATE=${BUILD_DATE}
+ENV TARGETARCH=${TARGETARCH}
 
 # Download SDK dependencies (cached by go.mod/go.sum changes)
 COPY --from=sdk go.mod go.sum /api-platform/sdk/
