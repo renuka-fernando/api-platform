@@ -535,11 +535,12 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *api.LLMProxy) (
 		OpenAPISpec:      valueOrEmpty(req.Openapi),
 		Status:           llmStatusPending,
 		Configuration: model.LLMProxyConfig{
-			Context:  &contextValue,
-			Vhost:    req.Vhost,
-			Provider: req.Provider.Id,
-			Policies: mapPoliciesAPIToModel(req.Policies),
-			Security: mapSecurityAPIToModel(req.Security),
+			Context:      &contextValue,
+			Vhost:        req.Vhost,
+			Provider:     req.Provider.Id,
+			UpstreamAuth: mapUpstreamAuthAPIToModel(req.Provider.Auth),
+			Policies:     mapPoliciesAPIToModel(req.Policies),
+			Security:     mapSecurityAPIToModel(req.Security),
 		},
 	}
 
@@ -734,11 +735,12 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *api.LLMProxy) (*ap
 		OpenAPISpec:      valueOrEmpty(req.Openapi),
 		Status:           llmStatusPending,
 		Configuration: model.LLMProxyConfig{
-			Context:  &contextValue,
-			Vhost:    req.Vhost,
-			Provider: req.Provider.Id,
-			Policies: mapPoliciesAPIToModel(req.Policies),
-			Security: mapSecurityAPIToModel(req.Security),
+			Context:      &contextValue,
+			Vhost:        req.Vhost,
+			Provider:     req.Provider.Id,
+			UpstreamAuth: mapUpstreamAuthAPIToModel(req.Provider.Auth),
+			Policies:     mapPoliciesAPIToModel(req.Policies),
+			Security:     mapSecurityAPIToModel(req.Security),
 		},
 	}
 
@@ -825,6 +827,12 @@ func preserveUpstreamAuthCredential(existing, updated *model.UpstreamAuth) *mode
 	}
 	if existing == nil {
 		return updated
+	}
+	if updated.Type == "" {
+		updated.Type = existing.Type
+	}
+	if updated.Header == "" {
+		updated.Header = existing.Header
 	}
 	if updated.Value == "" {
 		updated.Value = existing.Value
@@ -1259,7 +1267,8 @@ func mapProviderModelToAPI(m *model.LLMProvider, templateHandle string) *api.LLM
 		v := *m.Configuration.Context
 		ctx = &v
 	}
-	upstream := mapUpstreamModelToAPI(m.Configuration.Upstream)
+	// Use redacted upstream mapping (never expose auth credential values)
+	upstream := mapUpstreamConfigToDTO(m.Configuration.Upstream)
 	ac := api.LLMAccessControl{Mode: api.LLMAccessControlMode("deny_all")}
 	if m.Configuration.AccessControl != nil {
 		ac.Mode = api.LLMAccessControlMode(m.Configuration.AccessControl.Mode)
@@ -1632,7 +1641,7 @@ func mapProxyModelToAPI(m *model.LLMProxy) *api.LLMProxy {
 		out.Provider.Auth = &api.UpstreamAuth{
 			Type:   authType,
 			Header: stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Header),
-			Value:  stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Value),
+			Value:  nil, // Redact auth credential value
 		}
 	}
 	if len(m.Configuration.Policies) > 0 {
