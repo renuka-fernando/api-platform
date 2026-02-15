@@ -32,7 +32,6 @@ type APIKeyStore struct {
 	mu               sync.RWMutex
 	apiKeys          map[string]*models.APIKey            // key: configID:APIKeyName → Value: *APIKey
 	apiKeysByAPI     map[string]map[string]*models.APIKey // Key: configID → Value: map[keyID]*APIKey
-	externalKeyIndex map[string]map[string]*string        // Key: configID → Value: map[indexKey]*string
 	resourceVersion  int64
 	logger           *slog.Logger
 }
@@ -40,10 +39,9 @@ type APIKeyStore struct {
 // NewAPIKeyStore creates a new API key store
 func NewAPIKeyStore(logger *slog.Logger) *APIKeyStore {
 	return &APIKeyStore{
-		apiKeys:          make(map[string]*models.APIKey),
-		apiKeysByAPI:     make(map[string]map[string]*models.APIKey),
-		externalKeyIndex: make(map[string]map[string]*string),
-		logger:           logger,
+		apiKeys:      make(map[string]*models.APIKey),
+		apiKeysByAPI: make(map[string]map[string]*models.APIKey),
+		logger:       logger,
 	}
 }
 
@@ -70,15 +68,9 @@ func (s *APIKeyStore) Store(apiKey *models.APIKey) error {
 		// Handle both rotation and generation scenarios for existing key name
 		delete(s.apiKeys, compositeKey)
 		delete(s.apiKeysByAPI[apiKey.APIId], existingKeyID)
-		if apiKey.Source == "external" {
-			delete(s.externalKeyIndex[apiKey.APIId], *apiKey.IndexKey)
-		}
 		// Store the new key (could be same ID with new value, or new ID entirely)
 		s.apiKeys[compositeKey] = apiKey
 		s.apiKeysByAPI[apiKey.APIId][apiKey.ID] = apiKey
-		if apiKey.Source == "external" {
-			s.externalKeyIndex[apiKey.APIId][*apiKey.IndexKey] = &apiKey.ID
-		}
 	} else {
 		// Store the API key
 		s.apiKeys[compositeKey] = apiKey
@@ -154,7 +146,6 @@ func (s *APIKeyStore) RemoveByAPI(apiId string) int {
 		delete(s.apiKeys, compositeKey)
 	}
 	delete(s.apiKeysByAPI, apiId)
-	delete(s.externalKeyIndex, apiId)
 
 	s.logger.Debug("Removed API keys by API",
 		slog.String("api_id", apiId),
@@ -187,17 +178,8 @@ func (s *APIKeyStore) addToAPIMapping(apiKey *models.APIKey) {
 		s.apiKeysByAPI[apiKey.APIId] = make(map[string]*models.APIKey)
 	}
 
-	// Initialize the map for this API ID if it doesn't exist
-	if s.externalKeyIndex[apiKey.APIId] == nil {
-		s.externalKeyIndex[apiKey.APIId] = make(map[string]*string)
-	}
-
 	// Store by API key ID
 	s.apiKeysByAPI[apiKey.APIId][apiKey.ID] = apiKey
-	if apiKey.Source == "external" {
-		externalKeyIndexKey := *apiKey.IndexKey
-		s.externalKeyIndex[apiKey.APIId][externalKeyIndexKey] = &apiKey.ID
-	}
 }
 
 // removeFromAPIMapping removes an API key from the API mapping
@@ -208,14 +190,6 @@ func (s *APIKeyStore) removeFromAPIMapping(apiKey *models.APIKey) {
 		// clean up empty maps
 		if len(s.apiKeysByAPI[apiKey.APIId]) == 0 {
 			delete(s.apiKeysByAPI, apiKey.APIId)
-		}
-		if apiKey.Source == "external" {
-			externalKeyIndexKey := *apiKey.IndexKey
-			delete(s.externalKeyIndex[apiKey.APIId], externalKeyIndexKey)
-		}
-		// clean up empty maps
-		if len(s.externalKeyIndex[apiKey.APIId]) == 0 {
-			delete(s.externalKeyIndex, apiKey.APIId)
 		}
 	}
 }

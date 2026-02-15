@@ -128,11 +128,10 @@ func (h *APIKeyOperationHandler) handleStoreOperation(operation policyenginev1.A
 		"api_key_name", operation.APIKey.Name,
 		"correlation_id", operation.CorrelationID)
 
-	// Convert APIKeyData to apikey.APIKey
 	ak := &apikey.APIKey{
 		ID:         operation.APIKey.ID,
 		Name:       operation.APIKey.Name,
-		APIKey:     operation.APIKey.APIKey,
+		APIKey:     operation.APIKey.APIKey, // hashed key
 		APIId:      operation.APIKey.APIId,
 		Operations: operation.APIKey.Operations,
 		Status:     apikey.APIKeyStatus(operation.APIKey.Status),
@@ -141,7 +140,6 @@ func (h *APIKeyOperationHandler) handleStoreOperation(operation policyenginev1.A
 		UpdatedAt:  operation.APIKey.UpdatedAt,
 		ExpiresAt:  operation.APIKey.ExpiresAt,
 		Source:     operation.APIKey.Source,
-		IndexKey:   operation.APIKey.IndexKey,
 	}
 
 	// Store the API key in the policy validation store
@@ -208,11 +206,10 @@ func (h *APIKeyOperationHandler) replaceAllAPIKeys(apiKeyDataList []APIKeyData) 
 
 	// Then, add all API keys from the new state
 	for i, apiKeyData := range apiKeyDataList {
-		// Convert APIKeyData to apikey.APIKey
 		ak := &apikey.APIKey{
 			ID:         apiKeyData.ID,
 			Name:       apiKeyData.Name,
-			APIKey:     apiKeyData.APIKey,
+			APIKey:     apiKeyData.APIKey, // hashed key
 			APIId:      apiKeyData.APIId,
 			Operations: apiKeyData.Operations,
 			Status:     apikey.APIKeyStatus(apiKeyData.Status),
@@ -221,7 +218,6 @@ func (h *APIKeyOperationHandler) replaceAllAPIKeys(apiKeyDataList []APIKeyData) 
 			UpdatedAt:  apiKeyData.UpdatedAt,
 			ExpiresAt:  apiKeyData.ExpiresAt,
 			Source:     apiKeyData.Source,
-			IndexKey:   apiKeyData.IndexKey,
 		}
 
 		// Store the API key in the policy validation store
@@ -260,6 +256,5 @@ type APIKeyData struct {
 	CreatedBy  string     `json:"createdBy"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ExpiresAt  *time.Time `json:"expiresAt"`
-	Source     string     `json:"source"`   // "local" | "external"
-	IndexKey   string     `json:"indexKey"` // Pre-computed SHA-256 hash for O(1) lookup (external plain text keys only)
+	Source     string     `json:"source"` // "local" | "external"
 }

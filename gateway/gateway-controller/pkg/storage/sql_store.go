@@ -1044,22 +1044,6 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 		}
 	}()
 
-	// Before inserting, check for duplicates if this is an external key
-	if apiKey.Source == "external" && apiKey.IndexKey != nil {
-		var count int
-		checkQuery := `SELECT COUNT(*) FROM api_keys                                                  
-						WHERE apiId = ? AND index_key = ? AND source = 'external' AND gateway_id = ?`
-		err := tx.QueryRowQ(checkQuery, apiKey.APIId, apiKey.IndexKey, s.gatewayId).Scan(&count)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to check for duplicate API key: %w", err)
-		}
-		if count > 0 {
-			tx.Rollback()
-			return fmt.Errorf("%w: API key value already exists for this API", ErrConflict)
-		}
-	}
-
 	// First, check if an API key with the same apiId and name exists
 	checkQuery := `SELECT id FROM api_keys WHERE apiId = ? AND name = ? AND gateway_id = ?`
 	var existingID string
@@ -1076,8 +1060,8 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 			INSERT INTO api_keys (
 				id, gateway_id, name, display_name, api_key, masked_api_key, apiId, operations, status,
 				created_at, created_by, updated_at, expires_at, expires_in_unit, expires_in_duration,
-				source, external_ref_id, index_key
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				source, external_ref_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 
 		_, err := tx.ExecQ(insertQuery,
@@ -1098,7 +1082,6 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 			apiKey.Duration,
 			apiKey.Source,
 			apiKey.ExternalRefId,
-			apiKey.IndexKey,
 		)
 
 		if err != nil {
@@ -1138,7 +1121,7 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
 		WHERE id = ? AND gateway_id = ?
 	`
@@ -1146,7 +1129,6 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
 	err := s.queryRow(query, id, s.gatewayId).Scan(
 		&apiKey.ID,
@@ -1163,7 +1145,6 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1180,9 +1161,6 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
 	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
-	}
 
 	return &apiKey, nil
 }
@@ -1191,7 +1169,7 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
 		WHERE api_key = ? AND gateway_id = ?
 	`
@@ -1199,7 +1177,6 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
 	err := s.queryRow(query, key, s.gatewayId).Scan(
 		&apiKey.ID,
@@ -1216,7 +1193,6 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1233,9 +1209,6 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
 	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
-	}
 
 	return &apiKey, nil
 }
@@ -1244,7 +1217,7 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
 		WHERE apiId = ? AND gateway_id = ?
 		ORDER BY created_at DESC
@@ -1262,7 +1235,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 		var apiKey models.APIKey
 		var expiresAt sql.NullTime
 		var externalRefId sql.NullString
-		var indexKey sql.NullString
 
 		err := rows.Scan(
 			&apiKey.ID,
@@ -1279,7 +1251,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 			&expiresAt,
 			&apiKey.Source,
 			&externalRefId,
-			&indexKey,
 		)
 
 		if err != nil {
@@ -1292,9 +1263,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 		}
 		if externalRefId.Valid {
 			apiKey.ExternalRefId = &externalRefId.String
-		}
-		if indexKey.Valid {
-			apiKey.IndexKey = &indexKey.String
 		}
 
 		apiKeys = append(apiKeys, &apiKey)
@@ -1311,7 +1279,7 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
 		WHERE apiId = ? AND name = ? AND gateway_id = ?
 		LIMIT 1
@@ -1320,7 +1288,6 @@ func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, e
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
 	err := s.queryRow(query, apiId, name, s.gatewayId).Scan(
 		&apiKey.ID,
@@ -1337,7 +1304,6 @@ func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, e
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1353,9 +1319,6 @@ func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, e
 	}
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
-	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
 	}
 
 	return &apiKey, nil
@@ -1378,30 +1341,10 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 		}
 	}()
 
-	if apiKey.Source == "external" && apiKey.IndexKey != nil {
-		// Check for duplicate API key value within the same API (same value, different name)
-		duplicateCheckQuery := `
-			SELECT id, name FROM api_keys
-			WHERE apiId = ? AND index_key = ? AND name != ? AND gateway_id = ?
-			LIMIT 1
-		`
-		var duplicateID, duplicateName string
-		err := tx.QueryRowQ(duplicateCheckQuery, apiKey.APIId, apiKey.IndexKey, apiKey.Name, s.gatewayId).Scan(&duplicateID, &duplicateName)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			tx.Rollback()
-			return fmt.Errorf("failed to check for duplicate API key: %w", err)
-		}
-		if err == nil {
-			// Row found: same key value already exists for this API under a different name
-			tx.Rollback()
-			return fmt.Errorf("%w: API key value already exists for this API", ErrConflict)
-		}
-	}
-
 	updateQuery := `
 			UPDATE api_keys
 			SET api_key = ?, masked_api_key = ?, display_name = ?, operations = ?, status = ?, created_by = ?, updated_at = ?, expires_at = ?, expires_in_unit = ?, expires_in_duration = ?,
-			    source = ?, external_ref_id = ?, index_key = ?
+			    source = ?, external_ref_id = ?
 			WHERE apiId = ? AND name = ? AND gateway_id = ?
 		`
 
@@ -1418,7 +1361,6 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 		apiKey.Duration,
 		apiKey.Source,
 		apiKey.ExternalRefId,
-		apiKey.IndexKey,
 		apiKey.APIId,
 		apiKey.Name,
 		s.gatewayId,
@@ -1594,7 +1536,7 @@ func (s *sqlStore) updateDeploymentConfigsTx(tx *sqlStoreTx, cfg *models.StoredC
 func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
 		WHERE status = 'active' AND gateway_id = ?
 		ORDER BY created_at DESC
@@ -1612,7 +1554,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 		var apiKey models.APIKey
 		var expiresAt sql.NullTime
 		var externalRefId sql.NullString
-		var indexKey sql.NullString
 
 		err := rows.Scan(
 			&apiKey.ID,
@@ -1629,7 +1570,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 			&expiresAt,
 			&apiKey.Source,
 			&externalRefId,
-			&indexKey,
 		)
 
 		if err != nil {
@@ -1642,9 +1582,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 		}
 		if externalRefId.Valid {
 			apiKey.ExternalRefId = &externalRefId.String
-		}
-		if indexKey.Valid {
-			apiKey.IndexKey = &indexKey.String
 		}
 
 		apiKeys = append(apiKeys, &apiKey)

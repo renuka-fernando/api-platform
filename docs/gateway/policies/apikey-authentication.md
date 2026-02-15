@@ -829,7 +829,7 @@ These values can be configured in the gateway controller configuration under the
 The platform implements comprehensive security measures for API key management:
 
 #### Secure Hashing
-API keys are securely hashed before being stored in the database using the SHA-256 cryptographic algorithm. If the hashing algorithm is not specified, SHA-256 is used by default.
+API keys are securely hashed before being stored in the database using the SHA-256 cryptographic algorithm.
 
 #### Masked Display
 For security reasons, API keys are masked when displayed in list operations:
@@ -840,7 +840,8 @@ For security reasons, API keys are masked when displayed in list operations:
 #### Secure Storage
 - API keys are never stored in plain text
 - Only hashed values are persisted to the database
-- Keys are validated using constant-time comparison to prevent timing attacks
+- Incoming keys are validated securely by comparing their
+  SHA-256 hash against stored hashes.
 
 #### Access Control
 - Users can only manage API keys they created

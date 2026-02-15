@@ -148,10 +148,6 @@ func NewAPIKeyService(store *storage.ConfigStore, db storage.Storage, xdsManager
 	}
 }
 
-const (
-	// SHA-256 parameters
-	sha256SaltLen = 32 // Length of salt in bytes for SHA-256
-)
 
 // CreateAPIKey handles the complete API key creation process.
 // Supports both local key generation by generating a new random key and external key injection
@@ -1073,15 +1069,6 @@ func (s *APIKeyService) createAPIKeyFromRequest(handle string, request *api.APIK
 			expiresAt.Format(time.RFC3339), now.Format(time.RFC3339))
 	}
 
-	var indexKey *string
-	if source == "external" {
-		computedIndexKey := computeExternalKeyIndexKey(plainAPIKeyValue)
-		if computedIndexKey == "" {
-			return nil, fmt.Errorf("failed to compute index key")
-		}
-		indexKey = &computedIndexKey
-	}
-
 	apiKey := &models.APIKey{
 		ID:           id,
 		Name:         name,
@@ -1098,7 +1085,6 @@ func (s *APIKeyService) createAPIKeyFromRequest(handle string, request *api.APIK
 		Unit:         unit,
 		Duration:     duration,
 		Source:       source, // "local" or "external"
-		IndexKey:     indexKey,
 	}
 
 	// Set external reference fields if provided
@@ -1172,15 +1158,14 @@ func (s *APIKeyService) buildAPIKeyResponse(key *models.APIKey, handle string, p
 		remainingQuota = &remaining
 	}
 
-	// Use plainAPIKey for response if available, otherwise mask the hashed key
+	// Use plainAPIKey for response if available, otherwise don't return the key
 	var responseAPIKey *string
 	if plainAPIKey != "" && !isExternalKeyInjection {
-		// Format: apip_{64_hex_chars}.{hex_encoded_id}
-		// Since the ID is already base64url encoded (22 chars), we can use it directly
-		formattedAPIKey := plainAPIKey + constants.APIKeySeparator + key.ID
-		responseAPIKey = &formattedAPIKey
+		// For newly generated local keys, return the plain API key
+		// Format: apip_{64_hex_chars}
+		responseAPIKey = &plainAPIKey
 	} else {
-		// For existing keys where plainAPIKey is not available, don't return the hashed key
+		// For external keys or existing keys where plainAPIKey is not available, don't return it
 		responseAPIKey = nil
 	}
 
@@ -1300,15 +1285,6 @@ func (s *APIKeyService) updateAPIKeyFromRequest(existingKey *models.APIKey, requ
 			expiresAt.Format(time.RFC3339), now.Format(time.RFC3339))
 	}
 
-	var indexKey *string
-	if existingKey.Source == "external" {
-		computedIndexKey := computeExternalKeyIndexKey(plainAPIKeyValue)
-		if computedIndexKey == "" {
-			return nil, fmt.Errorf("failed to compute index key")
-		}
-		indexKey = &computedIndexKey
-	}
-
 	// Create the regenerated API key
 	updatedKey := &models.APIKey{
 		ID:           existingKey.ID,
@@ -1326,7 +1302,6 @@ func (s *APIKeyService) updateAPIKeyFromRequest(existingKey *models.APIKey, requ
 		Unit:         unit,
 		Duration:     duration,
 		Source:       existingKey.Source, // Preserve source from original key.
-		IndexKey:     indexKey,
 	}
 
 	// Temporarily store the plain key for response generation
@@ -1614,86 +1589,44 @@ func (s *APIKeyService) hashAPIKey(plainAPIKey string) (string, error) {
 	return s.hashAPIKeyWithSHA256(plainAPIKey)
 }
 
-// hashAPIKeyWithSHA256 securely hashes an API key using SHA-256 with salt
-// Returns the hashed API key that should be stored in database and policy engine
+// hashAPIKeyWithSHA256 hashes an API key using plain SHA-256 (no salt)
+// Returns the hex-encoded hash (64 characters) that should be stored in database and policy engine
 func (s *APIKeyService) hashAPIKeyWithSHA256(plainAPIKey string) (string, error) {
-	if plainAPIKey == "" {
+	// Normalize the API key by trimming whitespace
+	trimmedAPIKey := strings.TrimSpace(plainAPIKey)
+	if trimmedAPIKey == "" {
 		return "", fmt.Errorf("API key cannot be empty")
 	}
 
-	salt := make([]byte, sha256SaltLen)
-	if _, err := rand.Read(salt); err != nil {
-		return "", fmt.Errorf("failed to generate salt: %w", err)
-	}
-
-	// Generate hash using SHA-256
+	// Generate hash using SHA-256 (no salt - deterministic)
 	hasher := sha256.New()
-	hasher.Write([]byte(plainAPIKey))
-	hasher.Write(salt)
+	hasher.Write([]byte(trimmedAPIKey))
 	hash := hasher.Sum(nil)
 
-	// Encode salt and hash using hex
-	saltHex := hex.EncodeToString(salt)
-	hashHex := hex.EncodeToString(hash)
-
-	// Format: $sha256$<salt_hex>$<hash_hex>
-	hashedKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
-
-	return hashedKey, nil
+	// Return hex-encoded hash (64 characters)
+	return hex.EncodeToString(hash), nil
 }
 
 
-// compareAPIKeys compares API keys for external use
-// Returns true if the plain API key matches the hash, false otherwise
-// If hashing is disabled, performs plain text comparison
+// compareAPIKeys compares API keys by hashing the provided key and comparing with stored hash
+// Returns true if the plain API key matches the stored hash, false otherwise
 func (s *APIKeyService) compareAPIKeys(providedAPIKey, storedAPIKey string) bool {
+	// Normalize inputs by trimming whitespace
+	providedAPIKey = strings.TrimSpace(providedAPIKey)
+	storedAPIKey = strings.TrimSpace(storedAPIKey)
+
 	if providedAPIKey == "" || storedAPIKey == "" {
 		return false
 	}
 
-	// Check if it's an SHA-256 hash (format: $sha256$<salt_hex>$<hash_hex>)
-	if strings.HasPrefix(storedAPIKey, "$sha256$") {
-		return s.compareSHA256Hash(providedAPIKey, storedAPIKey)
-	}
-
-	// If no hash format is detected, try plain text comparison as fallback
-	// This handles migration scenarios where some keys might still be stored as plain text
-	return subtle.ConstantTimeCompare([]byte(providedAPIKey), []byte(storedAPIKey)) == 1
-}
-
-// compareSHA256Hash validates an encoded SHA-256 hash and compares it to the provided password.
-// Expected format: $sha256$<salt_hex>$<hash_hex>
-// Returns true if the plain API key matches the hash, false otherwise
-func (s *APIKeyService) compareSHA256Hash(apiKey, encoded string) bool {
-	if apiKey == "" || encoded == "" {
-		return false
-	}
-
-	// Parse the hash format: $sha256$<salt_hex>$<hash_hex>
-	parts := strings.Split(encoded, "$")
-	if len(parts) != 4 || parts[1] != "sha256" {
-		return false
-	}
-
-	// Decode salt and hash from hex
-	salt, err := hex.DecodeString(parts[2])
-	if err != nil {
-		return false
-	}
-
-	storedHash, err := hex.DecodeString(parts[3])
-	if err != nil {
-		return false
-	}
-
-	// Compute hash of the provided key with the stored salt
+	// Compute SHA-256 hash of provided key
 	hasher := sha256.New()
-	hasher.Write([]byte(apiKey))
-	hasher.Write(salt)
-	computedHash := hasher.Sum(nil)
+	hasher.Write([]byte(providedAPIKey))
+	hash := hasher.Sum(nil)
+	computedHash := hex.EncodeToString(hash)
 
-	// Constant-time comparison
-	return subtle.ConstantTimeCompare(computedHash, storedHash) == 1
+	// Constant-time comparison with stored hash
+	return subtle.ConstantTimeCompare([]byte(computedHash), []byte(storedAPIKey)) == 1
 }
 
 
@@ -2009,15 +1942,3 @@ func (s *APIKeyService) UpdateExternalAPIKeyFromEvent(
 	return nil
 }
 
-// computeIndexKey computes a SHA-256 hash-based index key for fast lookup
-// Returns the index key as "hash_hex" (SHA-256 of the plain key)
-func computeExternalKeyIndexKey(plainAPIKey string) string {
-	if plainAPIKey == "" {
-		return ""
-	}
-
-	hasher := sha256.New()
-	hasher.Write([]byte(plainAPIKey))
-	hash := hasher.Sum(nil)
-	return hex.EncodeToString(hash)
-}

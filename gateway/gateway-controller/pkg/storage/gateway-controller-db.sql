@@ -169,9 +169,6 @@ CREATE TABLE IF NOT EXISTS api_keys (
     source TEXT NOT NULL DEFAULT 'local',  -- 'local' or 'external'
     external_ref_id TEXT NULL,  -- external reference
 
-    -- O(1) lookup optimization for external keys
-    index_key TEXT NULL,  -- Pre-computed SHA-256 hash for fast lookup
-
     -- Human-readable display name for the API key
     display_name TEXT NOT NULL DEFAULT '',
 
@@ -190,11 +187,6 @@ CREATE INDEX IF NOT EXISTS idx_api_key_expiry ON api_keys(expires_at);
 CREATE INDEX IF NOT EXISTS idx_created_by ON api_keys(created_by);
 CREATE INDEX IF NOT EXISTS idx_api_key_source ON api_keys(source);
 CREATE INDEX IF NOT EXISTS idx_api_key_external_ref ON api_keys(external_ref_id);
-CREATE INDEX IF NOT EXISTS idx_api_key_index_key ON api_keys(index_key);
-CREATE INDEX IF NOT EXISTS idx_api_keys_gateway_id ON api_keys(gateway_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
-    ON api_keys(apiId, index_key)
-    WHERE source = 'external' AND index_key IS NOT NULL;
 
--- Set schema version to 8 (add gateway_id column)
-PRAGMA user_version = 8;
+-- Set schema version to 9 (removed index_key column, switched to hash-based indexing)
+PRAGMA user_version = 9;

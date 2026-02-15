@@ -40,7 +40,6 @@ const (
 	sqliteUniqueTemplatesHandle        = "UNIQUE constraint failed: llm_provider_templates.handle, llm_provider_templates.gateway_id"
 	sqliteUniqueAPIKeysKey             = "UNIQUE constraint failed: api_keys.api_key"
 	sqliteUniqueAPIKeysID              = "UNIQUE constraint failed: api_keys.id"
-	sqliteUniqueAPIKeysExternalIndex   = "UNIQUE constraint failed: api_keys.apiId, api_keys.index_key"
 )
 
 // SQLiteStorage implements the Storage interface using SQLite
@@ -653,15 +652,71 @@ func (s *SQLiteStorage) initSchema() error {
 			version = 8
 		}
 
-		// Ensure external API key uniqueness index exists for all migrated DBs.
-		if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
-					ON api_keys(apiId, index_key)
-					WHERE source = 'external' AND index_key IS NOT NULL;`); err != nil {
-			return fmt.Errorf("failed to create api_keys external unique index: %w", err)
-		}
+		// Migration to version 8: Drop index_key column and indexes if they exist
+		if version == 8 {
+			s.logger.Info("Migrating schema to version 9 (removing index_key if exists)")
 
-		s.logger.Info("Database schema up to date", slog.Int("version", version))
+			// Disable foreign keys for migration
+			if _, err := s.db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+				return fmt.Errorf("failed to disable foreign keys for migration: %w", err)
+			}
+
+			// Begin transaction for atomic migration
+			tx, err := s.db.BeginTx(context.Background(), nil)
+			if err != nil {
+				// Re-enable foreign keys before returning
+				s.db.Exec("PRAGMA foreign_keys = ON")
+				return fmt.Errorf("failed to begin transaction for migration to version 8: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					if rbErr := tx.Rollback(); rbErr != nil {
+						s.logger.Error("Failed to rollback migration transaction", slog.Any("error", rbErr))
+					}
+					// Re-enable foreign keys after rollback
+					s.db.Exec("PRAGMA foreign_keys = ON")
+				}
+			}()
+
+			// Drop indexes if they exist
+			if _, err = tx.Exec(`DROP INDEX IF EXISTS idx_unique_external_api_key;`); err != nil {
+				return fmt.Errorf("failed to drop idx_unique_external_api_key: %w", err)
+			}
+			if _, err = tx.Exec(`DROP INDEX IF EXISTS idx_api_key_index_key;`); err != nil {
+				return fmt.Errorf("failed to drop idx_api_key_index_key: %w", err)
+			}
+
+			// Check if index_key column exists and drop it
+			var indexKeyExists int
+			err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('api_keys') WHERE name = 'index_key'`).Scan(&indexKeyExists)
+			if err == nil && indexKeyExists > 0 {
+				s.logger.Info("Dropping index_key column from api_keys table")
+				if _, err = tx.Exec(`ALTER TABLE api_keys DROP COLUMN index_key;`); err != nil {
+					return fmt.Errorf("failed to drop index_key column: %w", err)
+				}
+			}
+
+			// Update schema version
+			if _, err = tx.Exec("PRAGMA user_version = 9"); err != nil {
+				return fmt.Errorf("failed to set schema version to 9: %w", err)
+			}
+
+			// Commit the transaction
+			if err = tx.Commit(); err != nil {
+				return fmt.Errorf("failed to commit migration to version 8: %w", err)
+			}
+
+			// Re-enable foreign keys after successful migration
+			if _, err := s.db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+				return fmt.Errorf("failed to re-enable foreign keys after migration: %w", err)
+			}
+
+			s.logger.Info("Schema migrated to version 9 (removed index_key)")
+			version = 9
+		}
 	}
+
+	s.logger.Info("Database schema up to date", slog.Int("version", version))
 
 	return nil
 }
@@ -690,6 +745,5 @@ func isTemplateUniqueConstraintError(err error) bool {
 func isAPIKeyUniqueConstraintError(err error) bool {
 	return err != nil &&
 		(err.Error() == sqliteUniqueAPIKeysKey ||
-			err.Error() == sqliteUniqueAPIKeysID ||
-			err.Error() == sqliteUniqueAPIKeysExternalIndex)
+			err.Error() == sqliteUniqueAPIKeysID)
 }
