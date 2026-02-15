@@ -137,13 +137,13 @@ components:
             - deployed
             - failed
             - undeployed
-        created_at:
+        createdAt:
           type: string
           format: date-time
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
-        deployed_at:
+        deployedAt:
           type: string
           format: date-time
 

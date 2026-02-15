@@ -412,7 +412,7 @@ func (s *APIServer) SearchDeployments(c *gin.Context, kind string) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":      "success",
 			"count":       len(mcpItems),
-			"mcp_proxies": mcpItems,
+			"mcpProxies": mcpItems,
 		})
 	} else {
 		// Return API format
@@ -474,13 +474,13 @@ func (s *APIServer) GetAPIByNameVersion(c *gin.Context, name string, version str
 		"configuration": cfg.Configuration,
 		"metadata": gin.H{
 			"status":     string(cfg.Status),
-			"created_at": cfg.CreatedAt.Format(time.RFC3339),
-			"updated_at": cfg.UpdatedAt.Format(time.RFC3339),
+			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
+			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
 	}
 
 	if cfg.DeployedAt != nil {
-		apiDetail["metadata"].(gin.H)["deployed_at"] = cfg.DeployedAt.Format(time.RFC3339)
+		apiDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -532,13 +532,13 @@ func (s *APIServer) GetAPIById(c *gin.Context, id string) {
 		"configuration": cfg.Configuration,
 		"metadata": gin.H{
 			"status":     string(cfg.Status),
-			"created_at": cfg.CreatedAt.Format(time.RFC3339),
-			"updated_at": cfg.UpdatedAt.Format(time.RFC3339),
+			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
+			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
 	}
 
 	if cfg.DeployedAt != nil {
-		apiDetail["metadata"].(gin.H)["deployed_at"] = cfg.DeployedAt.Format(time.RFC3339)
+		apiDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1114,8 +1114,8 @@ func (s *APIServer) GetLLMProviderTemplateById(c *gin.Context, id string) {
 		"id":            id,
 		"configuration": template.Configuration,
 		"metadata": gin.H{
-			"created_at": template.CreatedAt,
-			"updated_at": template.UpdatedAt,
+			"createdAt": template.CreatedAt,
+			"updatedAt": template.UpdatedAt,
 		},
 	}
 
@@ -1317,13 +1317,13 @@ func (s *APIServer) GetLLMProviderById(c *gin.Context, id string) {
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
 			"status":     string(cfg.Status),
-			"created_at": cfg.CreatedAt.Format(time.RFC3339),
-			"updated_at": cfg.UpdatedAt.Format(time.RFC3339),
+			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
+			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
 	}
 
 	if cfg.DeployedAt != nil {
-		providerDetail["metadata"].(gin.H)["deployed_at"] = cfg.DeployedAt.Format(time.RFC3339)
+		providerDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1568,13 +1568,13 @@ func (s *APIServer) GetLLMProxyById(c *gin.Context, id string) {
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
 			"status":     string(cfg.Status),
-			"created_at": cfg.CreatedAt.Format(time.RFC3339),
-			"updated_at": cfg.UpdatedAt.Format(time.RFC3339),
+			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
+			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
 	}
 
 	if cfg.DeployedAt != nil {
-		proxyDetail["metadata"].(gin.H)["deployed_at"] = cfg.DeployedAt.Format(time.RFC3339)
+		proxyDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1883,7 +1883,7 @@ func (s *APIServer) ListMCPProxies(c *gin.Context, params api.ListMCPProxiesPara
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
 		"count":       len(items),
-		"mcp_proxies": items,
+		"mcpProxies": items,
 	})
 }
 
@@ -1943,13 +1943,13 @@ func (s *APIServer) GetMCPProxyById(c *gin.Context, id string) {
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
 			"status":     string(cfg.Status),
-			"created_at": cfg.CreatedAt.Format(time.RFC3339),
-			"updated_at": cfg.UpdatedAt.Format(time.RFC3339),
+			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
+			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
 	}
 
 	if cfg.DeployedAt != nil {
-		mcpDetail["metadata"].(gin.H)["deployed_at"] = cfg.DeployedAt.Format(time.RFC3339)
+		mcpDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
