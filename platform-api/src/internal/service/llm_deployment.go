@@ -43,8 +43,6 @@ const (
 	apiKeyAuthPolicyName          = "api-key-auth"
 	rateLimitPolicyVersion        = "v0"
 	apiKeyAuthPolicyVersion       = "v0"
-	rateLimitAlgorithm            = "fixed-window"
-	rateLimitBackend              = "memory"
 )
 
 // LLMProviderDeploymentService handles business logic for LLM provider deployment operations
@@ -594,8 +592,6 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 											"duration": duration,
 										},
 									},
-									"algorithm": rateLimitAlgorithm,
-									"backend":   rateLimitBackend,
 								},
 							},
 						},
@@ -660,8 +656,6 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 											"duration": duration,
 										},
 									},
-									"algorithm": rateLimitAlgorithm,
-									"backend":   rateLimitBackend,
 								},
 							},
 						},
@@ -719,8 +713,6 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 										"duration": duration,
 									},
 								},
-								"algorithm": rateLimitAlgorithm,
-								"backend":   rateLimitBackend,
 							},
 						})
 					}
