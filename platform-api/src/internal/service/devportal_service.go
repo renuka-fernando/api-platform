@@ -755,7 +755,7 @@ func (s *DevPortalService) compensatePublication(
 	originalErr error,
 	failureReason string,
 ) error {
-	utils.LogError("Starting rollback - removing API from DevPortal due to publication failure", nil)
+	s.slogger.Error("Starting rollback - removing API from DevPortal due to publication failure")
 
 	// Retry rollback up to 3 times with exponential backoff
 	maxRetries := 3
@@ -764,30 +764,30 @@ func (s *DevPortalService) compensatePublication(
 		rollbackErr = s.devPortalClientSvc.UnpublishAPIFromDevPortal(client, orgID, apiID)
 		if rollbackErr == nil {
 			// Success - rollback completed
-			utils.LogError(fmt.Sprintf("Compensation completed: removed API %s from DevPortal %s due to %s", apiID, devPortalName, failureReason), nil)
+			s.slogger.Error("Compensation completed: removed API from DevPortal", "apiID", apiID, "devPortalName", devPortalName, "failureReason", failureReason)
 			return nil
 		}
 
 		// Check if this is a "not found" error (404) - API already removed
 		wrappedErr := utils.WrapDevPortalClientError(rollbackErr)
 		if errors.Is(wrappedErr, constants.ErrAPINotFound) {
-			utils.LogError(fmt.Sprintf("Compensation completed: API %s already removed from DevPortal %s (404)", apiID, devPortalName), nil)
+			s.slogger.Error("Compensation completed: API already removed from DevPortal (404)", "apiID", apiID, "devPortalName", devPortalName)
 			return nil
 		}
 
 		// If not the last attempt, wait before retrying
 		if attempt < maxRetries {
 			waitTime := time.Duration(attempt) * time.Second // 1s, 2s, 3s
-			utils.LogError(fmt.Sprintf("Rollback attempt %d failed, retrying in %v: %v", attempt, waitTime, rollbackErr), nil)
+			s.slogger.Error("Rollback attempt failed, retrying", "attempt", attempt, "waitTime", waitTime, "rollbackError", rollbackErr)
 			time.Sleep(waitTime)
 		}
 	}
 
 	// All retries failed
-	utils.LogError("Rollback failed after all retries - unable to remove API from DevPortal", rollbackErr)
+	s.slogger.Error("Rollback failed after all retries - unable to remove API from DevPortal", "error", rollbackErr)
 
 	// Critical—Unable to maintain consistency (Split-brain situation)
-	utils.LogError("Critical error - API published but database update failed and cleanup unsuccessful. Manual intervention required", nil)
+	s.slogger.Error("Critical error - API published but database update failed and cleanup unsuccessful. Manual intervention required")
 
 	return fmt.Errorf("%w: API %s, DevPortalRef %s, OriginalErr: %w, RollbackErr: %v",
 		constants.ErrAPIPublicationSplitBrain, apiID, devPortalRefID, originalErr, rollbackErr)

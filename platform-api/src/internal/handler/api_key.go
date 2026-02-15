@@ -68,7 +68,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 	// Parse and validate request body
 	var req api.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.LogError("Invalid API key creation request", err)
+		h.slogger.Error("Invalid API key creation request", "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body"))
 		return

@@ -154,13 +154,13 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 	devPortalService := service.NewDevPortalService(devPortalRepo, orgRepo, publicationRepo, apiRepo, apiUtil, cfg, slogger)
 
 	// Initialize services
-	orgService := service.NewOrganizationService(orgRepo, projectRepo, devPortalService, llmTemplateSeeder, cfg)
-	projectService := service.NewProjectService(projectRepo, orgRepo, apiRepo)
+	orgService := service.NewOrganizationService(orgRepo, projectRepo, devPortalService, llmTemplateSeeder, cfg, slogger)
+	projectService := service.NewProjectService(projectRepo, orgRepo, apiRepo, slogger)
 	gatewayEventsService := service.NewGatewayEventsService(wsManager, slogger)
 	apiService := service.NewAPIService(apiRepo, projectRepo, orgRepo, gatewayRepo, devPortalRepo, publicationRepo,
 		gatewayEventsService, devPortalService, apiUtil, slogger)
-	gatewayService := service.NewGatewayService(gatewayRepo, orgRepo, apiRepo)
-	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, llmProviderRepo, llmProxyRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg)
+	gatewayService := service.NewGatewayService(gatewayRepo, orgRepo, apiRepo, slogger)
+	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, llmProviderRepo, llmProxyRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg, slogger)
 	apiKeyService := service.NewAPIKeyService(apiRepo, gatewayEventsService, slogger)
 	gitService := service.NewGitService()
 	deploymentService := service.NewDeploymentService(apiRepo, artifactRepo, deploymentRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg, slogger)
@@ -175,9 +175,10 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 		orgRepo,
 		gatewayEventsService,
 		cfg,
+		slogger,
 	)
-	llmProviderAPIKeyService := service.NewLLMProviderAPIKeyService(llmProviderRepo, gatewayRepo, gatewayEventsService)
-	llmProxyAPIKeyService := service.NewLLMProxyAPIKeyService(llmProxyRepo, gatewayRepo, gatewayEventsService)
+	llmProviderAPIKeyService := service.NewLLMProviderAPIKeyService(llmProviderRepo, gatewayRepo, gatewayEventsService, slogger)
+	llmProxyAPIKeyService := service.NewLLMProxyAPIKeyService(llmProxyRepo, gatewayRepo, gatewayEventsService, slogger)
 	llmProxyDeploymentService := service.NewLLMProxyDeploymentService(
 		llmProxyRepo,
 		deploymentRepo,
@@ -185,24 +186,25 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 		orgRepo,
 		gatewayEventsService,
 		cfg,
+		slogger,
 	)
 
 	// Initialize handlers
-	orgHandler := handler.NewOrganizationHandler(orgService)
-	projectHandler := handler.NewProjectHandler(projectService)
+	orgHandler := handler.NewOrganizationHandler(orgService, slogger)
+	projectHandler := handler.NewProjectHandler(projectService, slogger)
 	apiHandler := handler.NewAPIHandler(apiService, slogger)
 	devPortalHandler := handler.NewDevPortalHandler(devPortalService, slogger)
-	gatewayHandler := handler.NewGatewayHandler(gatewayService)
-	wsHandler := handler.NewWebSocketHandler(wsManager, gatewayService, cfg.WebSocket.RateLimitPerMin)
-	internalGatewayHandler := handler.NewGatewayInternalAPIHandler(gatewayService, internalGatewayService)
+	gatewayHandler := handler.NewGatewayHandler(gatewayService, slogger)
+	wsHandler := handler.NewWebSocketHandler(wsManager, gatewayService, cfg.WebSocket.RateLimitPerMin, slogger)
+	internalGatewayHandler := handler.NewGatewayInternalAPIHandler(gatewayService, internalGatewayService, slogger)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService, slogger)
-	gitHandler := handler.NewGitHandler(gitService)
+	gitHandler := handler.NewGitHandler(gitService, slogger)
 	deploymentHandler := handler.NewDeploymentHandler(deploymentService, slogger)
-	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService)
-	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService)
-	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService)
-	llmProxyAPIKeyHandler := handler.NewLLMProxyAPIKeyHandler(llmProxyAPIKeyService)
-	llmProxyDeploymentHandler := handler.NewLLMProxyDeploymentHandler(llmProxyDeploymentService)
+	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService, slogger)
+	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService, slogger)
+	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService, slogger)
+	llmProxyAPIKeyHandler := handler.NewLLMProxyAPIKeyHandler(llmProxyAPIKeyService, slogger)
+	llmProxyDeploymentHandler := handler.NewLLMProxyDeploymentHandler(llmProxyDeploymentService, slogger)
 	slogger.Info("Initialized all services and handlers successfully")
 
 	if strings.ToLower(cfg.LogLevel) == "debug" {
