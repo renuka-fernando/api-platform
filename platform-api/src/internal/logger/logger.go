@@ -27,9 +27,8 @@ import (
 
 // Config holds logger configuration
 type Config struct {
-	Level        string // "debug", "info", "warn", "error"
-	Format       string // "json" (default) or "text"
-	DebugEnabled bool
+	Level  string // "debug", "info", "warn", "error"
+	Format string // "json" (default) or "text"
 }
 
 // NewLogger creates a new slog logger with configurable log level and format

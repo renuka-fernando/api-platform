@@ -337,6 +337,7 @@ func (s *Server) Start(port string, certDir string) error {
 	keyPath := filepath.Join(certDir, "key.pem")
 
 	var cert tls.Certificate
+	certGenerated := false
 
 	// Try to load existing certificates first
 	if _, certErr := os.Stat(certPath); certErr == nil {
@@ -365,6 +366,7 @@ func (s *Server) Start(port string, certDir string) error {
 			return fmt.Errorf("failed to generate self-signed certificate: %v", err)
 		}
 		cert = generatedCert
+		certGenerated = true
 	}
 
 	// Add a health endpoint that works with self-signed certs
@@ -387,7 +389,9 @@ func (s *Server) Start(port string, certDir string) error {
 	}
 
 	s.logger.Info("Starting HTTPS server", "address", "https://localhost:"+port)
-	s.logger.Warn("Note: Using self-signed certificate for development. Browsers will show security warnings.")
+	if certGenerated {
+		s.logger.Warn("Note: Using self-signed certificate for development. Browsers will show security warnings.")
+	}
 	return server.ListenAndServeTLS("", "")
 }
 

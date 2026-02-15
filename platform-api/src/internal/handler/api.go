@@ -99,15 +99,15 @@ func (h *APIHandler) CreateAPI(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, constants.ErrAPINameVersionAlreadyExists) {
+			h.slogger.Error("API with same name and version already exists", "organizationId", orgId)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"API with same name and version already exists in the organization"))
-			h.slogger.Error("API with same name and version already exists", "organizationId", orgId)
 			return
 		}
 		if errors.Is(err, constants.ErrAPIAlreadyExists) {
+			h.slogger.Error("API already exists in the project", "organizationId", orgId)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"API already exists in the project"))
-			h.slogger.Error("API already exists in the project", "organizationId", orgId)
 			return
 		}
 		if errors.Is(err, constants.ErrProjectNotFound) {
