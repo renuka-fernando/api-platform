@@ -3,9 +3,52 @@ package service
 import (
 	"testing"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
 )
+
+func TestNormalizeUpstreamAuthType(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "api key camel case", input: "apiKey", expected: "api-key"},
+		{name: "api key kebab case", input: "api-key", expected: "api-key"},
+		{name: "api key upper with underscore", input: "API_KEY", expected: "api-key"},
+		{name: "basic", input: "basic", expected: "basic"},
+		{name: "bearer", input: "bearer", expected: "bearer"},
+		{name: "unknown preserved", input: "custom", expected: "custom"},
+		{name: "empty", input: "", expected: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := normalizeUpstreamAuthType(tc.input)
+			if actual != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestMapUpstreamAuthAPIToModel_NormalizesApiKeyType(t *testing.T) {
+	authType := api.UpstreamAuthType("apiKey")
+	in := &api.UpstreamAuth{
+		Type:   &authType,
+		Header: stringPtrIfNotEmpty("Authorization"),
+		Value:  stringPtrIfNotEmpty("secret"),
+	}
+
+	out := mapUpstreamAuthAPIToModel(in)
+	if out == nil {
+		t.Fatal("expected output auth to be non-nil")
+	}
+	if out.Type != "api-key" {
+		t.Fatalf("expected auth type to be normalized to api-key, got %q", out.Type)
+	}
+}
 
 func TestPreserveUpstreamAuthValue(t *testing.T) {
 	existing := &model.UpstreamConfig{
@@ -42,16 +85,16 @@ func TestPreserveUpstreamAuthValue(t *testing.T) {
 		}
 	})
 
-	t.Run("missing auth preserves existing auth", func(t *testing.T) {
+	t.Run("missing auth clears existing auth", func(t *testing.T) {
 		updated := &model.UpstreamConfig{
 			Main: &model.UpstreamEndpoint{URL: "https://example.com"},
 		}
 		out := preserveUpstreamAuthValue(existing, updated)
-		if out.Main == nil || out.Main.Auth == nil {
-			t.Fatalf("expected auth to be preserved")
+		if out.Main == nil {
+			t.Fatalf("expected main upstream to be present")
 		}
-		if out.Main.Auth.Value != "secret" {
-			t.Fatalf("expected auth value to be preserved")
+		if out.Main.Auth != nil {
+			t.Fatalf("expected auth to be cleared when auth object is omitted")
 		}
 	})
 
@@ -101,6 +144,72 @@ func TestMapUpstreamConfigToDTO_DoesNotExposeAuthValue(t *testing.T) {
 	}
 	if out.Sandbox.Auth.Value != nil && *out.Sandbox.Auth.Value != "" {
 		t.Fatalf("expected sandbox auth value to be redacted")
+	}
+}
+
+func TestMapProviderModelToAPI_DoesNotExposeUpstreamAuthValue(t *testing.T) {
+	in := &model.LLMProvider{
+		ID:      "provider-1",
+		Name:    "Provider One",
+		Version: "v1",
+		Configuration: model.LLMProviderConfig{
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{
+					URL: "https://example.com",
+					Auth: &model.UpstreamAuth{
+						Type:   "api-key",
+						Header: "Authorization",
+						Value:  "super-secret",
+					},
+				},
+				Sandbox: &model.UpstreamEndpoint{
+					URL: "https://sandbox.example.com",
+					Auth: &model.UpstreamAuth{
+						Type:   "bearer",
+						Header: "Authorization",
+						Value:  "sandbox-secret",
+					},
+				},
+			},
+		},
+	}
+
+	out := mapProviderModelToAPI(in, "template-1")
+	if out.Upstream.Main.Auth == nil {
+		t.Fatalf("expected upstream main auth to be present")
+	}
+	if out.Upstream.Main.Auth.Value != nil && *out.Upstream.Main.Auth.Value != "" {
+		t.Fatalf("expected upstream main auth value to be redacted")
+	}
+	if out.Upstream.Sandbox == nil || out.Upstream.Sandbox.Auth == nil {
+		t.Fatalf("expected upstream sandbox auth to be present")
+	}
+	if out.Upstream.Sandbox.Auth.Value != nil && *out.Upstream.Sandbox.Auth.Value != "" {
+		t.Fatalf("expected upstream sandbox auth value to be redacted")
+	}
+}
+
+func TestMapProxyModelToAPI_DoesNotExposeProviderAuthValue(t *testing.T) {
+	in := &model.LLMProxy{
+		ID:      "proxy-1",
+		Name:    "Proxy One",
+		Version: "v1",
+		Configuration: model.LLMProxyConfig{
+			Provider: "provider-1",
+			UpstreamAuth: &model.UpstreamAuth{
+				Type:   "api-key",
+				Header: "Authorization",
+				Value:  "super-secret-proxy",
+			},
+		},
+	}
+
+	out := mapProxyModelToAPI(in)
+	if out.Provider.Auth == nil {
+		t.Fatalf("expected provider auth to be present")
+	}
+	if out.Provider.Auth.Value != nil && *out.Provider.Auth.Value != "" {
+		t.Fatalf("expected provider auth value to be redacted")
 	}
 }
 

@@ -447,7 +447,8 @@ func (s *LLMProviderService) Update(orgUUID, handle string, req *api.LLMProvider
 		},
 	}
 
-	// Preserve stored upstream auth credential when not supplied in update payload
+	// Preserve stored upstream auth credential only when auth object is provided with an empty value.
+	// If auth object is omitted, treat it as explicit removal and clear stored auth.
 	m.Configuration.Upstream = preserveUpstreamAuthValue(existing.Configuration.Upstream, m.Configuration.Upstream)
 
 	if err := s.repo.Update(m); err != nil {
@@ -535,11 +536,12 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *api.LLMProxy) (
 		OpenAPISpec:      valueOrEmpty(req.Openapi),
 		Status:           llmStatusPending,
 		Configuration: model.LLMProxyConfig{
-			Context:  &contextValue,
-			Vhost:    req.Vhost,
-			Provider: req.Provider.Id,
-			Policies: mapPoliciesAPIToModel(req.Policies),
-			Security: mapSecurityAPIToModel(req.Security),
+			Context:      &contextValue,
+			Vhost:        req.Vhost,
+			Provider:     req.Provider.Id,
+			UpstreamAuth: mapUpstreamAuthAPIToModel(req.Provider.Auth),
+			Policies:     mapPoliciesAPIToModel(req.Policies),
+			Security:     mapSecurityAPIToModel(req.Security),
 		},
 	}
 
@@ -604,6 +606,11 @@ func (s *LLMProxyService) List(orgUUID string, projectUUID *string, limit, offse
 		name := p.Name
 		desc := stringPtrIfNotEmpty(p.Description)
 		createdBy := stringPtrIfNotEmpty(p.CreatedBy)
+		contextValue := (*string)(nil)
+		if p.Configuration.Context != nil {
+			v := *p.Configuration.Context
+			contextValue = &v
+		}
 		version := p.Version
 		projectID := p.ProjectUUID
 		provider := p.Configuration.Provider
@@ -613,6 +620,7 @@ func (s *LLMProxyService) List(orgUUID string, projectUUID *string, limit, offse
 			Name:        &name,
 			Description: desc,
 			CreatedBy:   createdBy,
+			Context:     contextValue,
 			Version:     &version,
 			ProjectId:   &projectID,
 			Provider:    &provider,
@@ -661,6 +669,11 @@ func (s *LLMProxyService) ListByProvider(orgUUID, providerID string, limit, offs
 		name := p.Name
 		desc := stringPtrIfNotEmpty(p.Description)
 		createdBy := stringPtrIfNotEmpty(p.CreatedBy)
+		contextValue := (*string)(nil)
+		if p.Configuration.Context != nil {
+			v := *p.Configuration.Context
+			contextValue = &v
+		}
 		version := p.Version
 		projectID := p.ProjectUUID
 		provider := p.Configuration.Provider
@@ -670,6 +683,7 @@ func (s *LLMProxyService) ListByProvider(orgUUID, providerID string, limit, offs
 			Name:        &name,
 			Description: desc,
 			CreatedBy:   createdBy,
+			Context:     contextValue,
 			Version:     &version,
 			ProjectId:   &projectID,
 			Provider:    &provider,
@@ -734,11 +748,12 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *api.LLMProxy) (*ap
 		OpenAPISpec:      valueOrEmpty(req.Openapi),
 		Status:           llmStatusPending,
 		Configuration: model.LLMProxyConfig{
-			Context:  &contextValue,
-			Vhost:    req.Vhost,
-			Provider: req.Provider.Id,
-			Policies: mapPoliciesAPIToModel(req.Policies),
-			Security: mapSecurityAPIToModel(req.Security),
+			Context:      &contextValue,
+			Vhost:        req.Vhost,
+			Provider:     req.Provider.Id,
+			UpstreamAuth: mapUpstreamAuthAPIToModel(req.Provider.Auth),
+			Policies:     mapPoliciesAPIToModel(req.Policies),
+			Security:     mapSecurityAPIToModel(req.Security),
 		},
 	}
 
@@ -806,11 +821,6 @@ func preserveUpstreamAuthValue(existing, updated *model.UpstreamConfig) *model.U
 		return updated
 	}
 	if updated.Main.Auth == nil {
-		updated.Main.Auth = &model.UpstreamAuth{
-			Type:   existing.Main.Auth.Type,
-			Header: existing.Main.Auth.Header,
-			Value:  existing.Main.Auth.Value,
-		}
 		return updated
 	}
 	if updated.Main.Auth.Value == "" {
@@ -825,6 +835,12 @@ func preserveUpstreamAuthCredential(existing, updated *model.UpstreamAuth) *mode
 	}
 	if existing == nil {
 		return updated
+	}
+	if updated.Type == "" {
+		updated.Type = existing.Type
+	}
+	if updated.Header == "" {
+		updated.Header = existing.Header
 	}
 	if updated.Value == "" {
 		updated.Value = existing.Value
@@ -919,12 +935,31 @@ func mapUpstreamAuthAPIToModel(in *api.UpstreamAuth) *model.UpstreamAuth {
 	}
 	authType := ""
 	if in.Type != nil {
-		authType = string(*in.Type)
+		authType = normalizeUpstreamAuthType(string(*in.Type))
 	}
 	return &model.UpstreamAuth{
 		Type:   authType,
 		Header: valueOrEmpty(in.Header),
 		Value:  valueOrEmpty(in.Value),
+	}
+}
+
+func normalizeUpstreamAuthType(authType string) string {
+	normalized := strings.TrimSpace(authType)
+	if normalized == "" {
+		return ""
+	}
+
+	canonical := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(normalized, "-", ""), "_", ""))
+	switch canonical {
+	case "apikey":
+		return string(api.ApiKey)
+	case "basic":
+		return string(api.Basic)
+	case "bearer":
+		return string(api.Bearer)
+	default:
+		return normalized
 	}
 }
 
@@ -1043,8 +1078,8 @@ func mapUpstreamAuthModelToAPI(in *model.UpstreamAuth) *api.UpstreamAuth {
 		return nil
 	}
 	var authType *api.UpstreamAuthType
-	if strings.TrimSpace(in.Type) != "" {
-		t := api.UpstreamAuthType(in.Type)
+	if normalized := normalizeUpstreamAuthType(in.Type); normalized != "" {
+		t := api.UpstreamAuthType(normalized)
 		authType = &t
 	}
 	return &api.UpstreamAuth{
@@ -1259,7 +1294,8 @@ func mapProviderModelToAPI(m *model.LLMProvider, templateHandle string) *api.LLM
 		v := *m.Configuration.Context
 		ctx = &v
 	}
-	upstream := mapUpstreamModelToAPI(m.Configuration.Upstream)
+	// Use redacted upstream mapping (never expose auth credential values)
+	upstream := mapUpstreamConfigToDTO(m.Configuration.Upstream)
 	ac := api.LLMAccessControl{Mode: api.LLMAccessControlMode("deny_all")}
 	if m.Configuration.AccessControl != nil {
 		ac.Mode = api.LLMAccessControlMode(m.Configuration.AccessControl.Mode)
@@ -1632,7 +1668,7 @@ func mapProxyModelToAPI(m *model.LLMProxy) *api.LLMProxy {
 		out.Provider.Auth = &api.UpstreamAuth{
 			Type:   authType,
 			Header: stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Header),
-			Value:  stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Value),
+			Value:  nil, // Redact auth credential value
 		}
 	}
 	if len(m.Configuration.Policies) > 0 {
