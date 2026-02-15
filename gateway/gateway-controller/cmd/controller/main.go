@@ -61,6 +61,7 @@ func toBackendConfig(cfg *config.Config) storage.BackendConfig {
 			ConnMaxIdleTime: pg.ConnMaxIdleTime,
 			ApplicationName: pg.ApplicationName,
 		},
+		GatewayID: cfg.Controller.Server.GatewayID,
 	}
 }
 
@@ -197,8 +198,12 @@ func main() {
 	}
 	cancel()
 
+	// Create channels to detect when router and policy engine first connect
+	routerConnected := make(chan struct{})
+	policyEngineConnected := make(chan struct{})
+
 	// Start xDS gRPC server with SDS support
-	xdsServer := xds.NewServer(snapshotManager, sdsSecretManager, cfg.Controller.Server.XDSPort, log)
+	xdsServer := xds.NewServer(snapshotManager, sdsSecretManager, cfg.Controller.Server.XDSPort, log, routerConnected)
 	go func() {
 		if err := xdsServer.Start(); err != nil {
 			log.Error("xDS server failed", slog.Any("error", err))
@@ -275,7 +280,9 @@ func main() {
 	cancel()
 
 	// Start policy xDS server in a separate goroutine
-	var serverOpts []policyxds.ServerOption
+	serverOpts := []policyxds.ServerOption{
+		policyxds.WithOnFirstConnect(policyEngineConnected),
+	}
 	if cfg.Controller.PolicyServer.TLS.Enabled {
 		serverOpts = append(serverOpts, policyxds.WithTLS(
 			cfg.Controller.PolicyServer.TLS.CertFile,
@@ -307,7 +314,7 @@ func main() {
 	validator.SetPolicyValidator(policyValidator)
 
 	// Initialize and start control plane client with dependencies for API creation and API key management
-	cpClient := controlplane.NewClient(cfg.Controller.ControlPlane, log, configStore, db, snapshotManager, validator, &cfg.Router, apiKeyXDSManager, &cfg.APIKey, policyManager, cfg, policyDefinitions)
+	cpClient := controlplane.NewClient(cfg.Controller.ControlPlane, log, configStore, db, snapshotManager, validator, &cfg.Router, apiKeyXDSManager, &cfg.APIKey, policyManager, cfg, policyDefinitions, lazyResourceXDSManager, templateDefinitions)
 	if err := cpClient.Start(); err != nil {
 		log.Error("Failed to start control plane client", slog.Any("error", err))
 		// Don't fail startup - gateway can run in degraded mode without control plane
@@ -411,6 +418,21 @@ func main() {
 	}()
 
 	log.Info("Gateway Controller started successfully")
+
+	// Print banner when both router and policy engine have connected
+	go func() {
+		<-routerConnected
+		<-policyEngineConnected
+		fmt.Print("\n\n" +
+			"========================================================================\n" +
+			"\n" +
+			"\n" +
+			"                   API Platform Gateway Started\n" +
+			"\n" +
+			"\n" +
+			"========================================================================\n" +
+			"\n\n")
+	}()
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

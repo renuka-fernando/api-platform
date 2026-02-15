@@ -1,6 +1,6 @@
 # Stage 1: Build the Go application
 # Using Debian-based image for better cross-compilation support
-FROM --platform=$BUILDPLATFORM golang:1.25.5-bookworm AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.7-bookworm AS builder
 ARG TARGETARCH
 ARG VERSION=0.0.1-SNAPSHOT
 ARG GIT_COMMIT=unknown
@@ -64,7 +64,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Stage 2: Runtime image (Debian slim for glibc compatibility)
 FROM debian:bookworm-slim
 
-# Re-declare ARG after FROM to use it in this stage
+# Re-declare ARGs after FROM to use them in this stage
+ARG VERSION=0.0.1-SNAPSHOT
 ARG ENABLE_COVERAGE=false
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -98,5 +99,11 @@ ENV GOCOVERDIR=/coverage
 USER wso2
 
 EXPOSE 9090 18000
+
+# Metadata labels
+LABEL org.opencontainers.image.title="API Platform Gateway Controller"
+LABEL org.opencontainers.image.description="API Platform Gateway Controller with xDS control plane"
+LABEL org.opencontainers.image.vendor="WSO2"
+LABEL org.opencontainers.image.version="${VERSION}"
 
 ENTRYPOINT ["/app/controller"]

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package manifest
+package buildfile
 
 import (
 	"encoding/json"
@@ -32,9 +32,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Manifest represents the build manifest structure
-type Manifest struct {
-	BuildTimestamp string       `json:"buildTimestamp"`
+// BuildInfo represents the build info structure
+type BuildInfo struct {
+	BuildTimestamp  string       `json:"buildTimestamp"`
 	BuilderVersion string       `json:"builderVersion"`
 	OutputDir      string       `json:"outputDir"`
 	Policies       []PolicyInfo `json:"policies"`
@@ -46,70 +46,68 @@ type PolicyInfo struct {
 	Version string `json:"version"`
 }
 
-// CreateManifest creates a manifest structure with build metadata
-func CreateManifest(
+// CreateBuildInfo creates a build info structure with build metadata
+func CreateBuildInfo(
 	builderVersion string,
 	policies []*types.DiscoveredPolicy,
 	outputDir string,
-) *Manifest {
-	slog.Info("Creating build manifest")
+) *BuildInfo {
+	slog.Info("Creating build info")
 
-	// Create manifest structure
-	manifest := &Manifest{
-		BuildTimestamp: time.Now().UTC().Format(time.RFC3339),
+	info := &BuildInfo{
+		BuildTimestamp:  time.Now().UTC().Format(time.RFC3339),
 		BuilderVersion: builderVersion,
 		OutputDir:      outputDir,
 		Policies:       make([]PolicyInfo, 0, len(policies)),
 	}
 
-	// Add policies
 	for _, p := range policies {
-		manifest.Policies = append(manifest.Policies, PolicyInfo{
+		info.Policies = append(info.Policies, PolicyInfo{
 			Name:    p.Name,
 			Version: p.Version,
 		})
 	}
 
-	slog.Info("Successfully created build manifest",
+	slog.Info("Successfully created build info",
 		"policyCount", len(policies))
 
-	return manifest
+	return info
 }
 
-// ToJSON converts the manifest to a JSON string
-func (m *Manifest) ToJSON() (string, error) {
+// ToJSON converts the build info to a JSON string
+func (m *BuildInfo) ToJSON() (string, error) {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal manifest to JSON: %w", err)
+		return "", fmt.Errorf("failed to marshal build info to JSON: %w", err)
 	}
 	return string(data), nil
 }
 
-// WriteToFile writes the manifest to a JSON file
-func (m *Manifest) WriteToFile(path string) error {
+// WriteToFile writes the build info to a JSON file
+func (m *BuildInfo) WriteToFile(path string) error {
 	jsonData, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal manifest to JSON: %w", err)
+		return fmt.Errorf("failed to marshal build info to JSON: %w", err)
 	}
 
-	slog.Info("Writing build manifest to file", "path", path)
+	slog.Info("Writing build info to file", "path", path)
 
 	if err := os.WriteFile(path, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to write manifest file: %w", err)
+		return fmt.Errorf("failed to write build info file: %w", err)
 	}
 
 	return nil
 }
 
-func WriteManifestLockWithVersions(manifestFilePath string, discovered []*types.DiscoveredPolicy) error {
-	data, err := os.ReadFile(manifestFilePath)
+func WriteBuildLockWithVersions(buildFilePath string, discovered []*types.DiscoveredPolicy) error {
+	data, err := os.ReadFile(buildFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to read manifest file '%s': %w", manifestFilePath, err)
+		return fmt.Errorf("failed to read build file '%s': %w", buildFilePath, err)
 	}
 
-	var manifest types.PolicyManifest
-	if err := yaml.Unmarshal(data, &manifest); err != nil {
-		return fmt.Errorf("failed to parse manifest YAML: %w", err)
+	var bf types.BuildFile
+	if err := yaml.Unmarshal(data, &bf); err != nil {
+		return fmt.Errorf("failed to parse build file YAML: %w", err)
 	}
 
 	discoveredByName := make(map[string][]*types.DiscoveredPolicy)
@@ -128,13 +126,13 @@ func WriteManifestLockWithVersions(manifestFilePath string, discovered []*types.
 		Version  string      `yaml:"version"`
 		Policies []lockEntry `yaml:"policies"`
 	}{
-		Version:  manifest.Version,
-		Policies: make([]lockEntry, 0, len(manifest.Policies)),
+		Version:  bf.Version,
+		Policies: make([]lockEntry, 0, len(bf.Policies)),
 	}
 
-	manifestDir := filepath.Dir(manifestFilePath)
+	buildFileDir := filepath.Dir(buildFilePath)
 
-	for _, me := range manifest.Policies {
+	for _, me := range bf.Policies {
 		entry := lockEntry{Name: me.Name, FilePath: me.FilePath, Gomodule: me.Gomodule}
 
 		candidates := discoveredByName[me.Name]
@@ -142,7 +140,7 @@ func WriteManifestLockWithVersions(manifestFilePath string, discovered []*types.
 		if len(candidates) == 1 {
 			found = candidates[0]
 		} else if me.FilePath != "" {
-			relPath := filepath.Join(manifestDir, me.FilePath)
+			relPath := filepath.Join(buildFileDir, me.FilePath)
 			relAbs, _ := filepath.Abs(relPath)
 			for _, c := range candidates {
 				cAbs, _ := filepath.Abs(c.Path)
@@ -194,15 +192,15 @@ func WriteManifestLockWithVersions(manifestFilePath string, discovered []*types.
 		lock.Policies = append(lock.Policies, entry)
 	}
 
-	outPath := filepath.Join(manifestDir, "policy-manifest-lock.yaml")
+	outPath := filepath.Join(buildFileDir, "build-lock.yaml")
 	ydata, err := yaml.Marshal(&lock)
 	if err != nil {
 		return fmt.Errorf("failed to marshal lock YAML: %w", err)
 	}
 
-	slog.Info("Writing policy lock with versions", "path", outPath)
+	slog.Info("Writing build lock with versions", "path", outPath)
 	if err := os.WriteFile(outPath, ydata, 0644); err != nil {
-		return fmt.Errorf("failed to write policy lock file '%s': %w", outPath, err)
+		return fmt.Errorf("failed to write build lock file '%s': %w", outPath, err)
 	}
 
 	return nil

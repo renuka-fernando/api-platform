@@ -35,6 +35,8 @@ type sqlStore struct {
 
 	logger *slog.Logger
 
+	gatewayId string
+
 	rebindQuery func(string) string
 
 	isConfigUniqueViolation      func(error) bool
@@ -45,10 +47,11 @@ type sqlStore struct {
 	backendName string
 }
 
-func newSQLStore(db *sql.DB, logger *slog.Logger, backendName string) *sqlStore {
+func newSQLStore(db *sql.DB, logger *slog.Logger, backendName string, gatewayId string) *sqlStore {
 	return &sqlStore{
 		db:          db,
 		logger:      logger,
+		gatewayId:   gatewayId,
 		backendName: backendName,
 		// Defaults are identity/false; backends can override.
 		rebindQuery:                  func(query string) string { return query },
@@ -127,9 +130,9 @@ func (s *sqlStore) SaveConfig(cfg *models.StoredConfig) error {
 
 	query := `
 		INSERT INTO deployments (
-			id, display_name, version, context, kind, handle,
+			id, gateway_id, display_name, version, context, kind, handle,
 			status, created_at, updated_at, deployed_version
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	tx, err := s.begin()
@@ -152,6 +155,7 @@ func (s *sqlStore) SaveConfig(cfg *models.StoredConfig) error {
 	now := time.Now()
 	_, err = stmt.Exec(
 		cfg.ID,
+		s.gatewayId,
 		displayName,
 		version,
 		context,
@@ -224,7 +228,7 @@ func (s *sqlStore) UpdateConfig(cfg *models.StoredConfig) error {
 		SET display_name = ?, version = ?, context = ?, kind = ?, handle = ?,
 			status = ?, updated_at = ?,
 			deployed_version = ?
-		WHERE id = ?
+		WHERE id = ? AND gateway_id = ?
 	`
 
 	tx, err := s.begin()
@@ -258,6 +262,7 @@ func (s *sqlStore) UpdateConfig(cfg *models.StoredConfig) error {
 		time.Now(),
 		cfg.DeployedVersion,
 		cfg.ID,
+		s.gatewayId,
 	)
 
 	if err != nil {
@@ -309,9 +314,9 @@ func (s *sqlStore) UpdateConfig(cfg *models.StoredConfig) error {
 func (s *sqlStore) DeleteConfig(id string) error {
 	startTime := time.Now()
 	table := "deployments"
-	query := `DELETE FROM deployments WHERE id = ?`
+	query := `DELETE FROM deployments WHERE id = ? AND gateway_id = ?`
 
-	result, err := s.exec(query, id)
+	result, err := s.exec(query, id, s.gatewayId)
 	if err != nil {
 		metrics.DatabaseOperationsTotal.WithLabelValues("delete", table, "error").Inc()
 		metrics.StorageErrorsTotal.WithLabelValues("delete", "exec_error").Inc()
@@ -349,7 +354,7 @@ func (s *sqlStore) GetConfig(id string) (*models.StoredConfig, error) {
 		d.updated_at, d.deployed_at, d.deployed_version
 		FROM deployments d
 		LEFT JOIN deployment_configs dc ON d.id = dc.id
-		WHERE d.id = ?
+		WHERE d.id = ? AND d.gateway_id = ?
 	`
 
 	var cfg models.StoredConfig
@@ -357,7 +362,7 @@ func (s *sqlStore) GetConfig(id string) (*models.StoredConfig, error) {
 	var sourceConfigJSON sql.NullString
 	var deployedAt sql.NullTime
 
-	err := s.queryRow(query, id).Scan(
+	err := s.queryRow(query, id, s.gatewayId).Scan(
 		&cfg.ID,
 		&cfg.Kind,
 		&configJSON,
@@ -415,7 +420,7 @@ func (s *sqlStore) GetConfigByNameVersion(name, version string) (*models.StoredC
 			   d.deployed_at, d.deployed_version
 		FROM deployments d
 		LEFT JOIN deployment_configs dc ON d.id = dc.id
-		WHERE d.display_name = ? AND d.version = ?
+		WHERE d.display_name = ? AND d.version = ? AND d.gateway_id = ?
 	`
 
 	var cfg models.StoredConfig
@@ -423,7 +428,7 @@ func (s *sqlStore) GetConfigByNameVersion(name, version string) (*models.StoredC
 	var sourceConfigJSON sql.NullString
 	var deployedAt sql.NullTime
 
-	err := s.queryRow(query, name, version).Scan(
+	err := s.queryRow(query, name, version, s.gatewayId).Scan(
 		&cfg.ID,
 		&cfg.Kind,
 		&configJSON,
@@ -469,7 +474,7 @@ func (s *sqlStore) GetConfigByHandle(handle string) (*models.StoredConfig, error
 			   d.deployed_at, d.deployed_version
 		FROM deployments d
 		LEFT JOIN deployment_configs dc ON d.id = dc.id
-		WHERE d.handle = ?
+		WHERE d.handle = ? AND d.gateway_id = ?
 	`
 
 	var cfg models.StoredConfig
@@ -477,7 +482,7 @@ func (s *sqlStore) GetConfigByHandle(handle string) (*models.StoredConfig, error
 	var sourceConfigJSON sql.NullString
 	var deployedAt sql.NullTime
 
-	err := s.queryRow(query, handle).Scan(
+	err := s.queryRow(query, handle, s.gatewayId).Scan(
 		&cfg.ID,
 		&cfg.Kind,
 		&configJSON,
@@ -523,10 +528,11 @@ func (s *sqlStore) GetAllConfigs() ([]*models.StoredConfig, error) {
 			d.created_at, d.updated_at, d.deployed_at, d.deployed_version
 			FROM deployments d
 			LEFT JOIN deployment_configs dc ON d.id = dc.id
+			WHERE d.gateway_id = ?
 			ORDER BY d.created_at DESC
 		`
 
-	rows, err := s.query(query)
+	rows, err := s.query(query, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query configurations: %w", err)
 	}
@@ -590,11 +596,11 @@ func (s *sqlStore) GetAllConfigsByKind(kind string) ([]*models.StoredConfig, err
 			d.created_at, d.updated_at, d.deployed_at, d.deployed_version
 			FROM deployments d
 			LEFT JOIN deployment_configs dc ON d.id = dc.id 
-			WHERE d.kind = ?
+			WHERE d.kind = ? AND d.gateway_id = ?
 			ORDER BY d.created_at DESC
 		`
 
-	rows, err := s.query(query, kind)
+	rows, err := s.query(query, kind, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query configurations: %w", err)
 	}
@@ -663,13 +669,14 @@ func (s *sqlStore) SaveLLMProviderTemplate(template *models.StoredLLMProviderTem
 
 	query := `
 		INSERT INTO llm_provider_templates (
-			id, handle, configuration, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?)
+			id, gateway_id, handle, configuration, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
 	_, err = s.exec(query,
 		template.ID,
+		s.gatewayId,
 		handle,
 		string(configJSON),
 		now,
@@ -713,7 +720,7 @@ func (s *sqlStore) UpdateLLMProviderTemplate(template *models.StoredLLMProviderT
 	query := `
 		UPDATE llm_provider_templates
 		SET handle = ?, configuration = ?, updated_at = ?
-		WHERE id = ?
+		WHERE id = ? AND gateway_id = ?
 	`
 
 	result, err := s.exec(query,
@@ -721,6 +728,7 @@ func (s *sqlStore) UpdateLLMProviderTemplate(template *models.StoredLLMProviderT
 		string(configJSON),
 		time.Now(),
 		template.ID,
+		s.gatewayId,
 	)
 
 	if err != nil {
@@ -748,9 +756,9 @@ func (s *sqlStore) UpdateLLMProviderTemplate(template *models.StoredLLMProviderT
 
 // DeleteLLMProviderTemplate removes an LLM provider template by ID
 func (s *sqlStore) DeleteLLMProviderTemplate(id string) error {
-	query := `DELETE FROM llm_provider_templates WHERE id = ?`
+	query := `DELETE FROM llm_provider_templates WHERE id = ? AND gateway_id = ?`
 
-	result, err := s.exec(query, id)
+	result, err := s.exec(query, id, s.gatewayId)
 	if err != nil {
 		return fmt.Errorf("failed to delete template: %w", err)
 	}
@@ -774,13 +782,13 @@ func (s *sqlStore) GetLLMProviderTemplate(id string) (*models.StoredLLMProviderT
 	query := `
 		SELECT id, configuration, created_at, updated_at
 		FROM llm_provider_templates
-		WHERE id = ?
+		WHERE id = ? AND gateway_id = ?
 	`
 
 	var template models.StoredLLMProviderTemplate
 	var configJSON string
 
-	err := s.queryRow(query, id).Scan(
+	err := s.queryRow(query, id, s.gatewayId).Scan(
 		&template.ID,
 		&configJSON,
 		&template.CreatedAt,
@@ -807,10 +815,11 @@ func (s *sqlStore) GetAllLLMProviderTemplates() ([]*models.StoredLLMProviderTemp
 	query := `
 		SELECT id, configuration, created_at, updated_at
 		FROM llm_provider_templates
+		WHERE gateway_id = ?
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.query(query)
+	rows, err := s.query(query, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query templates: %w", err)
 	}
@@ -852,13 +861,14 @@ func (s *sqlStore) GetAllLLMProviderTemplates() ([]*models.StoredLLMProviderTemp
 func (s *sqlStore) SaveCertificate(cert *models.StoredCertificate) error {
 	query := `
 		INSERT INTO certificates (
-			id, name, certificate, subject, issuer,
+			id, gateway_id, name, certificate, subject, issuer,
 			not_before, not_after, cert_count, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.exec(query,
 		cert.ID,
+		s.gatewayId,
 		cert.Name,
 		cert.Certificate,
 		cert.Subject,
@@ -887,11 +897,11 @@ func (s *sqlStore) GetCertificate(id string) (*models.StoredCertificate, error) 
 		SELECT id, name, certificate, subject, issuer,
 		       not_before, not_after, cert_count, created_at, updated_at
 		FROM certificates
-		WHERE id = ?
+		WHERE id = ? AND gateway_id = ?
 	`
 
 	var cert models.StoredCertificate
-	err := s.queryRow(query, id).Scan(
+	err := s.queryRow(query, id, s.gatewayId).Scan(
 		&cert.ID,
 		&cert.Name,
 		&cert.Certificate,
@@ -920,11 +930,11 @@ func (s *sqlStore) GetCertificateByName(name string) (*models.StoredCertificate,
 		SELECT id, name, certificate, subject, issuer,
 		       not_before, not_after, cert_count, created_at, updated_at
 		FROM certificates
-		WHERE name = ?
+		WHERE name = ? AND gateway_id = ?
 	`
 
 	var cert models.StoredCertificate
-	err := s.queryRow(query, name).Scan(
+	err := s.queryRow(query, name, s.gatewayId).Scan(
 		&cert.ID,
 		&cert.Name,
 		&cert.Certificate,
@@ -953,10 +963,11 @@ func (s *sqlStore) ListCertificates() ([]*models.StoredCertificate, error) {
 		SELECT id, name, certificate, subject, issuer,
 		       not_before, not_after, cert_count, created_at, updated_at
 		FROM certificates
+		WHERE gateway_id = ?
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.query(query)
+	rows, err := s.query(query, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list certificates: %w", err)
 	}
@@ -991,9 +1002,9 @@ func (s *sqlStore) ListCertificates() ([]*models.StoredCertificate, error) {
 
 // DeleteCertificate deletes a certificate by ID
 func (s *sqlStore) DeleteCertificate(id string) error {
-	query := `DELETE FROM certificates WHERE id = ?`
+	query := `DELETE FROM certificates WHERE id = ? AND gateway_id = ?`
 
-	result, err := s.exec(query, id)
+	result, err := s.exec(query, id, s.gatewayId)
 	if err != nil {
 		return fmt.Errorf("failed to delete certificate: %w", err)
 	}
@@ -1033,26 +1044,10 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 		}
 	}()
 
-	// Before inserting, check for duplicates if this is an external key
-	if apiKey.Source == "external" && apiKey.IndexKey != nil {
-		var count int
-		checkQuery := `SELECT COUNT(*) FROM api_keys                                                  
-						WHERE apiId = ? AND index_key = ? AND source = 'external'`
-		err := tx.QueryRowQ(checkQuery, apiKey.APIId, apiKey.IndexKey).Scan(&count)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to check for duplicate API key: %w", err)
-		}
-		if count > 0 {
-			tx.Rollback()
-			return fmt.Errorf("%w: API key value already exists for this API", ErrConflict)
-		}
-	}
-
 	// First, check if an API key with the same apiId and name exists
-	checkQuery := `SELECT id FROM api_keys WHERE apiId = ? AND name = ?`
+	checkQuery := `SELECT id FROM api_keys WHERE apiId = ? AND name = ? AND gateway_id = ?`
 	var existingID string
-	err = tx.QueryRowQ(checkQuery, apiKey.APIId, apiKey.Name).Scan(&existingID)
+	err = tx.QueryRowQ(checkQuery, apiKey.APIId, apiKey.Name, s.gatewayId).Scan(&existingID)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		tx.Rollback()
@@ -1063,14 +1058,15 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 		// No existing record, insert new API key
 		insertQuery := `
 			INSERT INTO api_keys (
-				id, name, display_name, api_key, masked_api_key, apiId, operations, status,
+				id, gateway_id, name, display_name, api_key, masked_api_key, apiId, operations, status,
 				created_at, created_by, updated_at, expires_at, expires_in_unit, expires_in_duration,
-				source, external_ref_id, index_key
+				source, external_ref_id
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 
 		_, err := tx.ExecQ(insertQuery,
 			apiKey.ID,
+			s.gatewayId,
 			apiKey.Name,
 			apiKey.DisplayName,
 			apiKey.APIKey,
@@ -1086,7 +1082,6 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 			apiKey.Duration,
 			apiKey.Source,
 			apiKey.ExternalRefId,
-			apiKey.IndexKey,
 		)
 
 		if err != nil {
@@ -1126,17 +1121,16 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
-		WHERE id = ?
+		WHERE id = ? AND gateway_id = ?
 	`
 
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
-	err := s.queryRow(query, id).Scan(
+	err := s.queryRow(query, id, s.gatewayId).Scan(
 		&apiKey.ID,
 		&apiKey.Name,
 		&apiKey.DisplayName,
@@ -1151,7 +1145,6 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1167,9 +1160,6 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 	}
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
-	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
 	}
 
 	return &apiKey, nil
@@ -1179,17 +1169,16 @@ func (s *sqlStore) GetAPIKeyByID(id string) (*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
-		WHERE api_key = ?
+		WHERE api_key = ? AND gateway_id = ?
 	`
 
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
-	err := s.queryRow(query, key).Scan(
+	err := s.queryRow(query, key, s.gatewayId).Scan(
 		&apiKey.ID,
 		&apiKey.Name,
 		&apiKey.DisplayName,
@@ -1204,7 +1193,6 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1221,9 +1209,6 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
 	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
-	}
 
 	return &apiKey, nil
 }
@@ -1232,13 +1217,13 @@ func (s *sqlStore) GetAPIKeyByKey(key string) (*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
-		WHERE apiId = ?
+		WHERE apiId = ? AND gateway_id = ?
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.query(query, apiId)
+	rows, err := s.query(query, apiId, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query API keys: %w", err)
 	}
@@ -1250,7 +1235,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 		var apiKey models.APIKey
 		var expiresAt sql.NullTime
 		var externalRefId sql.NullString
-		var indexKey sql.NullString
 
 		err := rows.Scan(
 			&apiKey.ID,
@@ -1267,7 +1251,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 			&expiresAt,
 			&apiKey.Source,
 			&externalRefId,
-			&indexKey,
 		)
 
 		if err != nil {
@@ -1280,9 +1263,6 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 		}
 		if externalRefId.Valid {
 			apiKey.ExternalRefId = &externalRefId.String
-		}
-		if indexKey.Valid {
-			apiKey.IndexKey = &indexKey.String
 		}
 
 		apiKeys = append(apiKeys, &apiKey)
@@ -1299,18 +1279,17 @@ func (s *sqlStore) GetAPIKeysByAPI(apiId string) ([]*models.APIKey, error) {
 func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
-		WHERE apiId = ? AND name = ?
+		WHERE apiId = ? AND name = ? AND gateway_id = ?
 		LIMIT 1
 	`
 
 	var apiKey models.APIKey
 	var expiresAt sql.NullTime
 	var externalRefId sql.NullString
-	var indexKey sql.NullString
 
-	err := s.queryRow(query, apiId, name).Scan(
+	err := s.queryRow(query, apiId, name, s.gatewayId).Scan(
 		&apiKey.ID,
 		&apiKey.Name,
 		&apiKey.DisplayName,
@@ -1325,7 +1304,6 @@ func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, e
 		&expiresAt,
 		&apiKey.Source,
 		&externalRefId,
-		&indexKey,
 	)
 
 	if err != nil {
@@ -1341,9 +1319,6 @@ func (s *sqlStore) GetAPIKeysByAPIAndName(apiId, name string) (*models.APIKey, e
 	}
 	if externalRefId.Valid {
 		apiKey.ExternalRefId = &externalRefId.String
-	}
-	if indexKey.Valid {
-		apiKey.IndexKey = &indexKey.String
 	}
 
 	return &apiKey, nil
@@ -1366,31 +1341,11 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 		}
 	}()
 
-	if apiKey.Source == "external" && apiKey.IndexKey != nil {
-		// Check for duplicate API key value within the same API (same value, different name)
-		duplicateCheckQuery := `
-			SELECT id, name FROM api_keys
-			WHERE apiId = ? AND index_key = ? AND name != ?
-			LIMIT 1
-		`
-		var duplicateID, duplicateName string
-		err := tx.QueryRowQ(duplicateCheckQuery, apiKey.APIId, apiKey.IndexKey, apiKey.Name).Scan(&duplicateID, &duplicateName)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			tx.Rollback()
-			return fmt.Errorf("failed to check for duplicate API key: %w", err)
-		}
-		if err == nil {
-			// Row found: same key value already exists for this API under a different name
-			tx.Rollback()
-			return fmt.Errorf("%w: API key value already exists for this API", ErrConflict)
-		}
-	}
-
 	updateQuery := `
 			UPDATE api_keys
 			SET api_key = ?, masked_api_key = ?, display_name = ?, operations = ?, status = ?, created_by = ?, updated_at = ?, expires_at = ?, expires_in_unit = ?, expires_in_duration = ?,
-			    source = ?, external_ref_id = ?, index_key = ?
-			WHERE apiId = ? AND name = ?
+			    source = ?, external_ref_id = ?
+			WHERE apiId = ? AND name = ? AND gateway_id = ?
 		`
 
 	_, err = tx.ExecQ(updateQuery,
@@ -1406,9 +1361,9 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 		apiKey.Duration,
 		apiKey.Source,
 		apiKey.ExternalRefId,
-		apiKey.IndexKey,
 		apiKey.APIId,
 		apiKey.Name,
+		s.gatewayId,
 	)
 
 	if err != nil {
@@ -1435,9 +1390,9 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 
 // DeleteAPIKey removes an API key by its key value
 func (s *sqlStore) DeleteAPIKey(key string) error {
-	query := `DELETE FROM api_keys WHERE api_key = ?`
+	query := `DELETE FROM api_keys WHERE api_key = ? AND gateway_id = ?`
 
-	result, err := s.exec(query, key)
+	result, err := s.exec(query, key, s.gatewayId)
 	if err != nil {
 		return fmt.Errorf("failed to delete API key: %w", err)
 	}
@@ -1458,9 +1413,9 @@ func (s *sqlStore) DeleteAPIKey(key string) error {
 
 // RemoveAPIKeysAPI removes an API keys by apiId
 func (s *sqlStore) RemoveAPIKeysAPI(apiId string) error {
-	query := `DELETE FROM api_keys WHERE apiId = ?`
+	query := `DELETE FROM api_keys WHERE apiId = ? AND gateway_id = ?`
 
-	_, err := s.exec(query, apiId)
+	_, err := s.exec(query, apiId, s.gatewayId)
 	if err != nil {
 		return fmt.Errorf("failed to remove API keys for API: %w", err)
 	}
@@ -1473,9 +1428,9 @@ func (s *sqlStore) RemoveAPIKeysAPI(apiId string) error {
 
 // RemoveAPIKeyAPIAndName removes an API key by its apiId and name
 func (s *sqlStore) RemoveAPIKeyAPIAndName(apiId, name string) error {
-	query := `DELETE FROM api_keys WHERE apiId = ? AND name = ?`
+	query := `DELETE FROM api_keys WHERE apiId = ? AND name = ? AND gateway_id = ?`
 
-	result, err := s.exec(query, apiId, name)
+	result, err := s.exec(query, apiId, name, s.gatewayId)
 	if err != nil {
 		return fmt.Errorf("failed to remove API key: %w", err)
 	}
@@ -1581,13 +1536,13 @@ func (s *sqlStore) updateDeploymentConfigsTx(tx *sqlStoreTx, cfg *models.StoredC
 func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 	query := `
 		SELECT id, name, display_name, api_key, masked_api_key, apiId, operations, status,
-		       created_at, created_by, updated_at, expires_at, source, external_ref_id, index_key
+		       created_at, created_by, updated_at, expires_at, source, external_ref_id
 		FROM api_keys
-		WHERE status = 'active'
+		WHERE status = 'active' AND gateway_id = ?
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.query(query)
+	rows, err := s.query(query, s.gatewayId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query all API keys: %w", err)
 	}
@@ -1599,7 +1554,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 		var apiKey models.APIKey
 		var expiresAt sql.NullTime
 		var externalRefId sql.NullString
-		var indexKey sql.NullString
 
 		err := rows.Scan(
 			&apiKey.ID,
@@ -1616,7 +1570,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 			&expiresAt,
 			&apiKey.Source,
 			&externalRefId,
-			&indexKey,
 		)
 
 		if err != nil {
@@ -1629,9 +1582,6 @@ func (s *sqlStore) GetAllAPIKeys() ([]*models.APIKey, error) {
 		}
 		if externalRefId.Valid {
 			apiKey.ExternalRefId = &externalRefId.String
-		}
-		if indexKey.Valid {
-			apiKey.IndexKey = &indexKey.String
 		}
 
 		apiKeys = append(apiKeys, &apiKey)
@@ -1649,11 +1599,11 @@ func (s *sqlStore) CountActiveAPIKeysByUserAndAPI(apiId, userID string) (int, er
 	query := `
 		SELECT COUNT(*)
 		FROM api_keys
-		WHERE apiId = ? AND created_by = ? AND status = ?
+		WHERE apiId = ? AND created_by = ? AND status = ? AND gateway_id = ?
 	`
 
 	var count int
-	err := s.queryRow(query, apiId, userID, models.APIKeyStatusActive).Scan(&count)
+	err := s.queryRow(query, apiId, userID, models.APIKeyStatusActive, s.gatewayId).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count active API keys for user %s and API %s: %w", userID, apiId, err)
 	}

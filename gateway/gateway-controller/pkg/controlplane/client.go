@@ -20,6 +20,7 @@ package controlplane
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/lazyresourcexds"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/policy"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/policyxds"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
@@ -93,25 +95,27 @@ type ControlPlaneClient interface {
 
 // Client manages the WebSocket connection to the control plane
 type Client struct {
-	config            config.ControlPlaneConfig
-	logger            *slog.Logger
-	state             *ConnectionState
-	ctx               context.Context
-	cancel            context.CancelFunc
-	stopChan          chan struct{}
-	wg                sync.WaitGroup
-	store             *storage.ConfigStore
-	db                storage.Storage
-	snapshotManager   *xds.SnapshotManager
-	parser            *config.Parser
-	validator         config.Validator
-	deploymentService *utils.APIDeploymentService
-	apiUtilsService   *utils.APIUtilsService
-	apiKeyService     *utils.APIKeyService
-	routerConfig      *config.RouterConfig
-	policyManager     *policyxds.PolicyManager
-	systemConfig      *config.Config
-	policyDefinitions map[string]api.PolicyDefinition
+	config               config.ControlPlaneConfig
+	logger               *slog.Logger
+	state                *ConnectionState
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	stopChan             chan struct{}
+	wg                   sync.WaitGroup
+	store                *storage.ConfigStore
+	db                   storage.Storage
+	snapshotManager      *xds.SnapshotManager
+	parser               *config.Parser
+	validator            config.Validator
+	deploymentService    *utils.APIDeploymentService
+	apiUtilsService      *utils.APIUtilsService
+	apiKeyService        *utils.APIKeyService
+	llmDeploymentService *utils.LLMDeploymentService
+	apiKeyXDSManager     utils.XDSManager
+	routerConfig         *config.RouterConfig
+	policyManager        *policyxds.PolicyManager
+	systemConfig         *config.Config
+	policyDefinitions    map[string]api.PolicyDefinition
 }
 
 // NewClient creates a new control plane client
@@ -128,6 +132,8 @@ func NewClient(
 	policyManager *policyxds.PolicyManager,
 	systemConfig *config.Config,
 	policyDefinitions map[string]api.PolicyDefinition,
+	lazyResourceManager *lazyresourcexds.LazyResourceStateManager,
+	templateDefinitions map[string]*api.LLMProviderTemplate,
 ) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -141,6 +147,7 @@ func NewClient(
 		validator:         validator,
 		deploymentService: utils.NewAPIDeploymentService(store, db, snapshotManager, validator, routerConfig),
 		apiKeyService:     utils.NewAPIKeyService(store, db, apiKeyXDSManager, apiKeyConfig),
+		apiKeyXDSManager:  apiKeyXDSManager,
 		routerConfig:      routerConfig,
 		policyManager:     policyManager,
 		systemConfig:      systemConfig,
@@ -157,6 +164,20 @@ func NewClient(
 		cancel:   cancel,
 		stopChan: make(chan struct{}),
 	}
+
+	policyVersionResolver := utils.NewLoadedPolicyVersionResolver(policyDefinitions)
+	policyValidator := config.NewPolicyValidator(policyDefinitions)
+	client.llmDeploymentService = utils.NewLLMDeploymentService(
+		store,
+		db,
+		snapshotManager,
+		lazyResourceManager,
+		templateDefinitions,
+		client.deploymentService,
+		routerConfig,
+		policyVersionResolver,
+		policyValidator,
+	)
 
 	// Initialize API utils service with the proper base URL using the method
 	client.apiUtilsService = utils.NewAPIUtilsService(utils.PlatformAPIConfig{
@@ -542,6 +563,16 @@ func (c *Client) handleMessage(messageType int, message []byte) {
 		c.handleAPIDeployedEvent(event)
 	case "api.undeployed":
 		c.handleAPIUndeployedEvent(event)
+	case "api.deleted":
+		c.handleAPIDeletedEvent(event)
+	case "llmprovider.deployed":
+		c.handleLLMProviderDeployedEvent(event)
+	case "llmprovider.undeployed":
+		c.handleLLMProviderUndeployedEvent(event)
+	case "llmproxy.deployed":
+		c.handleLLMProxyDeployedEvent(event)
+	case "llmproxy.undeployed":
+		c.handleLLMProxyUndeployedEvent(event)
 	case "apikey.created":
 		c.handleAPIKeyCreatedEvent(event)
 	case "apikey.updated":
@@ -553,6 +584,118 @@ func (c *Client) handleMessage(messageType int, message []byte) {
 			slog.String("type", eventType),
 		)
 	}
+}
+
+// fetchAndDeployAPI fetches API definition and deploys it
+func (c *Client) fetchAndDeployAPI(apiID, correlationID string) (*utils.APIDeploymentResult, error) {
+	// Fetch API definition from control plane
+	zipData, err := c.apiUtilsService.FetchAPIDefinition(apiID)
+	if err != nil {
+		c.logger.Error("Failed to fetch API definition",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+		return nil, fmt.Errorf("failed to fetch API definition: %w", err)
+	}
+
+	// Extract YAML directly from zip file in memory (no need to save to disk)
+	yamlData, err := c.apiUtilsService.ExtractYAMLFromZip(zipData)
+	if err != nil {
+		c.logger.Error("Failed to extract YAML from zip",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+		return nil, fmt.Errorf("failed to extract YAML from zip: %w", err)
+	}
+
+	// log the yaml for debugging (only compute hash if debug logging is enabled)
+	if c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		yamlHash := sha256.Sum256(yamlData)
+		c.logger.Debug("Extracted YAML data",
+			slog.String("api_id", apiID),
+			slog.Int("yaml_bytes", len(yamlData)),
+			slog.String("yaml_hash", fmt.Sprintf("%x", yamlHash)),
+		)
+	}
+
+	// Create API configuration from YAML using the deployment service
+	result, err := c.apiUtilsService.CreateAPIFromYAML(yamlData, apiID, correlationID, c.deploymentService)
+	if err != nil {
+		c.logger.Error("Failed to create API from YAML",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+		return nil, fmt.Errorf("failed to create API from YAML: %w", err)
+	}
+
+	return result, nil
+}
+
+// updatePolicyForDeployment updates policy engine for API deployment
+func (c *Client) updatePolicyForDeployment(apiID, correlationID string, result *utils.APIDeploymentResult) error {
+	if c.policyManager == nil {
+		c.logger.Error("Failed to update policy engine snapshot: policy manager is not available",
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", correlationID),
+		)
+		return fmt.Errorf("policy manager is not available")
+	}
+
+	if result == nil {
+		return nil
+	}
+
+	// Guard against nil systemConfig before deriving policies
+	if c.systemConfig == nil {
+		c.logger.Warn("Cannot derive policies: systemConfig is nil",
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", correlationID))
+		return nil
+	}
+
+	storedPolicy := policy.DerivePolicyFromAPIConfig(result.StoredConfig, c.routerConfig, c.systemConfig, c.policyDefinitions)
+
+	if storedPolicy != nil {
+		// Add or update policy
+		if err := c.policyManager.AddPolicy(storedPolicy); err != nil {
+			c.logger.Error("Failed to update policy engine snapshot",
+				slog.Any("error", err),
+				slog.String("api_id", apiID),
+				slog.String("correlation_id", correlationID))
+			return fmt.Errorf("failed to add policy: %w", err)
+		}
+		c.logger.Info("Successfully updated policy engine snapshot",
+			slog.String("api_id", apiID),
+			slog.String("policy_id", storedPolicy.ID),
+			slog.String("correlation_id", correlationID))
+	} else if result.IsUpdate {
+		// No policies but this is an update, so remove any existing policies
+		policyID := result.StoredConfig.ID + "-policies"
+		if err := c.policyManager.RemovePolicy(policyID); err != nil {
+			// Only treat "policy not found" as non-error (API may never have had policies)
+			// Other errors (storage failures, snapshot update failures) should be logged as errors
+			if storage.IsPolicyNotFoundError(err) {
+				c.logger.Debug("No policy configuration to remove",
+					slog.String("api_id", apiID),
+					slog.String("policy_id", policyID),
+					slog.String("correlation_id", correlationID))
+			} else {
+				c.logger.Error("Failed to remove policy configuration",
+					slog.Any("error", err),
+					slog.String("api_id", apiID),
+					slog.String("policy_id", policyID),
+					slog.String("correlation_id", correlationID))
+				return fmt.Errorf("failed to remove policy: %w", err)
+			}
+		} else {
+			c.logger.Info("Derived policy configuration removed (API no longer has policies)",
+				slog.String("api_id", apiID),
+				slog.String("policy_id", policyID),
+				slog.String("correlation_id", correlationID))
+		}
+	}
+
+	return nil
 }
 
 // handleAPIDeployedEvent handles API deployment events
@@ -589,103 +732,21 @@ func (c *Client) handleAPIDeployedEvent(event map[string]interface{}) {
 
 	c.logger.Info("Processing API deployment",
 		slog.String("api_id", apiID),
-		slog.String("environment", deployedEvent.Payload.Environment),
-		slog.String("revision_id", deployedEvent.Payload.RevisionID),
+		slog.String("deployment_id", deployedEvent.Payload.DeploymentID),
 		slog.String("vhost", deployedEvent.Payload.VHost),
 		slog.String("correlation_id", deployedEvent.CorrelationID),
 	)
 
-	// Fetch API definition from control plane
-	zipData, err := c.apiUtilsService.FetchAPIDefinition(apiID)
+	// Fetch API definition and deploy
+	result, err := c.fetchAndDeployAPI(apiID, deployedEvent.CorrelationID)
 	if err != nil {
-		c.logger.Error("Failed to fetch API definition",
-			slog.String("api_id", apiID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	// Extract YAML directly from zip file in memory (no need to save to disk)
-	yamlData, err := c.apiUtilsService.ExtractYAMLFromZip(zipData)
-	if err != nil {
-		c.logger.Error("Failed to extract YAML from zip",
-			slog.String("api_id", apiID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	// log the yaml for debugging
-	c.logger.Debug("Extracted YAML data",
-		slog.String("api_id", apiID),
-		slog.String("yaml_data", string(yamlData)),
-	)
-
-	// Create API configuration from YAML using the deployment service
-	result, err := c.apiUtilsService.CreateAPIFromYAML(yamlData, apiID, deployedEvent.CorrelationID, c.deploymentService)
-	if err != nil {
-		c.logger.Error("Failed to create API from YAML",
-			slog.String("api_id", apiID),
-			slog.Any("error", err),
-		)
+		// Error already logged in fetchAndDeployAPI
 		return
 	}
 
 	// Update policy engine xDS snapshot (best-effort)
-	if c.policyManager != nil && result != nil {
-		var storedPolicy *models.StoredPolicyConfig
-
-		// Guard against nil systemConfig before deriving policies
-		if c.systemConfig != nil {
-			storedPolicy = policy.DerivePolicyFromAPIConfig(result.StoredConfig, c.routerConfig, c.systemConfig, c.policyDefinitions)
-		} else {
-			c.logger.Warn("Cannot derive policies: systemConfig is nil",
-				slog.String("api_id", apiID),
-				slog.String("correlation_id", deployedEvent.CorrelationID))
-		}
-
-		if storedPolicy != nil {
-			if err := c.policyManager.AddPolicy(storedPolicy); err != nil {
-				c.logger.Error("Failed to update policy engine snapshot",
-					slog.Any("error", err),
-					slog.String("api_id", apiID),
-					slog.String("correlation_id", deployedEvent.CorrelationID))
-			} else {
-				c.logger.Info("Successfully updated policy engine snapshot",
-					slog.String("api_id", apiID),
-					slog.String("policy_id", storedPolicy.ID),
-					slog.String("correlation_id", deployedEvent.CorrelationID))
-			}
-		} else if result.IsUpdate {
-			// API was updated and no longer has policies, remove the existing policy configuration
-			policyID := result.StoredConfig.ID + "-policies"
-			if err := c.policyManager.RemovePolicy(policyID); err != nil {
-				// Only treat "not found" as non-error (API may never have had policies)
-				// Other errors (storage failures, snapshot update failures) should be logged as errors
-				if storage.IsPolicyNotFoundError(err) {
-					c.logger.Debug("No policy configuration to remove",
-						slog.String("api_id", apiID),
-						slog.String("policy_id", policyID),
-						slog.String("correlation_id", deployedEvent.CorrelationID))
-				} else {
-					c.logger.Error("Failed to remove policy configuration",
-						slog.Any("error", err),
-						slog.String("api_id", apiID),
-						slog.String("policy_id", policyID),
-						slog.String("correlation_id", deployedEvent.CorrelationID))
-				}
-			} else {
-				c.logger.Info("Derived policy configuration removed",
-					slog.String("api_id", apiID),
-					slog.String("policy_id", policyID),
-					slog.String("correlation_id", deployedEvent.CorrelationID))
-			}
-		}
-	} else if c.policyManager == nil {
-		c.logger.Error("Failed to update policy engine snapshot: policy manager is not available",
-			slog.String("api_id", apiID),
-			slog.String("correlation_id", deployedEvent.CorrelationID),
-		)
+	if err := c.updatePolicyForDeployment(apiID, deployedEvent.CorrelationID, result); err != nil {
+		// Error already logged in updatePolicyForDeployment
 		return
 	}
 
@@ -734,31 +795,23 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 		slog.String("correlation_id", undeployedEvent.CorrelationID),
 	)
 
-	// Check if config exists in database first (source of truth when persistent storage is available)
-	var apiConfig *models.StoredConfig
-	if c.db != nil {
-		var err error
-		apiConfig, err = c.db.GetConfig(apiID)
-		if err != nil {
-			c.logger.Warn("API configuration not found in database for undeployment",
+	// Check if API exists on this gateway
+	apiConfig, err := c.findAPIConfig(apiID)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.logger.Warn("API configuration not found for undeployment",
 				slog.String("api_id", apiID),
-				slog.Any("error", err),
 			)
 			// Not an error - the API might already be undeployed or deleted
 			return
 		}
-	} else {
-		// Fall back to in-memory store if database is not available
-		var err error
-		apiConfig, err = c.store.Get(apiID)
-		if err != nil {
-			c.logger.Warn("API configuration not found in storage for undeployment",
-				slog.String("api_id", apiID),
-				slog.Any("error", err),
-			)
-			// Not an error - the API might already be undeployed or deleted
-			return
-		}
+		// Real storage error - log and abort
+		c.logger.Error("Failed to fetch API configuration for undeployment",
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", undeployedEvent.CorrelationID),
+			slog.Any("error", err),
+		)
+		return
 	}
 
 	// Set status to undeployed (preserve config, keys, and policies)
@@ -790,24 +843,617 @@ func (c *Client) handleAPIUndeployedEvent(event map[string]interface{}) {
 	// They will be reused if the API is redeployed
 
 	// Update xDS snapshot asynchronously (undeployed APIs will be filtered out)
+	c.updateXDSSnapshotAsync(apiID, undeployedEvent.CorrelationID, false, true)
+
+	c.logger.Info("Successfully processed API undeployment event",
+		slog.String("api_id", apiID),
+		slog.String("correlation_id", undeployedEvent.CorrelationID),
+	)
+}
+
+// findAPIConfig checks if an API exists in database or memory store
+// Returns the config and an error. If the config is not found in either store,
+// returns (nil, storage.ErrNotFound). Other errors indicate actual storage failures.
+func (c *Client) findAPIConfig(apiID string) (*models.StoredConfig, error) {
+	// Check database first (source of truth when available)
+	if c.db != nil {
+		config, err := c.db.GetConfig(apiID)
+		if err == nil {
+			return config, nil
+		}
+		// If it's a real error (not just "not found"), surface it
+		if !storage.IsNotFoundError(err) {
+			return nil, fmt.Errorf("database error while fetching config: %w", err)
+		}
+		// Config not found in DB, fall through to check memory store
+	}
+
+	// Fall back to in-memory store
+	config, err := c.store.Get(apiID)
+	if err == nil {
+		return config, nil
+	}
+	// If memory store also doesn't have it, return not found
+	if storage.IsNotFoundError(err) {
+		return nil, storage.ErrNotFound
+	}
+	// Other memory store errors
+	return nil, fmt.Errorf("memory store error while fetching config: %w", err)
+}
+
+// removePolicyConfiguration removes policy configuration with proper error handling
+// Returns true if resources were actually removed (not just "not found")
+func (c *Client) removePolicyConfiguration(apiID, correlationID string, isOrphaned bool) {
+	if c.policyManager == nil {
+		return
+	}
+
+	policyID := apiID + "-policies"
+	if err := c.policyManager.RemovePolicy(policyID); err != nil {
+		// Only treat "policy not found" as non-error (API may never have had policies)
+		// Other errors (storage failures, snapshot update failures) should be logged as warnings
+		if storage.IsPolicyNotFoundError(err) {
+			c.logger.Debug("No derived policy configuration to remove (API had no policies)",
+				slog.String("api_id", apiID),
+				slog.String("policy_id", policyID),
+				slog.String("correlation_id", correlationID),
+			)
+			return
+		}
+		c.logger.Warn("Failed to remove derived policy configuration",
+			slog.Any("error", err),
+			slog.String("api_id", apiID),
+			slog.String("policy_id", policyID),
+			slog.String("correlation_id", correlationID),
+		)
+		return
+	}
+
+	// Successfully removed
+	if isOrphaned {
+		c.logger.Debug("Checked and cleaned up orphaned policy configuration",
+			slog.String("policy_id", policyID),
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", correlationID),
+		)
+	} else {
+		c.logger.Info("Successfully removed derived policy configuration",
+			slog.String("api_id", apiID),
+			slog.String("policy_id", policyID),
+			slog.String("correlation_id", correlationID),
+		)
+	}
+}
+
+// updateXDSSnapshotAsync updates xDS snapshot in the background
+// isOrphaned: true for orphaned resource cleanup (logs at WARN level)
+// isUndeployment: true for undeployment, false for deletion (only relevant when !isOrphaned)
+func (c *Client) updateXDSSnapshotAsync(apiID, correlationID string, isOrphaned, isUndeployment bool) {
+	if c.snapshotManager == nil {
+		return
+	}
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := c.snapshotManager.UpdateSnapshot(ctx, undeployedEvent.CorrelationID); err != nil {
-			c.logger.Error("Failed to update xDS snapshot after API undeployment",
+		if err := c.snapshotManager.UpdateSnapshot(ctx, correlationID); err != nil {
+			// Log level depends on operation context
+			if isOrphaned {
+				c.logger.Warn("Failed to update xDS snapshot for orphaned resource cleanup",
+					slog.String("api_id", apiID),
+					slog.Any("error", err),
+				)
+			} else {
+				operation := "deletion"
+				if isUndeployment {
+					operation = "undeployment"
+				}
+				c.logger.Error("Failed to update xDS snapshot after API "+operation,
+					slog.String("api_id", apiID),
+					slog.String("operation", operation),
+					slog.Any("error", err),
+				)
+			}
+		} else if !isOrphaned {
+			operation := "deletion"
+			if isUndeployment {
+				operation = "undeployment"
+			}
+			c.logger.Info("Successfully updated xDS snapshot after API "+operation,
+				slog.String("api_id", apiID),
+				slog.String("operation", operation),
+			)
+		}
+	}()
+}
+
+// cleanupOrphanedResources attempts to clean up stale resources when API config doesn't exist
+func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
+	c.logger.Info("API configuration not found on this gateway, checking for stale resources",
+		slog.String("api_id", apiID),
+		slog.String("correlation_id", correlationID),
+	)
+
+	// Check and clean up stale API keys from database
+	if c.db != nil {
+		if err := c.db.RemoveAPIKeysAPI(apiID); err != nil {
+			c.logger.Warn("Failed to remove stale API keys from database",
 				slog.String("api_id", apiID),
 				slog.Any("error", err),
 			)
 		} else {
-			c.logger.Info("Successfully updated xDS snapshot after API undeployment",
+			c.logger.Debug("Cleaned up any stale API keys from database",
 				slog.String("api_id", apiID),
 			)
 		}
-	}()
+	}
 
-	c.logger.Info("Successfully processed API undeployment event",
+	// Check and clean up stale API keys from memory store
+	if err := c.store.RemoveAPIKeysByAPI(apiID); err != nil {
+		c.logger.Warn("Failed to remove stale API keys from memory store",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+	} else {
+		c.logger.Debug("Cleaned up any stale API keys from memory store",
+			slog.String("api_id", apiID),
+		)
+	}
+
+	// Note: Cannot remove stale API keys from policy engine via xDS without API config
+	// (requires API name and version which are only available in the config)
+	// The xDS snapshot update below will help clean up stale routes
+	c.logger.Debug("Skipping API key removal from policy engine (requires API config metadata)",
 		slog.String("api_id", apiID),
+	)
+
+	// Check and clean up stale policy configuration
+	c.removePolicyConfiguration(apiID, correlationID, true)
+
+	// Update xDS snapshot to remove any stale routes
+	c.updateXDSSnapshotAsync(apiID, correlationID, true, false)
+
+	c.logger.Info("Successfully processed stale resource cleanup",
+		slog.String("api_id", apiID),
+		slog.String("correlation_id", correlationID),
+	)
+}
+
+// performFullAPIDeletion performs complete deletion of API and all related resources
+func (c *Client) performFullAPIDeletion(apiID string, apiConfig *models.StoredConfig, correlationID string) {
+	c.logger.Info("API configuration found, performing full deletion",
+		slog.String("api_id", apiID),
+	)
+
+	// 1. Delete API configuration from database first (for atomicity)
+	if c.db != nil {
+		if err := c.db.DeleteConfig(apiID); err != nil {
+			c.logger.Error("Failed to delete API configuration from database",
+				slog.String("api_id", apiID),
+				slog.Any("error", err),
+			)
+			// Continue with cleanup even if database deletion fails
+		} else {
+			c.logger.Info("Successfully deleted API configuration from database",
+				slog.String("api_id", apiID),
+			)
+		}
+	}
+
+	// 2. Delete all API keys from database
+	if c.db != nil {
+		if err := c.db.RemoveAPIKeysAPI(apiID); err != nil {
+			c.logger.Warn("Failed to delete API keys from database",
+				slog.String("api_id", apiID),
+				slog.Any("error", err),
+			)
+		} else {
+			c.logger.Info("Successfully deleted API keys from database",
+				slog.String("api_id", apiID),
+			)
+		}
+	}
+
+	// 3. Remove API keys from in-memory ConfigStore
+	if err := c.store.RemoveAPIKeysByAPI(apiID); err != nil {
+		c.logger.Warn("Failed to remove API keys from ConfigStore",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+	} else {
+		c.logger.Info("Successfully removed API keys from ConfigStore",
+			slog.String("api_id", apiID),
+		)
+	}
+
+	// 4. Remove API keys from policy engine via xDS (if we have the config)
+	if apiConfig != nil && c.apiKeyXDSManager != nil {
+		apiConfigData, err := apiConfig.Configuration.Spec.AsAPIConfigData()
+		if err == nil {
+			apiName := apiConfigData.DisplayName
+			apiVersion := apiConfigData.Version
+
+			// Use apiKeyXDSManager directly to remove API keys from policy engine
+			if err := c.apiKeyXDSManager.RemoveAPIKeysByAPI(apiID, apiName, apiVersion, correlationID); err != nil {
+				c.logger.Warn("Failed to remove API keys from policy engine",
+					slog.String("api_id", apiID),
+					slog.String("api_name", apiName),
+					slog.String("api_version", apiVersion),
+					slog.String("correlation_id", correlationID),
+					slog.Any("error", err),
+				)
+			} else {
+				c.logger.Info("Successfully removed API keys from policy engine",
+					slog.String("api_id", apiID),
+					slog.String("api_name", apiName),
+					slog.String("api_version", apiVersion),
+					slog.String("correlation_id", correlationID),
+				)
+			}
+		} else {
+			c.logger.Warn("Failed to extract API config data for API key removal from policy engine",
+				slog.String("api_id", apiID),
+				slog.Any("error", err),
+			)
+		}
+	}
+
+	// 5. Delete from in-memory store
+	if err := c.store.Delete(apiID); err != nil {
+		c.logger.Error("Failed to delete API configuration from memory store",
+			slog.String("api_id", apiID),
+			slog.Any("error", err),
+		)
+		// Continue even if in-memory deletion fails
+	} else {
+		c.logger.Info("Successfully deleted API configuration from memory store",
+			slog.String("api_id", apiID),
+		)
+	}
+
+	// 6. Update xDS snapshot asynchronously (API will be removed from routes)
+	c.updateXDSSnapshotAsync(apiID, correlationID, false, false)
+
+	// 7. Remove derived policy configuration (after all other operations)
+	c.removePolicyConfiguration(apiID, correlationID, false)
+
+	c.logger.Info("Successfully processed API deletion event",
+		slog.String("api_id", apiID),
+		slog.String("correlation_id", correlationID),
+	)
+}
+
+// handleAPIDeletedEvent handles API deletion events
+func (c *Client) handleAPIDeletedEvent(event map[string]interface{}) {
+	c.logger.Info("API Deletion Event",
+		slog.Any("payload", event["payload"]),
+		slog.Any("timestamp", event["timestamp"]),
+		slog.Any("correlationId", event["correlationId"]),
+	)
+
+	// Parse the event into structured format
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		c.logger.Error("Failed to marshal event for parsing",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	var deletedEvent APIDeletedEvent
+	if err := json.Unmarshal(eventBytes, &deletedEvent); err != nil {
+		c.logger.Error("Failed to parse API deletion event",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	// Extract API ID
+	apiID := deletedEvent.Payload.APIID
+	if apiID == "" {
+		c.logger.Error("API ID is empty in deletion event")
+		return
+	}
+
+	c.logger.Info("Processing API deletion",
+		slog.String("api_id", apiID),
+		slog.String("vhost", deletedEvent.Payload.VHost),
+		slog.String("correlation_id", deletedEvent.CorrelationID),
+	)
+
+	// Check if API exists on this gateway
+	apiConfig, err := c.findAPIConfig(apiID)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			// Config not found - proceed with orphan cleanup
+			c.cleanupOrphanedResources(apiID, deletedEvent.CorrelationID)
+			return
+		}
+		// Real storage error (DB failure, etc.) - log and abort
+		// Do NOT proceed with orphan cleanup as the config might actually exist
+		c.logger.Error("Failed to fetch API configuration for deletion, aborting",
+			slog.String("api_id", apiID),
+			slog.String("correlation_id", deletedEvent.CorrelationID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	// Config found - perform full deletion
+	c.performFullAPIDeletion(apiID, apiConfig, deletedEvent.CorrelationID)
+}
+
+// handleLLMProxyDeployedEvent handles LLM proxy deployment events
+func (c *Client) handleLLMProxyDeployedEvent(event map[string]interface{}) {
+	c.logger.Info("LLM Proxy Deployment Event",
+		slog.Any("payload", event["payload"]),
+		slog.Any("timestamp", event["timestamp"]),
+		slog.Any("correlationId", event["correlationId"]),
+	)
+
+	// Parse the event into structured format
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		c.logger.Error("Failed to marshal LLM proxy deployment event for parsing",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	var deployedEvent LLMProxyDeployedEvent
+	if err := json.Unmarshal(eventBytes, &deployedEvent); err != nil {
+		c.logger.Error("Failed to parse LLM proxy deployment event",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	proxyID := deployedEvent.Payload.ProxyID
+	if proxyID == "" {
+		c.logger.Error("Proxy ID is empty in LLM proxy deployment event")
+		return
+	}
+
+	c.logger.Info("Processing LLM proxy deployment",
+		slog.String("proxy_id", proxyID),
+		slog.String("environment", deployedEvent.Payload.Environment),
+		slog.String("deployment_id", deployedEvent.Payload.DeploymentID),
+		slog.String("vhost", deployedEvent.Payload.VHost),
+		slog.String("correlation_id", deployedEvent.CorrelationID),
+	)
+
+	// Fetch LLM proxy definition from control plane
+	zipData, err := c.apiUtilsService.FetchLLMProxyDefinition(proxyID)
+	if err != nil {
+		c.logger.Error("Failed to fetch LLM proxy definition",
+			slog.String("proxy_id", proxyID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	// Extract YAML from ZIP
+	yamlData, err := c.apiUtilsService.ExtractYAMLFromZip(zipData)
+	if err != nil {
+		c.logger.Error("Failed to extract YAML from LLM proxy ZIP",
+			slog.String("proxy_id", proxyID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if c.llmDeploymentService == nil {
+		c.logger.Error("LLM deployment service not available",
+			slog.String("proxy_id", proxyID),
+			slog.String("correlation_id", deployedEvent.CorrelationID),
+		)
+		return
+	}
+
+	// Create LLM proxy configuration from YAML using the deployment service
+	_, err = c.apiUtilsService.CreateLLMProxyFromYAML(yamlData, proxyID, deployedEvent.CorrelationID, c.llmDeploymentService)
+	if err != nil {
+		c.logger.Error("Failed to create LLM proxy from YAML",
+			slog.String("proxy_id", proxyID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	c.logger.Info("Successfully processed LLM proxy deployment event",
+		slog.String("proxy_id", proxyID),
+		slog.String("correlation_id", deployedEvent.CorrelationID),
+	)
+}
+
+// handleLLMProviderDeployedEvent handles LLM provider deployment events
+func (c *Client) handleLLMProviderDeployedEvent(event map[string]interface{}) {
+	c.logger.Info("LLM Provider Deployment Event",
+		slog.Any("payload", event["payload"]),
+		slog.Any("timestamp", event["timestamp"]),
+		slog.Any("correlationId", event["correlationId"]),
+	)
+
+	// Parse the event into structured format
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		c.logger.Error("Failed to marshal LLM provider deployment event for parsing",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	var deployedEvent LLMProviderDeployedEvent
+	if err := json.Unmarshal(eventBytes, &deployedEvent); err != nil {
+		c.logger.Error("Failed to parse LLM provider deployment event",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	providerID := deployedEvent.Payload.ProviderID
+	if providerID == "" {
+		c.logger.Error("Provider ID is empty in LLM provider deployment event")
+		return
+	}
+
+	c.logger.Info("Processing LLM provider deployment",
+		slog.String("provider_id", providerID),
+		slog.String("environment", deployedEvent.Payload.Environment),
+		slog.String("deployment_id", deployedEvent.Payload.DeploymentID),
+		slog.String("vhost", deployedEvent.Payload.VHost),
+		slog.String("correlation_id", deployedEvent.CorrelationID),
+	)
+
+	// Fetch LLM provider definition from control plane
+	zipData, err := c.apiUtilsService.FetchLLMProviderDefinition(providerID)
+	if err != nil {
+		c.logger.Error("Failed to fetch LLM provider definition",
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	// Extract YAML from ZIP
+	yamlData, err := c.apiUtilsService.ExtractYAMLFromZip(zipData)
+	if err != nil {
+		c.logger.Error("Failed to extract YAML from LLM provider ZIP",
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if c.llmDeploymentService == nil {
+		c.logger.Error("LLM deployment service not available",
+			slog.String("provider_id", providerID),
+			slog.String("correlation_id", deployedEvent.CorrelationID),
+		)
+		return
+	}
+
+	// Create LLM provider configuration from YAML using the deployment service
+	_, err = c.apiUtilsService.CreateLLMProviderFromYAML(yamlData, providerID, deployedEvent.CorrelationID, c.llmDeploymentService)
+	if err != nil {
+		c.logger.Error("Failed to create LLM provider from YAML",
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	c.logger.Info("Successfully processed LLM provider deployment event",
+		slog.String("provider_id", providerID),
+		slog.String("correlation_id", deployedEvent.CorrelationID),
+	)
+}
+
+// handleLLMProviderUndeployedEvent handles LLM provider undeployment events
+func (c *Client) handleLLMProviderUndeployedEvent(event map[string]interface{}) {
+	c.logger.Info("LLM Provider Undeployment Event",
+		slog.Any("payload", event["payload"]),
+		slog.Any("timestamp", event["timestamp"]),
+		slog.Any("correlationId", event["correlationId"]),
+	)
+
+	// Parse the event into structured format
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		c.logger.Error("Failed to marshal LLM provider undeployment event for parsing",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	var undeployedEvent LLMProviderUndeployedEvent
+	if err := json.Unmarshal(eventBytes, &undeployedEvent); err != nil {
+		c.logger.Error("Failed to parse LLM provider undeployment event",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	providerID := undeployedEvent.Payload.ProviderID
+	if providerID == "" {
+		c.logger.Error("Provider ID is empty in LLM provider undeployment event")
+		return
+	}
+
+	if c.llmDeploymentService == nil {
+		c.logger.Error("LLM deployment service not available",
+			slog.String("provider_id", providerID),
+			slog.String("correlation_id", undeployedEvent.CorrelationID),
+		)
+		return
+	}
+
+	_, err = c.llmDeploymentService.DeleteLLMProvider(providerID, undeployedEvent.CorrelationID, c.logger)
+	if err != nil {
+		c.logger.Error("Failed to delete LLM provider configuration",
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	c.logger.Info("Successfully processed LLM provider undeployment event",
+		slog.String("provider_id", providerID),
+		slog.String("correlation_id", undeployedEvent.CorrelationID),
+	)
+}
+
+// handleLLMProxyUndeployedEvent handles LLM proxy undeployment events
+func (c *Client) handleLLMProxyUndeployedEvent(event map[string]interface{}) {
+	c.logger.Info("LLM Proxy Undeployment Event",
+		slog.Any("payload", event["payload"]),
+		slog.Any("timestamp", event["timestamp"]),
+		slog.Any("correlationId", event["correlationId"]),
+	)
+
+	// Parse the event into structured format
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		c.logger.Error("Failed to marshal LLM proxy undeployment event for parsing",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	var undeployedEvent LLMProxyUndeployedEvent
+	if err := json.Unmarshal(eventBytes, &undeployedEvent); err != nil {
+		c.logger.Error("Failed to parse LLM proxy undeployment event",
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	proxyID := undeployedEvent.Payload.ProxyID
+	if proxyID == "" {
+		c.logger.Error("Proxy ID is empty in LLM proxy undeployment event")
+		return
+	}
+
+	if c.llmDeploymentService == nil {
+		c.logger.Error("LLM deployment service not available",
+			slog.String("proxy_id", proxyID),
+			slog.String("correlation_id", undeployedEvent.CorrelationID),
+		)
+		return
+	}
+
+	_, err = c.llmDeploymentService.DeleteLLMProxy(proxyID, undeployedEvent.CorrelationID, c.logger)
+	if err != nil {
+		c.logger.Error("Failed to delete LLM proxy configuration",
+			slog.String("proxy_id", proxyID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	c.logger.Info("Successfully processed LLM proxy undeployment event",
+		slog.String("proxy_id", proxyID),
 		slog.String("correlation_id", undeployedEvent.CorrelationID),
 	)
 }

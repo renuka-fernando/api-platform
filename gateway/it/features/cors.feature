@@ -120,3 +120,126 @@ Feature: CORS Policy
     Given I authenticate using basic auth as "admin"
     When I delete the API "cors-preflight-api"
     Then the response should be successful
+
+  Scenario: Simple GET from allowed origin gets CORS response headers
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: cors-simple-api
+      spec:
+        displayName: CORS Simple Request API
+        version: v1.0
+        context: /cors-simple/$version
+        upstream:
+          main:
+            url: http://sample-backend:9080/api/v1
+        policies:
+          - name: cors
+            version: v0
+            params:
+              allowedOrigins:
+                - "http://example.com"
+                - '^https://[^.]+\.example\.com$'
+              allowedMethods:
+                - "GET"
+                - "POST"
+              allowedHeaders:
+                - "Content-Type"
+              exposedHeaders:
+                - "X-Custom-Header"
+              allowCredentials: true
+        operations:
+          - method: GET
+            path: /{country_code}/{city}
+          - method: GET
+            path: /alerts/active
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/cors-simple/v1.0/test/test" to be ready
+
+    When I set header "Origin" to "http://example.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Origin" should be "http://example.com"
+
+  Scenario: Simple GET from disallowed origin has upstream CORS headers stripped
+    When I set header "Origin" to "http://evil.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Origin" should not exist
+
+  Scenario: Simple GET without Origin header gets no CORS headers
+    When I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Origin" should not exist
+
+  Scenario: Simple GET from allowed origin gets Vary header
+    When I set header "Origin" to "http://example.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Vary" should be "Origin"
+
+  Scenario: Simple GET from allowed origin gets Allow-Credentials header
+    When I set header "Origin" to "http://example.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Credentials" should be "true"
+
+  Scenario: Simple GET from allowed origin gets Expose-Headers
+    When I set header "Origin" to "http://example.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Expose-Headers" should be "X-Custom-Header"
+
+  Scenario: Simple GET matching regex origin gets CORS headers
+    When I set header "Origin" to "https://app.example.com"
+    And I send a GET request to "http://localhost:8080/cors-simple/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Origin" should be "https://app.example.com"
+
+    Given I authenticate using basic auth as "admin"
+    When I delete the API "cors-simple-api"
+    Then the response should be successful
+
+  Scenario: Simple GET with wildcard origin gets CORS headers
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: cors-simple-wildcard-api
+      spec:
+        displayName: CORS Simple Wildcard API
+        version: v1.0
+        context: /cors-simple-wildcard/$version
+        upstream:
+          main:
+            url: http://sample-backend:9080/api/v1
+        policies:
+          - name: cors
+            version: v0
+            params:
+              allowedOrigins:
+                - "*"
+              allowedMethods:
+                - "GET"
+                - "POST"
+        operations:
+          - method: GET
+            path: /{country_code}/{city}
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/cors-simple-wildcard/v1.0/test/test" to be ready
+
+    When I set header "Origin" to "http://anysite.com"
+    And I send a GET request to "http://localhost:8080/cors-simple-wildcard/v1.0/us/seattle"
+    Then the response status code should be 200
+    And the response header "Access-Control-Allow-Origin" should be "*"
+
+    Given I authenticate using basic auth as "admin"
+    When I delete the API "cors-simple-wildcard-api"
+    Then the response should be successful

@@ -103,7 +103,7 @@ func TestSchemaInitialization(t *testing.T) {
 		var version int
 		err := rawDB.QueryRow("PRAGMA user_version").Scan(&version)
 		assert.NoError(t, err)
-		assert.Equal(t, 7, version, "Schema version should be 7 (deployments status includes 'undeployed')")
+		assert.Equal(t, 9, version, "Schema version should be 9 (removed index_key from api_keys)")
 	})
 
 	// Verify deployments table exists
@@ -146,6 +146,7 @@ func TestSchemaInitialization(t *testing.T) {
 			"updated_at":       "TIMESTAMP",
 			"deployed_at":      "TIMESTAMP",
 			"deployed_version": "INTEGER",
+			"gateway_id":       "TEXT",
 		}
 
 		for colName, colType := range expectedColumns {
@@ -211,7 +212,6 @@ func TestSchemaInitialization(t *testing.T) {
 
 		// Expected indexes
 		expectedIndexes := []string{
-			"idx_name_version",
 			"idx_status",
 			"idx_context",
 			"idx_kind",
@@ -222,13 +222,13 @@ func TestSchemaInitialization(t *testing.T) {
 		}
 	})
 
-	// Verify UNIQUE constraint on (name, version)
+	// Verify UNIQUE constraint on (name, version, gateway_id)
 	t.Run("UniqueConstraint", func(t *testing.T) {
 		var sql string
 		err := rawDB.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='deployments'").Scan(&sql)
 		require.NoError(t, err)
 
-		assert.Contains(t, sql, "UNIQUE(display_name, version)", "Should have UNIQUE constraint on (display_name, version)")
+		assert.Contains(t, sql, "UNIQUE(display_name, version, gateway_id)", "Should have UNIQUE constraint on (display_name, version, gateway_id)")
 	})
 
 	// Verify CHECK constraint on status

@@ -18,23 +18,24 @@
 
 services:
   gateway-controller:
-    image: ghcr.io/wso2/api-platform/gateway-controller:0.5.0
+    image: ghcr.io/wso2/api-platform/gateway-controller:0.8.2
     mem_limit: 60m
     mem_reservation: 60m
     cpus: 0.025
     command: ["-config", "/etc/gateway-controller/config.toml"]
     ports:
       - "9090:9090"   # REST API
+      - "9094:9092"   # Admin API
       - "18000:18000" # xDS gRPC
       - "18001:18001"
       - "9011:9091"   # Metrics
     environment:
-      - APIP_GW_GATEWAY__CONTROLLER_STORAGE_TYPE=sqlite
-      - APIP_GW_GATEWAY__CONTROLLER_STORAGE_SQLITE_PATH=./data/gateway.db
-      - APIP_GW_GATEWAY__CONTROLLER_LOGGING_LEVEL=info
-      - APIP_GW_GATEWAY__CONTROLLER_METRICS_PORT=9091
-      - APIP_GW_REGISTRATION_TOKEN=${GATEWAY_REGISTRATION_TOKEN:-}
-      - APIP_GW_GATEWAY__CONTROLLER_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:9243}
+      - APIP_GW_CONTROLLER_STORAGE_TYPE=sqlite
+      - APIP_GW_CONTROLLER_STORAGE_SQLITE_PATH=./data/gateway.db
+      - APIP_GW_CONTROLLER_LOGGING_LEVEL=info
+      - APIP_GW_CONTROLLER_METRICS_PORT=9091
+      - APIP_GW_GATEWAY_REGISTRATION_TOKEN=${GATEWAY_REGISTRATION_TOKEN:-}
+      - APIP_GW_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:9243}
     volumes:
       - controller-data:/app/data
       - ./configs/config.toml:/etc/gateway-controller/config.toml:ro
@@ -45,46 +46,35 @@ services:
     networks:
       - gateway-network
 
+  gateway-runtime:
+    image: ghcr.io/wso2/api-platform/gateway-runtime:0.8.2
+    mem_limit: 180m
+    mem_reservation: 180m
+    cpus: 0.175
+    command: ["--pol.config", "/etc/policy-engine/config.toml"]
+    ports:
+      - "8080:8080"   # HTTP traffic (Envoy)
+      - "8443:8443"   # HTTPS traffic (Envoy)
+      - "9901:9901"   # Envoy admin
+      - "8081:8081"
+      - "8082:8082"
+      - "8083:8083"
+      - "9002:9002"   # Policy Engine admin
+      - "9003:9003"   # Policy Engine metrics
+    environment:
+      - GATEWAY_CONTROLLER_HOST=gateway-controller
+      - MOESIF_KEY=${MOESIF_KEY:-}
+      - LOG_LEVEL=info
+    volumes:
+      - ./configs/config.toml:/etc/policy-engine/config.toml:ro
+    networks:
+      - gateway-network
   netty: 
     image: renukafernando/netty-http-echo-service:0.4.6
     ports:
       - "8085:8688"
     networks:
       - gateway-network
-  policy-engine:
-    image: ghcr.io/wso2/api-platform/policy-engine:0.5.0
-    command: ["-config", "/etc/policy-engine/config.toml", "-xds-server", "gateway-controller:18001"]
-    mem_limit: 60m
-    mem_reservation: 60m
-    cpus: 0.050
-    ports:
-      - "9002:9002"   # Admin API
-      - "9003:9003"   # Metrics
-    environment:
-      - APIP_GW_POLICY__ENGINE_METRICS_PORT=9003
-    volumes:
-      - ./configs/config.toml:/etc/policy-engine/config.toml:ro
-    networks:
-      - gateway-network
-
-  router:
-    image: ghcr.io/wso2/api-platform/gateway-router:0.5.0
-    mem_limit: 120m
-    mem_reservation: 120m
-    cpus: 0.125
-    ports:
-      - "8080:8080"   # HTTP traffic
-      - "8443:8443"   # HTTPS traffic
-      - "9901:9901"   # Envoy admin
-      - "8081:8081"
-      - "8082:8082"
-      - "8083:8083"
-    environment:
-      - GATEWAY_CONTROLLER_HOST=${ROUTER_XDS_SERVER_HOST:-gateway-controller}
-      - LOG_LEVEL=info
-    networks:
-      - gateway-network
-
   sample-backend:
     image: ghcr.io/wso2/api-platform/sample-service:latest
     ports:

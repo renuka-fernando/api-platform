@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -81,7 +81,7 @@ func (h *LLMHandler) CreateLLMProviderTemplate(c *gin.Context) {
 		return
 	}
 
-	var req dto.LLMProviderTemplate
+	var req api.LLMProviderTemplate
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return
@@ -173,7 +173,7 @@ func (h *LLMHandler) UpdateLLMProviderTemplate(c *gin.Context) {
 	}
 	id := c.Param("id")
 
-	var req dto.LLMProviderTemplate
+	var req api.LLMProviderTemplate
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return
@@ -232,7 +232,7 @@ func (h *LLMHandler) CreateLLMProvider(c *gin.Context) {
 		return
 	}
 
-	var req dto.LLMProvider
+	var req api.LLMProvider
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return
@@ -242,6 +242,9 @@ func (h *LLMHandler) CreateLLMProvider(c *gin.Context) {
 	created, err := h.providerService.Create(orgID, createdBy, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, constants.ErrLLMProviderLimitReached):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM provider limit reached for organization"))
+			return
 		case errors.Is(err, constants.ErrLLMProviderExists):
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM provider already exists"))
 			return
@@ -326,7 +329,7 @@ func (h *LLMHandler) UpdateLLMProvider(c *gin.Context) {
 	}
 	id := c.Param("id")
 
-	var req dto.LLMProvider
+	var req api.LLMProvider
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return
@@ -387,12 +390,12 @@ func (h *LLMHandler) CreateLLMProxy(c *gin.Context) {
 		return
 	}
 
-	var req dto.LLMProxy
+	var req api.LLMProxy
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return
 	}
-	if req.ProjectID == "" {
+	if req.ProjectId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Project ID is required"))
 		return
 	}
@@ -401,6 +404,9 @@ func (h *LLMHandler) CreateLLMProxy(c *gin.Context) {
 	created, err := h.proxyService.Create(orgID, createdBy, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, constants.ErrLLMProxyLimitReached):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM proxy limit reached for organization"))
+			return
 		case errors.Is(err, constants.ErrLLMProxyExists):
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", "LLM proxy already exists"))
 			return
@@ -539,7 +545,7 @@ func (h *LLMHandler) UpdateLLMProxy(c *gin.Context) {
 	}
 	id := c.Param("id")
 
-	var req dto.LLMProxy
+	var req api.LLMProxy
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid request body"))
 		return

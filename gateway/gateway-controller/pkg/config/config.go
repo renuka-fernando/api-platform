@@ -176,6 +176,7 @@ type ServerConfig struct {
 	APIPort         int           `koanf:"api_port"`
 	XDSPort         int           `koanf:"xds_port"`
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"`
+	GatewayID       string        `koanf:"gateway_id"`
 }
 
 // AdminServerConfig holds controller admin HTTP server configuration.
@@ -457,6 +458,7 @@ func defaultConfig() *Config {
 				APIPort:         9090,
 				XDSPort:         18000,
 				ShutdownTimeout: 15 * time.Second,
+				GatewayID:       constants.PlatformGatewayId,
 			},
 			AdminServer: AdminServerConfig{
 				Enabled:    true,
@@ -808,6 +810,10 @@ func (c *Config) Validate() error {
 
 	if c.Controller.Server.XDSPort < 1 || c.Controller.Server.XDSPort > 65535 {
 		return fmt.Errorf("server.xds_port must be between 1 and 65535, got: %d", c.Controller.Server.XDSPort)
+	}
+
+	if strings.TrimSpace(c.Controller.Server.GatewayID) == "" {
+		return fmt.Errorf("server.gateway_id is required and cannot be empty")
 	}
 
 	if c.Controller.AdminServer.Enabled {
@@ -1379,22 +1385,10 @@ func (c *Config) validateAPIKeyConfig() error {
 		return nil
 	}
 
-	// If hashing is enabled and algorithm is provided, validate it's one of the supported ones
-	validAlgorithms := []string{
-		constants.HashingAlgorithmSHA256,
-		constants.HashingAlgorithmBcrypt,
-		constants.HashingAlgorithmArgon2ID,
-	}
-	isValidAlgorithm := false
-	for _, alg := range validAlgorithms {
-		if strings.ToLower(c.APIKey.Algorithm) == alg {
-			isValidAlgorithm = true
-			break
-		}
-	}
-	if !isValidAlgorithm {
-		return fmt.Errorf("api_key.algorithm must be one of: %s, got: %s",
-			strings.Join(validAlgorithms, ", "), c.APIKey.Algorithm)
+	// Only SHA256 is supported
+	if strings.ToLower(c.APIKey.Algorithm) != constants.HashingAlgorithmSHA256 {
+		return fmt.Errorf("api_key.algorithm must be %s, got: %s",
+			constants.HashingAlgorithmSHA256, c.APIKey.Algorithm)
 	}
 	return nil
 }

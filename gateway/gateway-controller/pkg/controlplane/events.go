@@ -29,10 +29,9 @@ type ConnectionAckMessage struct {
 
 // APIDeployedEventPayload represents the payload of an API deployment event
 type APIDeployedEventPayload struct {
-	APIID       string `json:"apiId"`
-	Environment string `json:"environment"`
-	RevisionID  string `json:"revisionId"`
-	VHost       string `json:"vhost"`
+	APIID        string `json:"apiId"`
+	DeploymentID string `json:"deploymentId"`
+	VHost        string `json:"vhost"`
 }
 
 // APIDeployedEvent represents the complete API deployment event
@@ -41,6 +40,68 @@ type APIDeployedEvent struct {
 	Payload       APIDeployedEventPayload `json:"payload"`
 	Timestamp     string                  `json:"timestamp"`
 	CorrelationID string                  `json:"correlationId"`
+}
+
+// LLMProviderDeployedEventPayload represents the payload of an LLM provider deployment event
+type LLMProviderDeployedEventPayload struct {
+	ProviderID   string `json:"providerId"`
+	Environment  string `json:"environment"`
+	DeploymentID string `json:"deploymentId"`
+	VHost        string `json:"vhost"`
+}
+
+// LLMProviderDeployedEvent represents the complete LLM provider deployment event
+type LLMProviderDeployedEvent struct {
+	Type          string                          `json:"type"`
+	Payload       LLMProviderDeployedEventPayload `json:"payload"`
+	Timestamp     string                          `json:"timestamp"`
+	CorrelationID string                          `json:"correlationId"`
+}
+
+// LLMProviderUndeployedEventPayload represents the payload of an LLM provider undeployment event
+type LLMProviderUndeployedEventPayload struct {
+	ProviderID  string `json:"providerId"`
+	Environment string `json:"environment"`
+	VHost       string `json:"vhost"`
+}
+
+// LLMProviderUndeployedEvent represents the complete LLM provider undeployment event
+type LLMProviderUndeployedEvent struct {
+	Type          string                            `json:"type"`
+	Payload       LLMProviderUndeployedEventPayload `json:"payload"`
+	Timestamp     string                            `json:"timestamp"`
+	CorrelationID string                            `json:"correlationId"`
+}
+
+// LLMProxyDeployedEventPayload represents the payload of an LLM proxy deployment event
+type LLMProxyDeployedEventPayload struct {
+	ProxyID      string `json:"proxyId"`
+	Environment  string `json:"environment"`
+	DeploymentID string `json:"deploymentId"`
+	VHost        string `json:"vhost"`
+}
+
+// LLMProxyDeployedEvent represents the complete LLM proxy deployment event
+type LLMProxyDeployedEvent struct {
+	Type          string                       `json:"type"`
+	Payload       LLMProxyDeployedEventPayload `json:"payload"`
+	Timestamp     string                       `json:"timestamp"`
+	CorrelationID string                       `json:"correlationId"`
+}
+
+// LLMProxyUndeployedEventPayload represents the payload of an LLM proxy undeployment event
+type LLMProxyUndeployedEventPayload struct {
+	ProxyID     string `json:"proxyId"`
+	Environment string `json:"environment"`
+	VHost       string `json:"vhost"`
+}
+
+// LLMProxyUndeployedEvent represents the complete LLM proxy undeployment event
+type LLMProxyUndeployedEvent struct {
+	Type          string                         `json:"type"`
+	Payload       LLMProxyUndeployedEventPayload `json:"payload"`
+	Timestamp     string                         `json:"timestamp"`
+	CorrelationID string                         `json:"correlationId"`
 }
 
 // APIUndeployedEventPayload represents the payload of an API undeployment event
@@ -56,6 +117,20 @@ type APIUndeployedEvent struct {
 	Payload       APIUndeployedEventPayload `json:"payload"`
 	Timestamp     string                    `json:"timestamp"`
 	CorrelationID string                    `json:"correlationId"`
+}
+
+// APIDeletedEventPayload represents the payload of an API deletion event
+type APIDeletedEventPayload struct {
+	APIID string `json:"apiId"`
+	VHost string `json:"vhost"`
+}
+
+// APIDeletedEvent represents the complete API deletion event
+type APIDeletedEvent struct {
+	Type          string                 `json:"type"`
+	Payload       APIDeletedEventPayload `json:"payload"`
+	Timestamp     string                 `json:"timestamp"`
+	CorrelationID string                 `json:"correlationId"`
 }
 
 // APIKeyCreatedEventPayload represents the payload of an API key created event.

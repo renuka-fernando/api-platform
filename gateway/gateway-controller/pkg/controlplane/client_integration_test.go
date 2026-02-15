@@ -73,7 +73,7 @@ func createTestClientWithHost(t *testing.T, host string) *Client {
 		},
 	}
 
-	return NewClient(cfg, logger, store, nil, nil, nil, routerConfig, nil, nil, nil, nil, nil)
+	return NewClient(cfg, logger, store, nil, nil, nil, routerConfig, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestClient_ConnectToMockServer(t *testing.T) {
@@ -116,10 +116,10 @@ func TestClient_handleMessage_APIDeployedEvent(t *testing.T) {
 	event := map[string]interface{}{
 		"type": "api.deployed",
 		"payload": map[string]interface{}{
-			"apiId":       "test-api-123",
-			"environment": "production",
-			"revisionId":  "rev-1",
-			"vhost":       "api.example.com",
+			"apiId":        "test-api-123",
+			"environment":  "production",
+			"deploymentId": "rev-1",
+			"vhost":        "api.example.com",
 		},
 		"timestamp":     time.Now().Format(time.RFC3339),
 		"correlationId": "corr-12345",
@@ -217,7 +217,7 @@ func TestClient_calculateNextRetryDelay_EdgeCases(t *testing.T) {
 		ReconnectMax:     10 * time.Millisecond,
 	}
 	routerConfig := &config.RouterConfig{}
-	client := NewClient(cfg, logger, store, nil, nil, nil, routerConfig, nil, nil, nil, nil, nil)
+	client := NewClient(cfg, logger, store, nil, nil, nil, routerConfig, nil, nil, nil, nil, nil, nil, nil)
 
 	// Test multiple retries
 	for i := 0; i < 20; i++ {
@@ -310,6 +310,10 @@ func TestClient_handleMessage_AllEventTypes(t *testing.T) {
 		{
 			name:    "api.undeployed",
 			message: `{"type": "api.undeployed", "payload": {"apiId": "api-1"}, "timestamp": "2025-01-30T12:00:00Z", "correlationId": "corr-1"}`,
+		},
+		{
+			name:    "api.deleted",
+			message: `{"type": "api.deleted", "payload": {"apiId": "api-1", "vhost": "example.com", "environment": "production"}, "timestamp": "2025-01-30T12:00:00Z", "correlationId": "corr-1"}`,
 		},
 		{
 			name:    "unknown.event",
@@ -440,7 +444,7 @@ func TestAPIDeployedEvent_JSONParsing(t *testing.T) {
 		"payload": {
 			"apiId": "api-123",
 			"environment": "production",
-			"revisionId": "rev-1",
+			"deploymentId": "rev-1",
 			"vhost": "api.example.com"
 		},
 		"timestamp": "2025-01-30T12:00:00Z",
@@ -458,9 +462,6 @@ func TestAPIDeployedEvent_JSONParsing(t *testing.T) {
 	}
 	if event.Payload.APIID != "api-123" {
 		t.Errorf("Payload.APIID = %q, want %q", event.Payload.APIID, "api-123")
-	}
-	if event.Payload.Environment != "production" {
-		t.Errorf("Payload.Environment = %q, want %q", event.Payload.Environment, "production")
 	}
 }
 

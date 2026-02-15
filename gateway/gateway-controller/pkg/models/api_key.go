@@ -52,7 +52,6 @@ type APIKey struct {
 	// Source tracking for external key support
 	Source        string  `json:"source" db:"source"`                 // "local" | "external"
 	ExternalRefId *string `json:"externalRefId" db:"external_ref_id"` // Cloud APIM key ID or other external reference
-	IndexKey      *string `json:"indexKey" db:"index_key"`            // Pre-computed SHA-256 hash for O(1) lookup (external plain text keys only)
 }
 
 // IsValid checks if the API key is valid (active and not expired)

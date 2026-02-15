@@ -26,8 +26,8 @@ import (
 	"github.com/wso2/api-platform/cli/utils"
 )
 
-// ProcessLocalPolicies processes local policies from the manifest
-func ProcessLocalPolicies(localPolicies []ManifestPolicy) ([]ProcessedPolicy, error) {
+// ProcessLocalPolicies processes local policies from the build file
+func ProcessLocalPolicies(localPolicies []BuildFilePolicy) ([]ProcessedPolicy, error) {
 	if len(localPolicies) == 0 {
 		return []ProcessedPolicy{}, nil
 	}
@@ -72,7 +72,7 @@ func ProcessLocalPolicies(localPolicies []ManifestPolicy) ([]ProcessedPolicy, er
 			fmt.Printf("using dir, ")
 
 			if err := utils.ValidateLocalPolicyDir(policyDir, policy.Name); err != nil {
-				return fmt.Errorf("policy %s: validation failed: %w\n\nLocal policies must:\n  1. Be a directory containing policy-definition.yaml at the root\n  2. Have 'name' that matches the manifest", policy.Name, err)
+				return fmt.Errorf("policy %s: validation failed: %w\n\nLocal policies must:\n  1. Be a directory containing policy-definition.yaml at the root\n  2. Have 'name' that matches the build file", policy.Name, err)
 			}
 
 			processed = append(processed, ProcessedPolicy{

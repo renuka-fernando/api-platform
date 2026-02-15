@@ -20,7 +20,7 @@
 # Combines Envoy Router and Policy Engine into a single container
 
 # Stage 1: Builder Base
-FROM --platform=$BUILDPLATFORM golang:1.25.6-alpine3.23 AS builder-base
+FROM --platform=$BUILDPLATFORM golang:1.25.7-bookworm AS builder-base
 ARG BUILDARCH
 ARG VERSION=unknown
 ARG GIT_COMMIT=unknown
@@ -29,7 +29,9 @@ ARG BUILD_DATE=unknown
 # Coverage build argument - set to "true" for coverage-instrumented builds
 ARG ENABLE_COVERAGE=false
 
-RUN apk add --no-cache \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
     ca-certificates
@@ -70,9 +72,11 @@ ARG VERSION
 ARG GIT_COMMIT
 ARG BUILD_DATE
 ARG ENABLE_COVERAGE
+ARG TARGETARCH
 ENV VERSION=${VERSION}
 ENV GIT_COMMIT=${GIT_COMMIT}
 ENV BUILD_DATE=${BUILD_DATE}
+ENV TARGETARCH=${TARGETARCH}
 
 # Download SDK dependencies (cached by go.mod/go.sum changes)
 COPY --from=sdk go.mod go.sum /api-platform/sdk/
@@ -98,26 +102,27 @@ COPY --from=sdk . /api-platform/sdk
 COPY --from=common . /api-platform/common
 COPY --from=system-policies . /workspace/system-policies/
 COPY --from=dev-policies . /workspace/policies/dev-policies/
-COPY --from=target build.yaml /workspace/policies/policy-manifest.yaml
+COPY --from=target build.yaml /workspace/policies/build.yaml
 
 RUN mkdir -p /workspace/output
 
 WORKDIR /workspace
 
-# Run gateway builder with manifest, conditionally enable coverage
+# Run gateway builder with build file, conditionally enable coverage
 # Cache mounts let the builder's internal go build reuse compiled packages
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     [ "$ENABLE_COVERAGE" = "true" ] && export COVERAGE=true || true; \
     /usr/local/bin/gateway-builder \
-        -manifest /workspace/policies/policy-manifest.yaml \
-        -system-manifest-lock /workspace/system-policies/system-policy-manifest-lock.yaml \
+        -build-file /workspace/policies/build.yaml \
+        -system-build-lock /workspace/system-policies/system-build-lock.yaml \
         -policy-engine-src /api-platform/gateway/gateway-runtime/policy-engine \
         -out-dir /workspace/output
 
 # Stage 3: Runtime
 FROM envoyproxy/envoy:v1.35.3
 
+ARG VERSION=unknown
 ARG ENABLE_COVERAGE=false
 
 USER root
@@ -136,12 +141,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN mkdir -p /app /var/run/api-platform /coverage
 
-COPY --from=policy-compiler /workspace/output/policy-engine/policy-engine /app/policy-engine
+COPY --from=policy-compiler /workspace/output/gateway-runtime/policy-engine /app/policy-engine
 COPY router/config/envoy-bootstrap.yaml /etc/envoy/envoy.yaml
 COPY router/config/config-override.yaml /etc/envoy/config-override.yaml
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY health-check.sh /usr/local/bin/health-check.sh
 
-RUN chmod +x /app/policy-engine /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /app/policy-engine /usr/local/bin/docker-entrypoint.sh /usr/local/bin/health-check.sh
 
 RUN groupadd -r -g 10001 wso2 && \
     useradd -r -u 10001 -g wso2 -s /sbin/nologin -c "WSO2 Application User" wso2 && \
@@ -157,5 +163,11 @@ ENV GATEWAY_CONTROLLER_HOST=gateway-controller \
 USER wso2
 
 EXPOSE 8080 8443 9901 9002 9003
+
+# Metadata labels
+LABEL org.opencontainers.image.title="API Platform Gateway Runtime"
+LABEL org.opencontainers.image.description="API Platform Gateway Runtime with Envoy Router and Policy Engine"
+LABEL org.opencontainers.image.vendor="WSO2"
+LABEL org.opencontainers.image.version="${VERSION}"
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

@@ -43,8 +43,6 @@ type ConfigStore struct {
 	// API Keys storage
 	apiKeysByAPI map[string]map[string]*models.APIKey // Key: configID → Value: map[keyID]*APIKey
 
-	externalKeyIndex map[string]map[string]*string // Key: configID → Value: map[indexKey]*string
-
 	// Labels storage
 	labelsByAPI map[string]map[string]string // Key: API handle (metadata.name) → Value: labels map
 }
@@ -60,7 +58,6 @@ func NewConfigStore() *ConfigStore {
 		templates:          make(map[string]*models.StoredLLMProviderTemplate),
 		templateIdByHandle: make(map[string]string),
 		apiKeysByAPI:       make(map[string]map[string]*models.APIKey),
-		externalKeyIndex:   make(map[string]map[string]*string),
 		labelsByAPI:        make(map[string]map[string]string),
 	}
 }
@@ -241,7 +238,7 @@ func (cs *ConfigStore) Get(id string) (*models.StoredConfig, error) {
 
 	cfg, exists := cs.configs[id]
 	if !exists {
-		return nil, fmt.Errorf("configuration with ID '%s' not found", id)
+		return nil, fmt.Errorf("%w: id=%s", ErrNotFound, id)
 	}
 	return cfg, nil
 }
@@ -254,12 +251,12 @@ func (cs *ConfigStore) GetByNameVersion(name, version string) (*models.StoredCon
 	key := fmt.Sprintf("%s:%s", name, version)
 	configID, exists := cs.nameVersion[key]
 	if !exists {
-		return nil, fmt.Errorf("configuration with name '%s' and version '%s' not found", name, version)
+		return nil, fmt.Errorf("%w: name=%s, version=%s", ErrNotFound, name, version)
 	}
 
 	cfg, exists := cs.configs[configID]
 	if !exists {
-		return nil, fmt.Errorf("configuration with name '%s' and version '%s' not found", name, version)
+		return nil, fmt.Errorf("%w: name=%s, version=%s", ErrNotFound, name, version)
 	}
 	return cfg, nil
 }
@@ -272,16 +269,16 @@ func (cs *ConfigStore) GetByHandle(handle string) (*models.StoredConfig, error) 
 	key := fmt.Sprintf("%s", handle)
 	configID, exists := cs.handle[key]
 	if !exists {
-		return nil, fmt.Errorf("configuration with handle '%s' not found", handle)
+		return nil, fmt.Errorf("%w: handle=%s", ErrNotFound, handle)
 	}
 
 	cfg, exists := cs.configs[configID]
 	if !exists {
-		return nil, fmt.Errorf("configuration with handle '%s' not found", handle)
+		return nil, fmt.Errorf("%w: handle=%s", ErrNotFound, handle)
 	}
 
 	if cfg.GetHandle() != handle {
-		return nil, fmt.Errorf("configuration with handle '%s' not found", handle)
+		return nil, fmt.Errorf("%w: handle=%s", ErrNotFound, handle)
 	}
 	return cfg, nil
 }
@@ -528,25 +525,9 @@ func (cs *ConfigStore) StoreAPIKey(apiKey *models.APIKey) error {
 	}
 
 	if existingKeyID != "" {
-		// Remove old external index entry using the previous key's IndexKey (avoid leaking stale entries after rotation)
-		oldEntry := cs.apiKeysByAPI[apiKey.APIId][existingKeyID]
-		if oldEntry != nil && oldEntry.Source == "external" && oldEntry.IndexKey != nil {
-			if extIndex, ok := cs.externalKeyIndex[apiKey.APIId]; ok && extIndex != nil {
-				delete(extIndex, *oldEntry.IndexKey)
-			}
-		}
 		// Update the existing entry in apiKeysByAPI
 		delete(cs.apiKeysByAPI[apiKey.APIId], existingKeyID)
 		cs.apiKeysByAPI[apiKey.APIId][apiKey.ID] = apiKey // in API key rotation scenario apiKey.ID = existingKeyID
-		if apiKey.Source == "external" {
-			if apiKey.IndexKey == nil {
-				return fmt.Errorf("external API key must have IndexKey set")
-			}
-			if cs.externalKeyIndex[apiKey.APIId] == nil {
-				cs.externalKeyIndex[apiKey.APIId] = make(map[string]*string)
-			}
-			cs.externalKeyIndex[apiKey.APIId][*apiKey.IndexKey] = &apiKey.ID
-		}
 	} else {
 		// Insert new API key
 		// Check if API key ID already exists
@@ -559,22 +540,8 @@ func (cs *ConfigStore) StoreAPIKey(apiKey *models.APIKey) error {
 			cs.apiKeysByAPI[apiKey.APIId] = make(map[string]*models.APIKey)
 		}
 
-		// Initialize the map for this API ID if it doesn't exist
-		if cs.externalKeyIndex[apiKey.APIId] == nil {
-			cs.externalKeyIndex[apiKey.APIId] = make(map[string]*string)
-		}
-
-		// Store API key by API ID and API key ID and externalKeyIndex
+		// Store API key by API ID and API key ID
 		cs.apiKeysByAPI[apiKey.APIId][apiKey.ID] = apiKey
-		if apiKey.Source == "external" {
-			if apiKey.IndexKey == nil {
-				return fmt.Errorf("external API key must have IndexKey set")
-			}
-			if cs.externalKeyIndex[apiKey.APIId] == nil {
-				cs.externalKeyIndex[apiKey.APIId] = make(map[string]*string)
-			}
-			cs.externalKeyIndex[apiKey.APIId][*apiKey.IndexKey] = &apiKey.ID
-		}
 	}
 
 	return nil
@@ -659,16 +626,9 @@ func (cs *ConfigStore) RemoveAPIKeyByID(apiId, id string) error {
 	if !exists {
 		return ErrNotFound
 	}
-	apiKey, exists := apiKeys[id]
+	_, exists = apiKeys[id]
 	if !exists {
 		return ErrNotFound
-	}
-
-	// Remove from external key index before removing from apiKeysByAPI (need apiKey while still in map)
-	if apiKey != nil && apiKey.Source == "external" && apiKey.IndexKey != nil {
-		if extIndex, ok := cs.externalKeyIndex[apiId]; ok {
-			delete(extIndex, *apiKey.IndexKey)
-		}
 	}
 
 	// Remove from apiKeysByAPI map
@@ -677,9 +637,6 @@ func (cs *ConfigStore) RemoveAPIKeyByID(apiId, id string) error {
 	// Clean up empty maps
 	if len(cs.apiKeysByAPI[apiId]) == 0 {
 		delete(cs.apiKeysByAPI, apiId)
-	}
-	if extIndex, ok := cs.externalKeyIndex[apiId]; ok && len(extIndex) == 0 {
-		delete(cs.externalKeyIndex, apiId)
 	}
 
 	return nil
@@ -697,7 +654,6 @@ func (cs *ConfigStore) RemoveAPIKeysByAPI(apiId string) error {
 
 	// Remove from API-specific map
 	delete(cs.apiKeysByAPI, apiId)
-	delete(cs.externalKeyIndex, apiId)
 	return nil
 }
 

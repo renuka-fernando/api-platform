@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
 )
 
@@ -89,16 +90,39 @@ func TestMapUpstreamConfigToDTO_DoesNotExposeAuthValue(t *testing.T) {
 	}
 
 	out := mapUpstreamConfigToDTO(in)
-	if out.Main == nil || out.Main.Auth == nil {
+	if out.Main.Auth == nil {
 		t.Fatalf("expected main auth to be present")
 	}
-	if out.Main.Auth.Value != "" {
+	if out.Main.Auth.Value != nil && *out.Main.Auth.Value != "" {
 		t.Fatalf("expected main auth value to be redacted")
 	}
 	if out.Sandbox == nil || out.Sandbox.Auth == nil {
 		t.Fatalf("expected sandbox auth to be present")
 	}
-	if out.Sandbox.Auth.Value != "" {
+	if out.Sandbox.Auth.Value != nil && *out.Sandbox.Auth.Value != "" {
 		t.Fatalf("expected sandbox auth value to be redacted")
 	}
+}
+
+func TestValidateLLMResourceLimit(t *testing.T) {
+	t.Run("below limit should pass", func(t *testing.T) {
+		err := validateLLMResourceLimit(4, constants.MaxLLMProvidersPerOrganization, constants.ErrLLMProviderLimitReached)
+		if err != nil {
+			t.Fatalf("expected no error below limit, got: %v", err)
+		}
+	})
+
+	t.Run("at limit should fail", func(t *testing.T) {
+		err := validateLLMResourceLimit(5, constants.MaxLLMProvidersPerOrganization, constants.ErrLLMProviderLimitReached)
+		if err != constants.ErrLLMProviderLimitReached {
+			t.Fatalf("expected ErrLLMProviderLimitReached, got: %v", err)
+		}
+	})
+
+	t.Run("above limit should fail", func(t *testing.T) {
+		err := validateLLMResourceLimit(6, constants.MaxLLMProxiesPerOrganization, constants.ErrLLMProxyLimitReached)
+		if err != constants.ErrLLMProxyLimitReached {
+			t.Fatalf("expected ErrLLMProxyLimitReached, got: %v", err)
+		}
+	})
 }

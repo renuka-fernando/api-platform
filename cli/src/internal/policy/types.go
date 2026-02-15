@@ -18,29 +18,29 @@
 
 package policy
 
-// PolicyManifest represents the build.yaml structure (policy manifest)
-type PolicyManifest struct {
-	Version           string           `yaml:"version"`
-	VersionResolution string           `yaml:"versionResolution,omitempty"`
-	Policies          []ManifestPolicy `yaml:"policies"`
-	Gateway           GatewayConfig    `yaml:"gateway"`
+// BuildFile represents the build.yaml structure
+type BuildFile struct {
+	Version           string            `yaml:"version"`
+	VersionResolution string            `yaml:"versionResolution,omitempty"`
+	Policies          []BuildFilePolicy `yaml:"policies"`
+	Gateway           GatewayConfig     `yaml:"gateway"`
 }
 
-// GatewayConfig represents the gateway configuration in the manifest
+// GatewayConfig represents the gateway configuration in the build file
 type GatewayConfig struct {
 	Version string        `yaml:"version"`
 	Images  GatewayImages `yaml:"images,omitempty"`
 }
 
-// GatewayImages represents optional custom image paths in the manifest
+// GatewayImages represents optional custom image paths in the build file
 type GatewayImages struct {
 	Builder    string `yaml:"builder,omitempty"`
 	Controller string `yaml:"controller,omitempty"`
-	Router     string `yaml:"router,omitempty"`
+	Runtime    string `yaml:"runtime,omitempty"`
 }
 
-// ManifestPolicy represents a policy entry in the manifest
-type ManifestPolicy struct {
+// BuildFilePolicy represents a policy entry in the build file
+type BuildFilePolicy struct {
 	Name              string `yaml:"name"`
 	Version           string `yaml:"version,omitempty"`
 	VersionResolution string `yaml:"versionResolution,omitempty"`
@@ -48,12 +48,12 @@ type ManifestPolicy struct {
 }
 
 // IsLocal returns true if the policy is a local policy (has filePath)
-func (p *ManifestPolicy) IsLocal() bool {
+func (p *BuildFilePolicy) IsLocal() bool {
 	return p.FilePath != ""
 }
 
 // GetVersionResolution returns the version resolution strategy for this policy
-func (p *ManifestPolicy) GetVersionResolution(rootResolution string) string {
+func (p *BuildFilePolicy) GetVersionResolution(rootResolution string) string {
 	if p.VersionResolution != "" {
 		return p.VersionResolution
 	}
@@ -63,7 +63,7 @@ func (p *ManifestPolicy) GetVersionResolution(rootResolution string) string {
 	return "exact" // default
 }
 
-// PolicyLock represents the policy-manifest-lock.yaml structure
+// PolicyLock represents the build-lock.yaml structure
 type PolicyLock struct {
 	Version  string       `yaml:"version"`
 	Policies []LockPolicy `yaml:"policies"`
@@ -84,5 +84,5 @@ type ProcessedPolicy struct {
 	Source    string // "hub" or "local"
 	LocalPath string // Path to the policy (zip or directory)
 	IsLocal   bool
-	FilePath  string // Original filePath from manifest (for local policies)
+	FilePath  string // Original filePath from build file (for local policies)
 }

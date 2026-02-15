@@ -17,7 +17,7 @@
 # --------------------------------------------------------------------
 
 # Gateway Builder Image
-FROM --platform=$BUILDPLATFORM golang:1.25.5-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.7-bookworm AS builder
 ARG TARGETARCH
 
 # Build arguments for version information
@@ -25,10 +25,11 @@ ARG VERSION=0.0.1-SNAPSHOT
 ARG GIT_COMMIT=unknown
 
 # Install build dependencies
-RUN apk add --no-cache \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
-    upx \
     ca-certificates
 
 # Set working directory
@@ -68,13 +69,14 @@ RUN CGO_ENABLED=0 \
     -o /usr/local/bin/gateway-builder \
     ./cmd/builder
 
-FROM golang:1.25.5-alpine3.23
+FROM golang:1.25.7-bookworm
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
-    upx \
     ca-certificates
 
 # Copy the compiled binary from builder stage
@@ -89,9 +91,9 @@ COPY --from=sdk . /api-platform/sdk
 # Set working directory
 WORKDIR /workspace
 
-# Set entrypoint to builder binary with system manifest lock
+# Set entrypoint to builder binary with system build lock
 ENTRYPOINT [ \
     "/usr/local/bin/gateway-builder", \
-    "-system-manifest-lock", \
-    "/api-platform/gateway/system-policies/system-policy-manifest-lock.yaml" \
+    "-system-build-lock", \
+    "/api-platform/gateway/system-policies/system-build-lock.yaml" \
 ]

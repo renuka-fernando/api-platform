@@ -25,13 +25,14 @@ import (
 // Events are sent over the WebSocket connection to notify gateways of
 // platform-side changes that require gateway action (e.g., API deployment).
 type GatewayEvent struct {
-	// Type identifies the event category (e.g., "api.deployed", "api.undeployed")
+	// Type identifies the event category (e.g., "api.deployed", "api.undeployed", "api.deleted")
 	Type string `json:"type"`
 
 	// Payload contains event-specific data as raw JSON.
 	// The structure depends on the event type:
 	//   - "api.deployed": DeploymentEvent
 	//   - "api.undeployed": APIUndeploymentEvent
+	//   - "api.deleted": APIDeletionEvent
 	//   - "gateway.config.updated": GatewayConfigEvent
 	Payload json.RawMessage `json:"payload"`
 
@@ -51,14 +52,11 @@ type DeploymentEvent struct {
 	// ApiId identifies the deployed API
 	ApiId string `json:"apiId"`
 
-	// RevisionID identifies the specific API revision
-	RevisionID string `json:"revisionId"`
+	// DeploymentID identifies the specific API deployment
+	DeploymentID string `json:"deploymentId"`
 
 	// Vhost specifies the virtual host where the API is deployed
 	Vhost string `json:"vhost"`
-
-	// Environment specifies the deployment environment (e.g., "production", "sandbox")
-	Environment string `json:"environment"`
 }
 
 // APIUndeploymentEvent contains payload data for "api.undeployed" event type.
@@ -69,9 +67,16 @@ type APIUndeploymentEvent struct {
 
 	// Vhost specifies the virtual host from which the API is undeployed
 	Vhost string `json:"vhost"`
+}
 
-	// Environment specifies the deployment environment
-	Environment string `json:"environment"`
+// APIDeletionEvent contains payload data for "api.deleted" event type.
+// This event is sent when an API is permanently deleted from the platform.
+type APIDeletionEvent struct {
+	// ApiId identifies the deleted API
+	ApiId string `json:"apiId"`
+
+	// Vhost specifies the virtual host from which the API should be removed
+	Vhost string `json:"vhost"`
 }
 
 // LLMProviderDeploymentEvent contains payload data for "llmprovider.deployed" event type.

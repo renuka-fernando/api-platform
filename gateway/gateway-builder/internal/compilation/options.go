@@ -36,6 +36,14 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 		enableCoverage = true
 	}
 
+	// Determine target architecture:
+	// 1. Use TARGETARCH env var if set (Docker buildx cross-compilation)
+	// 2. Fall back to runtime.GOARCH (native build)
+	targetArch := os.Getenv("TARGETARCH")
+	if targetArch == "" {
+		targetArch = runtime.GOARCH
+	}
+
 	// Generate ldflags for build metadata injection
 	// Pass enableCoverage to avoid stripping debug info needed for coverage
 	ldflags := generateLDFlags(buildMetadata, enableCoverage)
@@ -47,7 +55,7 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 		BuildTags:      []string{},
 		CGOEnabled:     false, // Static binary
 		TargetOS:       "linux",
-		TargetArch:     runtime.GOARCH, // Use native architecture
+		TargetArch:     targetArch,
 		EnableCoverage: enableCoverage,
 	}
 }

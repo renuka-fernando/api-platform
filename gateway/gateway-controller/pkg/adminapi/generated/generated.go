@@ -86,6 +86,15 @@ type ErrorResponse struct {
 	Status  string `json:"status" yaml:"status"`
 }
 
+// HealthResponse defines model for HealthResponse.
+type HealthResponse struct {
+	// Status Health status ("healthy")
+	Status *string `json:"status,omitempty" yaml:"status,omitempty"`
+
+	// Timestamp Timestamp of the health check
+	Timestamp *time.Time `json:"timestamp,omitempty" yaml:"timestamp,omitempty"`
+}
+
 // XDSSyncStatusResponse defines model for XDSSyncStatusResponse.
 type XDSSyncStatusResponse struct {
 	Component *string `json:"component,omitempty" yaml:"component,omitempty"`
@@ -98,25 +107,27 @@ type XDSSyncStatusResponse struct {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xX32/kNBD+VyzDA0jb3aUnHi5vS4tOFZyobk8CiVaVG092fTi2scflomr/dzSOk2ya",
-	"9BcCdE+X84zHM9988832npe2dtaAwcCLex7KPdQifZ6BR1WpUiB8gOCsCUDHzltHFkhOpY0G6QMbB7zg",
-	"yiDswPPDgit5dB7QK7NLxyFE8LMmI2qYN1jcVNjeqqyvBfKCS4FwgqoGvpjeCCgwhtlgId5+ghJnbIc+",
-	"kG1dDgt+Zk2lduexdpvLiwuEmu5JCKVXDpU1vOCbywumEGqmDCuTO5Oxdsx3qC0moJFT9KINcM+FlIq+",
-	"hb48ckQfYSajFtcehhiVnEOgBhRSoCDnrz1UvOBfrYZmr3KnV6MC33eXnsfi/VH8MR6dhVXWswTOCJcp",
-	"HB4Egtzgy9srwWnbvO7OQAkwsebF79yBkWQc4vEFr4TS6SOa/vR6Jlx08nVZP43o4yMmnEr/EsXCq7qZ",
-	"6Do8K7wXDf2/HCb7FZFn5GAmtrNalepB3Ffx+2FE6psKqMowxQYtCr3JAE0lKJmPEv+hyRU/7/qU2+VR",
-	"jQ9d5rr8hBgRVQKK2r2cx59luAmNKV9Ohd/Ot1u68AwFO7fJQH8+3zJ6kXWawpQpdZQgnxvtxIbmptwL",
-	"ZW7uwIcseOP4PxPeyFpnlpxZdmYu3moV9iDZbcNwD/Qceqs1+JeN2I/eW//4dNUQgtjNr51H+3ZYcA9/",
-	"RuVBko5kv0Uf7Homj4zuNvk+tVBzI2cz+p/x/Af8nLaAjpSpbN58KNrd2y57/uv2l9O0JC61QHqAfQRR",
-	"txo/WrKyVmYl4TbukjvtlncC4S/RsLO+hOWVuTIf9xCAgZHOKoOBCQ8sgL8DyaxJNUuQacglExS2tXrm",
-	"rEf2jYRKRI0Fe7t+e/rt8spQkQo1ZTt9kaXEKCW+4H1H+HfL9XJNVVgHRjjFC/5muV6+oQkRuE+tXrWT",
-	"c5Mmp7jnO8BpLz8AegV3kHtVOw0IrIzeg0FGzANmq2SdSa6dU2V2xZU5YRutWbfTEoijHyKhc9FW0Ghn",
-	"+kiolFEjBw87FRA8SHa8Ssi8bQL9Emonggkje81IOBLT02MXktAEHNSH00y1U5HQOV2vO8bkaRDOaXpJ",
-	"WbP6FFrit2L3cikcVtdhQrGzHt1jWFphOyz49/9iQmNRmsnlwiB4I3RHTaALabpCrGvhG15wqqdnwjjn",
-	"xAvirdgFUqi2LfyaAqy6BXIz6Ntj1IvehJZ5+ZmRptBe6HXFWxnLQVZ2mYzl8WzOMWCki/8lCeYFeI4H",
-	"A6TdHFGlufS0CDNyXyIr3gE+lu4cH+huCkbnk0ViS0GScQfaupowOdZL+o3sNS/4HtEVq5Um770NWJBy",
-	"8sPiYbhzW/4BfvVTvAVvACE8GS4z6GRoQ4573dfx8IGsPnsQGvdJfbIQ9cuAd39ldhAcrg9/BwAA///9",
-	"Was7BA8AAA==",
+	"H4sIAAAAAAAC/8xY0W/bthP+Vwj+fg8t4NpZiz1Ub14ytMZWzKgDbMAcBLR4tthKJEee0hqB//fhKEqy",
+	"LMZJinXYU1XyeLz77rvv6Nzz3FTWaNDoeXbPfV5AJcLnJThUW5ULhI/grdEeaNk6Y2kHglFuao30gXsL",
+	"PONKI+zA8cOEK3m07tEpvQvL3tfgkltaVJDeMDjfYnNqa1wlkGdcCoRXqCrgk/EJjwJrn3Tm680nyDGx",
+	"d+gcmcbkMOGXRm/V7qqu7Hy5WCBUdE6Cz52yqIzmGZ8vF0whVExplgdzJuvKMteiNhmBRka1E42Dey6k",
+	"VPQtyuWRIboaEhE1uHYw1LWSKQQqQCEFCjL+v4Mtz/j/Zn2xZ7HSs0GCH9pDj2Px4cj/EI92h22NYwGc",
+	"AS5jOBwIBDnHp5dXgi3N/nlnekqAriue/cktaEmbvT8+4VuhyvBR6271JuGutvJ5UZ9H9OEWE1aFf4li",
+	"/lnVDHTtrxXOiT39P+87+xmeE3KQ8G1NqXJ14vdZ/D71SHVTHlXux9igQVHOI0BjCQrbR4H/tI8ZP256",
+	"zmx5lOOpSarKZ8SIqOJRVPbpPP4q/a3f6/zpVPjjarWiA49QsDUbNfTXqxWjG1mrKUzpvKwlyMdaO7Bh",
+	"f5sXQunbO3A+Ct7Q/6+EN7LGmAVjFo2ZrTel8gVIttkzLICuQ2fKEtzTWuxn54x7uLsq8F7s0mPnwbod",
+	"JtzBX7VyIElHot2kc3aTiOM9iBKLhwPpLxuC05xjzTZ7seZFWNiv+csUOwaEGnq6breY2QYoG08sLyD/",
+	"TMr3jSIWebMKEZ57KkSKJrH+l5nyDZ03Tp2WlN6aONNRNK+K5hnDf1/99jqMv2UpkC5g1yCqZnoNng+y",
+	"UnomYVPvgjlNzXcC4YvYs8suhelar/V1AR4YaGmN0uiZcMA8uDuQzOiQswQZ5EsyQW6bXcesccheSNiK",
+	"usSMvb14+/rldK0pSYUlRTu+kYXAKCQ+4V1F+A/Ti+kFZWEsaGEVz/ib6cX0DfW+wCKUetZowm3QhOye",
+	"7wDHtfwI6BTcQaxVZUtAYHntHGgMfIeWqIngGgVSepet9Ss2L0vWTusA4uCJ5VuT0ggSrUgfCVul1cDA",
+	"wU55BAeSHQ9J2l7tPb3xYh8KLTs1DDgS08NlC0loAva6ykktmq4I6Ly+uGgZE7tBWFvSTcro2SffEL+R",
+	"8aeLfD+UDyOKXXboHsPSSPZhwn/8BwMaym0iloVGcFqULTWBDoTu8nVVCbfnGad8OiYMYw68IN6KnSft",
+	"bcrCb8jBrBG0c4yrnfbH2hfLGXm2izzLj9vuulC+6zmmPNMGWfwRwdCwxZJ9KRRCqTzSmx+dygOpmDcM",
+	"C4FrfWXyz+ACaX6pN+A0IPg2BOvMBjzLhWYORF4whdM0pZpR8D3pdDKkEuV7N4KIIIkz6aSM74fzJVmy",
+	"9jVz28+/R2vXMmMwBuiR0o0CZ2Sd95MgWdcUwoNR9j2BTs/MVOv2XdDiTZnG1MOrLCL3X2zkd4APhZvi",
+	"A50Nzmh9NPtNLkjl76A0tiJMjkcc/WBzJc94gWiz2awk68J4zGjY8cPk1F3Tk7OjfjznLjLoVV+G6Pem",
+	"y+P0gjgwYpdT70ex6eY3b//k0UJwuDn8HQAA//85THMrkREAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

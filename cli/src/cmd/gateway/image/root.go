@@ -24,14 +24,17 @@ import (
 
 const (
 	ImageCmdLiteral = "image"
-	ImageCmdExample = `# Build gateway image
-ap gateway image build --image-tag v0.2.0-policy1
+	ImageCmdExample = `# Build gateway image (uses current directory)
+ap gateway image build
 
-# Build with custom manifest file
-ap gateway image build --image-tag v0.2.0 -f custom-manifest.yaml
+# Build with custom name
+ap gateway image build --name my-gateway
 
-# Build in offline mode
-ap gateway image build --image-tag v0.2.0 --offline`
+# Build with custom path containing build files
+ap gateway image build --name my-gateway --path ./my-policies
+
+# Build and push to registry
+ap gateway image build --name my-gateway --push --repository myregistry`
 )
 
 // ImageCmd represents the image command
