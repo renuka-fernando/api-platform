@@ -328,7 +328,7 @@ func TestGenerateLLMProviderDeploymentYAML_WithSecurityAndAdditionalPolicy(t *te
 		t.Fatalf("expected api-key-auth path /*")
 	}
 
-	guardrailPolicy := findPolicy(out.Spec.Policies, "word-count-guardrail", "0.1")
+	guardrailPolicy := findPolicy(out.Spec.Policies, "word-count-guardrail", "v0")
 	if guardrailPolicy == nil {
 		t.Fatalf("expected word-count-guardrail policy to exist")
 	}
@@ -356,6 +356,56 @@ func TestGenerateLLMProviderDeploymentYAML_WithSecurityAndAdditionalPolicy(t *te
 	}
 	if response["showAssessment"] != false {
 		t.Fatalf("expected response.showAssessment=false, got: %#v", response["showAssessment"])
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_NormalizesPolicyVersionToMajor(t *testing.T) {
+	provider := &model.LLMProvider{
+		ID:      "tt",
+		Name:    "tt",
+		Version: "v1.0",
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{URL: "https://api.openai.com"},
+			},
+			Policies: []model.LLMPolicy{
+				{
+					Name:    "policy-a",
+					Version: "0.1.0",
+					Paths: []model.LLMPolicyPath{{
+						Path:    "/*",
+						Methods: []string{"GET"},
+					}},
+				},
+				{
+					Name:    "policy-b",
+					Version: "v10.2.3",
+					Paths: []model.LLMPolicyPath{{
+						Path:    "/chat",
+						Methods: []string{"POST"},
+					}},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if findPolicy(out.Spec.Policies, "policy-a", "v0") == nil {
+		t.Fatalf("expected policy-a version to be normalized to v0")
+	}
+	if findPolicy(out.Spec.Policies, "policy-b", "v10") == nil {
+		t.Fatalf("expected policy-b version to be normalized to v10")
 	}
 }
 

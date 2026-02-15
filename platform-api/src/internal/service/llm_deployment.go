@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"platform-api/src/api"
@@ -767,7 +768,7 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 			}
 			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: normalizePolicyVersionToMajor(p.Version), Paths: paths})
 	}
 
 	upstream := dto.LLMUpstreamYAML{URL: main.URL, Ref: main.Ref}
@@ -821,6 +822,39 @@ func formatRateLimitDuration(duration int, unit string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported reset unit: %q", unit)
 	}
+}
+
+func normalizePolicyVersionToMajor(version string) string {
+	trimmedVersion := strings.TrimSpace(version)
+	if trimmedVersion == "" {
+		return trimmedVersion
+	}
+
+	versionWithoutPrefix := trimmedVersion
+	if strings.HasPrefix(strings.ToLower(versionWithoutPrefix), "v") {
+		versionWithoutPrefix = versionWithoutPrefix[1:]
+	}
+	if versionWithoutPrefix == "" {
+		return trimmedVersion
+	}
+
+	majorVersion := versionWithoutPrefix
+	if idx := strings.Index(majorVersion, "."); idx >= 0 {
+		majorVersion = majorVersion[:idx]
+	}
+	if idx := strings.Index(majorVersion, "-"); idx >= 0 {
+		majorVersion = majorVersion[:idx]
+	}
+	majorVersion = strings.TrimSpace(majorVersion)
+	if majorVersion == "" {
+		return trimmedVersion
+	}
+
+	if _, err := strconv.Atoi(majorVersion); err != nil {
+		return trimmedVersion
+	}
+
+	return "v" + majorVersion
 }
 
 func addOrAppendPolicyPath(policies *[]api.LLMPolicy, name, version string, path api.LLMPolicyPath) {
@@ -1243,7 +1277,7 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 			}
 			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: normalizePolicyVersionToMajor(p.Version), Paths: paths})
 	}
 
 	proxyDeployment := dto.LLMProxyDeploymentYAML{
