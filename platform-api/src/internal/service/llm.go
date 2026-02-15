@@ -447,7 +447,8 @@ func (s *LLMProviderService) Update(orgUUID, handle string, req *api.LLMProvider
 		},
 	}
 
-	// Preserve stored upstream auth credential when not supplied in update payload
+	// Preserve stored upstream auth credential only when auth object is provided with an empty value.
+	// If auth object is omitted, treat it as explicit removal and clear stored auth.
 	m.Configuration.Upstream = preserveUpstreamAuthValue(existing.Configuration.Upstream, m.Configuration.Upstream)
 
 	if err := s.repo.Update(m); err != nil {
@@ -820,11 +821,6 @@ func preserveUpstreamAuthValue(existing, updated *model.UpstreamConfig) *model.U
 		return updated
 	}
 	if updated.Main.Auth == nil {
-		updated.Main.Auth = &model.UpstreamAuth{
-			Type:   existing.Main.Auth.Type,
-			Header: existing.Main.Auth.Header,
-			Value:  existing.Main.Auth.Value,
-		}
 		return updated
 	}
 	if updated.Main.Auth.Value == "" {
