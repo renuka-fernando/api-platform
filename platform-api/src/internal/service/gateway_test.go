@@ -303,54 +303,28 @@ func TestHashToken(t *testing.T) {
 	}
 }
 
-// TestVerifyToken tests token verification without salt
-func TestVerifyToken(t *testing.T) {
+// TestHashTokenMatchesProduction tests that hashToken produces consistent results for token lookup
+func TestHashTokenMatchesProduction(t *testing.T) {
 	token := "test-token-12345"
 	hash := hashToken(token)
 
-	tests := []struct {
-		name       string
-		plainToken string
-		storedHash string
-		wantValid  bool
-	}{
-		{
-			name:       "valid token",
-			plainToken: token,
-			storedHash: hash,
-			wantValid:  true,
-		},
-		{
-			name:       "wrong token",
-			plainToken: "wrong-token-12345",
-			storedHash: hash,
-			wantValid:  false,
-		},
-		{
-			name:       "empty token",
-			plainToken: "",
-			storedHash: hash,
-			wantValid:  false,
-		},
-		{
-			name:       "invalid hash hex",
-			plainToken: token,
-			storedHash: "not-hex",
-			wantValid:  false,
-		},
+	// Same token should produce same hash (used for DB lookup in VerifyToken)
+	if hashToken(token) != hash {
+		t.Error("hashToken() not deterministic")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			valid := verifyToken(tt.plainToken, tt.storedHash)
-			if valid != tt.wantValid {
-				t.Errorf("verifyToken() = %v, want %v", valid, tt.wantValid)
-			}
-		})
+	// Wrong token should produce different hash
+	if hashToken("wrong-token-12345") == hash {
+		t.Error("hashToken() same hash for different tokens")
+	}
+
+	// Empty token should produce different hash
+	if hashToken("") == hash {
+		t.Error("hashToken() same hash for empty and non-empty token")
 	}
 }
 
-// TestTokenHashingRoundTrip tests full token hashing and verification cycle
+// TestTokenHashingRoundTrip tests full token generation and hash lookup cycle
 func TestTokenHashingRoundTrip(t *testing.T) {
 	// Generate token
 	token, err := generateToken()
@@ -358,22 +332,24 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		t.Fatalf("generateToken() error = %v", err)
 	}
 
-	// Hash token
-	hash := hashToken(token)
+	// Hash token (simulates what RotateToken stores in DB)
+	storedHash := hashToken(token)
 
-	// Verify token
-	if !verifyToken(token, hash) {
-		t.Error("verifyToken() failed for valid token in round-trip test")
+	// Re-hash same token (simulates what VerifyToken computes for lookup)
+	lookupHash := hashToken(token)
+
+	if storedHash != lookupHash {
+		t.Error("hashToken() round-trip failed: stored hash != lookup hash")
 	}
 
-	// Generate different token and verify it fails
+	// Different token should not match
 	differentToken, err := generateToken()
 	if err != nil {
 		t.Fatalf("generateToken() error = %v", err)
 	}
 
-	if verifyToken(differentToken, hash) {
-		t.Error("verifyToken() succeeded for invalid token")
+	if hashToken(differentToken) == storedHash {
+		t.Error("hashToken() different token produced same hash")
 	}
 }
 

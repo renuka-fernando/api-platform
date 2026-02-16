@@ -20,7 +20,6 @@ package service
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -582,18 +581,6 @@ func hashToken(plainToken string) string {
 	h.Write([]byte(plainToken))
 	tokenHash := h.Sum(nil)
 	return hex.EncodeToString(tokenHash)
-}
-
-// verifyToken performs constant-time comparison of plain token against stored hash
-func verifyToken(plainToken string, storedHashHex string) bool {
-	storedHash, err := hex.DecodeString(storedHashHex)
-	if err != nil {
-		return false
-	}
-	h := sha256.New()
-	h.Write([]byte(plainToken))
-	computedHash := h.Sum(nil)
-	return subtle.ConstantTimeCompare(computedHash, storedHash) == 1
 }
 
 // Mapping functions
