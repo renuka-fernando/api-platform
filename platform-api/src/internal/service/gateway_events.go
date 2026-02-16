@@ -119,6 +119,7 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 
 			// Update delivery statistics for this connection
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -194,6 +195,7 @@ func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, unde
 			log.Printf("[INFO] Undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -267,6 +269,7 @@ func (s *GatewayEventsService) BroadcastAPIDeletionEvent(gatewayID string, delet
 			log.Printf("[INFO] API deletion event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -341,6 +344,7 @@ func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID str
 			log.Printf("[INFO] LLM provider deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -414,6 +418,7 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 			log.Printf("[INFO] LLM provider undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -487,6 +492,7 @@ func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string
 			log.Printf("[INFO] LLM proxy deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -560,6 +566,7 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 			log.Printf("[INFO] LLM proxy undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
 				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -689,6 +696,7 @@ func (s *GatewayEventsService) broadcastAPIKeyCreated(gatewayID, userId string, 
 			log.Printf("[INFO] API key created event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
 				gatewayID, conn.ConnectionID, correlationID, event.Name)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -760,6 +768,7 @@ func (s *GatewayEventsService) broadcastAPIKeyRevoked(gatewayID, userId string, 
 			log.Printf("[INFO] API key revoked event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
 				gatewayID, conn.ConnectionID, correlationID, event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -861,6 +870,7 @@ func (s *GatewayEventsService) broadcastAPIKeyUpdated(gatewayID, userId string, 
 			log.Printf("[INFO] API key updated event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
 				gatewayID, conn.ConnectionID, correlationID, event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 

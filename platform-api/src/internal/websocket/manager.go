@@ -18,9 +18,11 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"platform-api/src/internal/repository"
@@ -67,6 +69,16 @@ type Manager struct {
 
 	// wg tracks active connection handler goroutines for graceful shutdown
 	wg sync.WaitGroup
+
+	// metricsLogEnabled controls whether periodic metrics logging is active
+	metricsLogEnabled bool
+	// metricsLogInterval is the duration between metrics log entries
+	metricsLogInterval time.Duration
+
+	// Atomic counters for metrics (reset each tick)
+	successfulConnections int64
+	failedConnections     int64
+	eventsSent            int64
 }
 
 // ManagerConfig contains configuration parameters for the connection manager
@@ -75,6 +87,8 @@ type ManagerConfig struct {
 	HeartbeatInterval    time.Duration // Ping interval (default 20s)
 	HeartbeatTimeout     time.Duration // Pong timeout (default 30s)
 	MaxConnectionsPerOrg int           // Maximum connections per organization (default 3)
+	MetricsLogEnabled    bool          // Enable periodic metrics logging (default true)
+	MetricsLogInterval   time.Duration // Interval between metrics log entries (default 10s)
 }
 
 type OrgConnectionStats struct {
@@ -90,13 +104,15 @@ func DefaultManagerConfig() ManagerConfig {
 		HeartbeatInterval:    20 * time.Second,
 		HeartbeatTimeout:     30 * time.Second,
 		MaxConnectionsPerOrg: 3,
+		MetricsLogEnabled:    true,
+		MetricsLogInterval:   10 * time.Second,
 	}
 }
 
 // NewManager creates a new connection manager with the provided configuration
 func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Manager{
+	mgr := &Manager{
 		connections:          sync.Map{},
 		connectionCount:      0,
 		maxConnections:       config.MaxConnections,
@@ -106,7 +122,13 @@ func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) 
 		gatewayRepo:          gatewayRepo,
 		shutdownCtx:          ctx,
 		shutdownFn:           cancel,
+		metricsLogEnabled:    config.MetricsLogEnabled,
+		metricsLogInterval:   config.MetricsLogInterval,
 	}
+	if mgr.metricsLogEnabled {
+		mgr.wg.Go(func() { mgr.startMetricsLogger() })
+	}
+	return mgr
 }
 
 // Register adds a new connection to the registry and starts heartbeat monitoring.
@@ -157,6 +179,8 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 
 	// Start heartbeat monitoring in background
 	m.wg.Go(func() { m.monitorHeartbeat(conn) })
+
+	m.IncrementSuccessfulConnections()
 
 	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d orgConnections=%d",
 		gatewayID, connectionID, orgID, m.GetConnectionCount(), m.countOrgConnections(orgID))
@@ -362,4 +386,73 @@ func (m *Manager) GetOrgConnectionStats(orgID string) OrgConnectionStats {
 // without actually adding it. Use this for pre-upgrade validation.
 func (m *Manager) CanAcceptOrgConnection(orgID string) bool {
 	return m.countOrgConnections(orgID) < m.maxConnectionsPerOrg
+}
+
+type metricsPayload struct {
+	From                  string `json:"from"`
+	To                    string `json:"to"`
+	TotalActiveConns      int    `json:"totalActiveConnections"`
+	TotalActiveOrgs       int    `json:"totalActiveOrgs"`
+	SuccessfulConnections int64  `json:"successfulConnections"`
+	FailedConnections     int64  `json:"failedConnections"`
+	EventsSent            int64  `json:"eventsSent"`
+}
+
+func (m *Manager) IncrementSuccessfulConnections() {
+	atomic.AddInt64(&m.successfulConnections, 1)
+}
+
+func (m *Manager) IncrementFailedConnections() {
+	atomic.AddInt64(&m.failedConnections, 1)
+}
+
+func (m *Manager) IncrementTotalEventsSent() {
+	atomic.AddInt64(&m.eventsSent, 1)
+}
+
+func (m *Manager) countActiveOrgs() int {
+	orgs := make(map[string]struct{})
+	m.connections.Range(func(key, value interface{}) bool {
+		conns := value.([]*Connection)
+		for _, conn := range conns {
+			orgs[conn.OrganizationID] = struct{}{}
+		}
+		return true
+	})
+	return len(orgs)
+}
+
+func (m *Manager) startMetricsLogger() {
+	ticker := time.NewTicker(m.metricsLogInterval)
+	defer ticker.Stop()
+
+	from := time.Now()
+
+	for {
+		select {
+		case <-m.shutdownCtx.Done():
+			return
+		case <-ticker.C:
+			to := time.Now()
+
+			payload := metricsPayload{
+				From:                  from.Format(time.RFC3339),
+				To:                    to.Format(time.RFC3339),
+				TotalActiveConns:      m.GetConnectionCount(),
+				TotalActiveOrgs:       m.countActiveOrgs(),
+				SuccessfulConnections: atomic.SwapInt64(&m.successfulConnections, 0),
+				FailedConnections:     atomic.SwapInt64(&m.failedConnections, 0),
+				EventsSent:            atomic.SwapInt64(&m.eventsSent, 0),
+			}
+
+			data, err := json.Marshal(payload)
+			if err != nil {
+				log.Printf("[ERROR] Failed to marshal WS metrics: %v", err)
+			} else {
+				log.Printf("[INFO] WS Metrics: %s", data)
+			}
+
+			from = to
+		}
+	}
 }
