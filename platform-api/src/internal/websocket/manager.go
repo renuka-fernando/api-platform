@@ -78,6 +78,7 @@ type Manager struct {
 	// Atomic counters for metrics (reset each tick)
 	successfulConnections int64
 	failedConnections     int64
+	disconnections        int64
 	eventsSent            int64
 }
 
@@ -234,6 +235,8 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	m.mu.Lock()
 	m.connectionCount--
 	m.mu.Unlock()
+
+	m.IncrementDisconnections()
 
 	log.Printf("[INFO] Gateway disconnected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d",
 		gatewayID, connectionID, removed.OrganizationID, m.GetConnectionCount())
@@ -395,6 +398,7 @@ type metricsPayload struct {
 	TotalActiveOrgs       int    `json:"totalActiveOrgs"`
 	SuccessfulConnections int64  `json:"successfulConnections"`
 	FailedConnections     int64  `json:"failedConnections"`
+	Disconnections        int64  `json:"disconnections"`
 	EventsSent            int64  `json:"eventsSent"`
 }
 
@@ -404,6 +408,10 @@ func (m *Manager) IncrementSuccessfulConnections() {
 
 func (m *Manager) IncrementFailedConnections() {
 	atomic.AddInt64(&m.failedConnections, 1)
+}
+
+func (m *Manager) IncrementDisconnections() {
+	atomic.AddInt64(&m.disconnections, 1)
 }
 
 func (m *Manager) IncrementTotalEventsSent() {
@@ -442,6 +450,7 @@ func (m *Manager) startMetricsLogger() {
 				TotalActiveOrgs:       m.countActiveOrgs(),
 				SuccessfulConnections: atomic.SwapInt64(&m.successfulConnections, 0),
 				FailedConnections:     atomic.SwapInt64(&m.failedConnections, 0),
+				Disconnections:        atomic.SwapInt64(&m.disconnections, 0),
 				EventsSent:            atomic.SwapInt64(&m.eventsSent, 0),
 			}
 
