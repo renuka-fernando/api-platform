@@ -126,6 +126,12 @@ func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) 
 		metricsLogEnabled:    config.MetricsLogEnabled,
 		metricsLogInterval:   config.MetricsLogInterval,
 	}
+	// Disable metrics logging if the interval is non-positive to prevent
+	// time.NewTicker from panicking.
+	if mgr.metricsLogInterval <= 0 {
+		mgr.metricsLogEnabled = false
+		log.Printf("[WARN] Metrics logging disabled: metricsLogInterval must be positive, got %v", mgr.metricsLogInterval)
+	}
 	if mgr.metricsLogEnabled {
 		mgr.wg.Go(func() { mgr.startMetricsLogger() })
 	}
