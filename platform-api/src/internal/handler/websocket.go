@@ -73,6 +73,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Check rate limit
 	if !h.checkRateLimit(clientIP) {
 		h.slogger.Warn("Rate limit exceeded for IP", "ip", clientIP)
+		h.manager.IncrementFailedConnections()
 		c.JSON(http.StatusTooManyRequests, utils.NewErrorResponse(429, "Too Many Requests",
 			"Connection rate limit exceeded. Please try again later."))
 		return
@@ -82,6 +83,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
 		h.slogger.Warn("WebSocket connection attempt without API key", "ip", clientIP)
+		h.manager.IncrementFailedConnections()
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -91,6 +93,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
 		h.slogger.Warn("WebSocket authentication failed", "ip", clientIP, "error", err)
+		h.manager.IncrementFailedConnections()
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -101,6 +104,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 		stats := h.manager.GetOrgConnectionStats(gateway.OrganizationID)
 		h.slogger.Warn("Organization connection limit exceeded", "orgID", gateway.OrganizationID,
 			"count", stats.CurrentCount, "max", stats.MaxAllowed)
+		h.manager.IncrementFailedConnections()
 		c.JSON(http.StatusTooManyRequests, utils.NewErrorResponse(429, "Too Many Requests",
 			"Organization connection limit reached. Maximum allowed connections: "+
 				fmt.Sprintf("%d", stats.MaxAllowed)))
@@ -122,6 +126,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	connection, err := h.manager.Register(gateway.ID, transport, apiKey, gateway.OrganizationID)
 	if err != nil {
 		h.slogger.Error("Connection registration failed", "gatewayID", gateway.ID, "orgID", gateway.OrganizationID, "error", err)
+		h.manager.IncrementFailedConnections()
 
 		// Check if this is an org connection limit error
 		if orgLimitErr, ok := err.(*ws.OrgConnectionLimitError); ok {

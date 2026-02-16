@@ -121,6 +121,7 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 
 			// Update delivery statistics for this connection
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -195,6 +196,7 @@ func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, unde
 			s.slogger.Info("Undeployment event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -267,6 +269,7 @@ func (s *GatewayEventsService) BroadcastAPIDeletionEvent(gatewayID string, delet
 			s.slogger.Info("API deletion event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -340,6 +343,7 @@ func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID str
 			s.slogger.Info("LLM provider deployment event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -412,6 +416,7 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 			s.slogger.Info("LLM provider undeployment event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -484,6 +489,7 @@ func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string
 			s.slogger.Info("LLM proxy deployment event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -556,6 +562,7 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 			s.slogger.Info("LLM proxy undeployment event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -680,6 +687,7 @@ func (s *GatewayEventsService) broadcastAPIKeyCreated(gatewayID, userId string, 
 			s.slogger.Info("API key created event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.Name)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -750,6 +758,7 @@ func (s *GatewayEventsService) broadcastAPIKeyRevoked(gatewayID, userId string, 
 			s.slogger.Info("API key revoked event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 
@@ -848,6 +857,7 @@ func (s *GatewayEventsService) broadcastAPIKeyUpdated(gatewayID, userId string, 
 			s.slogger.Info("API key updated event sent",
 				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
+			s.manager.IncrementTotalEventsSent()
 		}
 	}
 

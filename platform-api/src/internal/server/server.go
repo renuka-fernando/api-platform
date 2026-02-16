@@ -144,8 +144,10 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 		HeartbeatInterval:    20 * time.Second,
 		HeartbeatTimeout:     time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
 		MaxConnectionsPerOrg: cfg.WebSocket.MaxConnectionsPerOrg,
+		MetricsLogEnabled:    cfg.WebSocket.MetricsLogEnabled,
+		MetricsLogInterval:   time.Duration(cfg.WebSocket.MetricsLogInterval) * time.Second,
 	}
-	wsManager := websocket.NewManager(wsConfig, gatewayRepo)
+	wsManager := websocket.NewManager(wsConfig, gatewayRepo, slogger)
 
 	// Initialize utilities
 	apiUtil := &utils.APIUtil{}

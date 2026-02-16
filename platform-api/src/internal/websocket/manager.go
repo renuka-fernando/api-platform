@@ -18,9 +18,11 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"platform-api/src/internal/repository"
@@ -61,12 +63,26 @@ type Manager struct {
 	// gatewayRepo provides access to gateway data for org-scoped connection counting
 	gatewayRepo repository.GatewayRepository
 
+	// slogger is the structured logger instance
+	slogger *slog.Logger
+
 	// shutdownCtx is used to signal graceful shutdown to all connection goroutines
 	shutdownCtx context.Context
 	shutdownFn  context.CancelFunc
 
 	// wg tracks active connection handler goroutines for graceful shutdown
 	wg sync.WaitGroup
+
+	// metricsLogEnabled controls whether periodic metrics logging is active
+	metricsLogEnabled bool
+	// metricsLogInterval is the duration between metrics log entries
+	metricsLogInterval time.Duration
+
+	// Atomic counters for metrics (reset each tick)
+	successfulConnections int64
+	failedConnections     int64
+	disconnections        int64
+	eventsSent            int64
 }
 
 // ManagerConfig contains configuration parameters for the connection manager
@@ -75,6 +91,8 @@ type ManagerConfig struct {
 	HeartbeatInterval    time.Duration // Ping interval (default 20s)
 	HeartbeatTimeout     time.Duration // Pong timeout (default 30s)
 	MaxConnectionsPerOrg int           // Maximum connections per organization (default 3)
+	MetricsLogEnabled    bool          // Enable periodic metrics logging (default true)
+	MetricsLogInterval   time.Duration // Interval between metrics log entries (default 10s)
 }
 
 type OrgConnectionStats struct {
@@ -90,13 +108,15 @@ func DefaultManagerConfig() ManagerConfig {
 		HeartbeatInterval:    20 * time.Second,
 		HeartbeatTimeout:     30 * time.Second,
 		MaxConnectionsPerOrg: 3,
+		MetricsLogEnabled:    true,
+		MetricsLogInterval:   10 * time.Second,
 	}
 }
 
 // NewManager creates a new connection manager with the provided configuration
-func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) *Manager {
+func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository, slogger *slog.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Manager{
+	mgr := &Manager{
 		connections:          sync.Map{},
 		connectionCount:      0,
 		maxConnections:       config.MaxConnections,
@@ -104,9 +124,22 @@ func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) 
 		heartbeatTimeout:     config.HeartbeatTimeout,
 		maxConnectionsPerOrg: config.MaxConnectionsPerOrg,
 		gatewayRepo:          gatewayRepo,
+		slogger:              slogger,
 		shutdownCtx:          ctx,
 		shutdownFn:           cancel,
+		metricsLogEnabled:    config.MetricsLogEnabled,
+		metricsLogInterval:   config.MetricsLogInterval,
 	}
+	// Disable metrics logging if the interval is non-positive to prevent
+	// time.NewTicker from panicking.
+	if mgr.metricsLogInterval <= 0 {
+		mgr.metricsLogEnabled = false
+		mgr.slogger.Warn("Metrics logging disabled: metricsLogInterval must be positive", "interval", mgr.metricsLogInterval)
+	}
+	if mgr.metricsLogEnabled {
+		mgr.wg.Go(func() { mgr.startMetricsLogger() })
+	}
+	return mgr
 }
 
 // Register adds a new connection to the registry and starts heartbeat monitoring.
@@ -158,8 +191,10 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 	// Start heartbeat monitoring in background
 	m.wg.Go(func() { m.monitorHeartbeat(conn) })
 
-	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d orgConnections=%d",
-		gatewayID, connectionID, orgID, m.GetConnectionCount(), m.countOrgConnections(orgID))
+	m.IncrementSuccessfulConnections()
+
+	m.slogger.Info("Gateway connected", "gatewayID", gatewayID, "connectionID", connectionID,
+		"orgID", orgID, "totalConnections", m.GetConnectionCount(), "orgConnections", m.countOrgConnections(orgID))
 
 	return conn, nil
 }
@@ -202,8 +237,7 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 
 	// Close the connection gracefully
 	if err := removed.Close(1000, "normal closure"); err != nil {
-		log.Printf("[ERROR] Failed to close connection: gatewayID=%s connectionID=%s error=%v",
-			gatewayID, connectionID, err)
+		m.slogger.Error("Failed to close connection", "gatewayID", gatewayID, "connectionID", connectionID, "error", err)
 	}
 
 	// Decrement connection count
@@ -211,8 +245,10 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	m.connectionCount--
 	m.mu.Unlock()
 
-	log.Printf("[INFO] Gateway disconnected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d",
-		gatewayID, connectionID, removed.OrganizationID, m.GetConnectionCount())
+	m.IncrementDisconnections()
+
+	m.slogger.Info("Gateway disconnected", "gatewayID", gatewayID, "connectionID", connectionID,
+		"orgID", removed.OrganizationID, "totalConnections", m.GetConnectionCount())
 }
 
 // GetConnections retrieves all connections for a specific gateway ID.
@@ -254,7 +290,7 @@ func (m *Manager) GetConnectionCount() int {
 func (m *Manager) countOrgConnections(orgID string) int {
 	gateways, err := m.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to fetch gateways for org: orgID=%s error=%v", orgID, err)
+		m.slogger.Error("Failed to fetch gateways for org", "orgID", orgID, "error", err)
 		return 0
 	}
 
@@ -302,16 +338,16 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 
 			// Check for heartbeat timeout
 			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
-				log.Printf("[WARN] Heartbeat timeout detected: gatewayID=%s connectionID=%s lastHeartbeat=%v",
-					conn.GatewayID, conn.ConnectionID, conn.GetLastHeartbeat())
+				m.slogger.Warn("Heartbeat timeout detected", "gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID, "lastHeartbeat", conn.GetLastHeartbeat())
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}
 
 			// Send ping frame
 			if err := conn.Transport.SendPing(); err != nil {
-				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
-					conn.GatewayID, conn.ConnectionID, err)
+				m.slogger.Error("Failed to send ping", "gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID, "error", err)
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}
@@ -325,7 +361,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 // This method should be called during server shutdown to cleanly terminate
 // all gateway connections with a normal closure code.
 func (m *Manager) Shutdown() {
-	log.Println("[INFO] Shutting down WebSocket manager...")
+	m.slogger.Info("Shutting down WebSocket manager...")
 
 	// Signal shutdown to all monitoring goroutines
 	m.shutdownFn()
@@ -336,8 +372,8 @@ func (m *Manager) Shutdown() {
 		conns := value.([]*Connection)
 		for _, conn := range conns {
 			if err := conn.Close(1000, "server shutdown"); err != nil {
-				log.Printf("[ERROR] Failed to close connection during shutdown: gatewayID=%s connectionID=%s error=%v",
-					gatewayID, conn.ConnectionID, err)
+				m.slogger.Error("Failed to close connection during shutdown", "gatewayID", gatewayID,
+					"connectionID", conn.ConnectionID, "error", err)
 			}
 		}
 		return true // Continue iteration
@@ -346,7 +382,7 @@ func (m *Manager) Shutdown() {
 	// Wait for all goroutines to exit
 	m.wg.Wait()
 
-	log.Println("[INFO] WebSocket manager shutdown complete")
+	m.slogger.Info("WebSocket manager shutdown complete")
 }
 
 // GetOrgConnectionStats returns connection statistics for a specific organization
@@ -362,4 +398,79 @@ func (m *Manager) GetOrgConnectionStats(orgID string) OrgConnectionStats {
 // without actually adding it. Use this for pre-upgrade validation.
 func (m *Manager) CanAcceptOrgConnection(orgID string) bool {
 	return m.countOrgConnections(orgID) < m.maxConnectionsPerOrg
+}
+
+type metricsPayload struct {
+	From                  string `json:"from"`
+	To                    string `json:"to"`
+	TotalActiveConns      int    `json:"totalActiveConnections"`
+	TotalActiveOrgs       int    `json:"totalActiveOrgs"`
+	SuccessfulConnections int64  `json:"successfulConnections"`
+	FailedConnections     int64  `json:"failedConnections"`
+	Disconnections        int64  `json:"disconnections"`
+	EventsSent            int64  `json:"eventsSent"`
+}
+
+func (m *Manager) IncrementSuccessfulConnections() {
+	atomic.AddInt64(&m.successfulConnections, 1)
+}
+
+func (m *Manager) IncrementFailedConnections() {
+	atomic.AddInt64(&m.failedConnections, 1)
+}
+
+func (m *Manager) IncrementDisconnections() {
+	atomic.AddInt64(&m.disconnections, 1)
+}
+
+func (m *Manager) IncrementTotalEventsSent() {
+	atomic.AddInt64(&m.eventsSent, 1)
+}
+
+func (m *Manager) countActiveOrgs() int {
+	orgs := make(map[string]struct{})
+	m.connections.Range(func(key, value interface{}) bool {
+		conns := value.([]*Connection)
+		for _, conn := range conns {
+			orgs[conn.OrganizationID] = struct{}{}
+		}
+		return true
+	})
+	return len(orgs)
+}
+
+func (m *Manager) startMetricsLogger() {
+	ticker := time.NewTicker(m.metricsLogInterval)
+	defer ticker.Stop()
+
+	from := time.Now()
+
+	for {
+		select {
+		case <-m.shutdownCtx.Done():
+			return
+		case <-ticker.C:
+			to := time.Now()
+
+			payload := metricsPayload{
+				From:                  from.Format(time.RFC3339),
+				To:                    to.Format(time.RFC3339),
+				TotalActiveConns:      m.GetConnectionCount(),
+				TotalActiveOrgs:       m.countActiveOrgs(),
+				SuccessfulConnections: atomic.SwapInt64(&m.successfulConnections, 0),
+				FailedConnections:     atomic.SwapInt64(&m.failedConnections, 0),
+				Disconnections:        atomic.SwapInt64(&m.disconnections, 0),
+				EventsSent:            atomic.SwapInt64(&m.eventsSent, 0),
+			}
+
+			data, err := json.Marshal(payload)
+			if err != nil {
+				m.slogger.Error("Failed to marshal WS metrics", "error", err)
+			} else {
+				m.slogger.Info("WS Metrics", "payload", string(data))
+			}
+
+			from = to
+		}
+	}
 }
