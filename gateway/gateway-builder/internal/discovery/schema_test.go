@@ -90,6 +90,7 @@ func TestExtractDefaultValues_Precedence(t *testing.T) {
 				"prop1": map[string]interface{}{
 					policyv1alpha.SystemParamConfigRefKey:    "${config.Prop1}",
 					policyv1alpha.SystemParamDefaultValueKey: "default-value",
+					systemParamRequiredKey:                   false,
 				},
 			},
 		},
@@ -120,7 +121,10 @@ func TestExtractDefaultValues_Precedence(t *testing.T) {
 				},
 			},
 			want: map[string]interface{}{
-				"prop1": "${config.Prop1}",
+				"prop1": map[string]interface{}{
+					policyv1alpha.SystemParamConfigRefKey: "${config.Prop1}",
+					systemParamRequiredKey:                false,
+				},
 			},
 		},
 		{
@@ -219,17 +223,26 @@ func TestExtractDefaultValues_JWTAuthRealWorld(t *testing.T) {
 		"authHeaderScheme": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.AuthHeaderScheme}",
 			policyv1alpha.SystemParamDefaultValueKey: "Bearer",
+			systemParamRequiredKey:                   false,
 		},
 		"headerName": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.HeaderName}",
 			policyv1alpha.SystemParamDefaultValueKey: "Authorization",
+			systemParamRequiredKey:                   false,
 		},
 		"onFailureStatusCode": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.OnFailureStatusCode}",
 			policyv1alpha.SystemParamDefaultValueKey: 401,
+			systemParamRequiredKey:                   false,
 		},
-		"jwksCacheTtl": "${config.JWTAuth.JwksCacheTtl}",
-		"keyManagers":  "${config.JWTAuth.KeyManagers}",
+		"jwksCacheTtl": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: "${config.JWTAuth.JwksCacheTtl}",
+			systemParamRequiredKey:                false,
+		},
+		"keyManagers": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: "${config.JWTAuth.KeyManagers}",
+			systemParamRequiredKey:                false,
+		},
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -263,11 +276,15 @@ func TestExtractDefaultValues_MixedProperties(t *testing.T) {
 
 	got := ExtractDefaultValues(schema)
 	want := map[string]interface{}{
-		"withDefault":      "value1",
-		"withWso2Default":  "${config.Value2}",
+		"withDefault": "value1",
+		"withWso2Default": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: "${config.Value2}",
+			systemParamRequiredKey:                false,
+		},
 		"withBothDefaults": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.Value3}",
 			policyv1alpha.SystemParamDefaultValueKey: 100,
+			systemParamRequiredKey:                   false,
 		},
 	}
 
@@ -311,14 +328,19 @@ func TestExtractDefaultValues_NestedObjectProperties(t *testing.T) {
 		"algorithm": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.policy.algorithm}",
 			policyv1alpha.SystemParamDefaultValueKey: "gcra",
+			systemParamRequiredKey:                   false,
 		},
 		"redis": map[string]interface{}{
 			"host": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey:    "${config.policy.redis.host}",
 				policyv1alpha.SystemParamDefaultValueKey: "localhost",
+				systemParamRequiredKey:                   false,
 			},
-			"port":     6379,
-			"password": "${config.policy.redis.password}",
+			"port": 6379,
+			"password": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey: "${config.policy.redis.password}",
+				systemParamRequiredKey:                false,
+			},
 		},
 	}
 
@@ -348,6 +370,63 @@ func TestExtractDefaultValues_InvalidPropertyDef(t *testing.T) {
 	want := map[string]interface{}{
 		"validProp":        "value1",
 		"anotherValidProp": "value2",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ExtractDefaultValues() = %v, want %v", got, want)
+	}
+}
+
+func TestExtractDefaultValues_RequiredMetadata(t *testing.T) {
+	schema := map[string]interface{}{
+		"type":     "object",
+		"required": []interface{}{"requiredProp", "nested"},
+		"properties": map[string]interface{}{
+			"requiredProp": map[string]interface{}{
+				"type":              "string",
+				"wso2/defaultValue": "${config.required}",
+			},
+			"optionalProp": map[string]interface{}{
+				"type":              "string",
+				"wso2/defaultValue": "${config.optional}",
+			},
+			"nested": map[string]interface{}{
+				"type":     "object",
+				"required": []interface{}{"nestedRequired"},
+				"properties": map[string]interface{}{
+					"nestedRequired": map[string]interface{}{
+						"type":              "string",
+						"wso2/defaultValue": "${config.nested.required}",
+					},
+					"nestedOptional": map[string]interface{}{
+						"type":              "string",
+						"wso2/defaultValue": "${config.nested.optional}",
+					},
+				},
+			},
+		},
+	}
+
+	got := ExtractDefaultValues(schema)
+	want := map[string]interface{}{
+		"requiredProp": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: "${config.required}",
+			systemParamRequiredKey:                true,
+		},
+		"optionalProp": map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: "${config.optional}",
+			systemParamRequiredKey:                false,
+		},
+		"nested": map[string]interface{}{
+			"nestedRequired": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey: "${config.nested.required}",
+				systemParamRequiredKey:                true,
+			},
+			"nestedOptional": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey: "${config.nested.optional}",
+				systemParamRequiredKey:                false,
+			},
+		},
 	}
 
 	if !reflect.DeepEqual(got, want) {
