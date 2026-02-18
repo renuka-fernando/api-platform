@@ -28,22 +28,22 @@ type Server struct {
 
 // NewServer creates a new admin HTTP server.
 func NewServer(cfg *config.AdminServerConfig, apiServer apiServer, logger *slog.Logger) *Server {
-	mux := http.NewServeMux()
-
 	s := &Server{
 		cfg:       cfg,
 		apiServer: apiServer,
 		logger:    logger,
 	}
 
-	mux.Handle("/config_dump", ipWhitelistMiddleware(cfg.AllowedIPs, http.HandlerFunc(s.handleConfigDump)))
-	mux.Handle("/xds_sync_status", ipWhitelistMiddleware(cfg.AllowedIPs, http.HandlerFunc(s.handleXDSSyncStatus)))
-	// Health endpoint is registered without IP whitelist so Docker/k8s health probes can reach it
-	mux.Handle("/health", http.HandlerFunc(s.handleHealth))
+	// Use generated handler with IP whitelist middleware for protected endpoints
+	handler := adminapi.HandlerWithOptions(s, adminapi.StdHTTPServerOptions{
+		Middlewares: []adminapi.MiddlewareFunc{
+			createSelectiveIPWhitelistMiddleware(cfg.AllowedIPs),
+		},
+	})
 
 	s.httpSrv = &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: mux,
+		Handler: handler,
 	}
 
 	return s
@@ -66,12 +66,8 @@ func (s *Server) Stop(ctx context.Context) error {
 	return s.httpSrv.Shutdown(ctx)
 }
 
-func (s *Server) handleConfigDump(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// GetConfigDump implements adminapi.ServerInterface.
+func (s *Server) GetConfigDump(w http.ResponseWriter, r *http.Request) {
 	resp, err := s.apiServer.BuildConfigDumpResponse(s.logger)
 	if err != nil {
 		http.Error(w, "Failed to retrieve configuration dump", http.StatusInternalServerError)
@@ -83,12 +79,8 @@ func (s *Server) handleConfigDump(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (s *Server) handleXDSSyncStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// GetXDSSyncStatus implements adminapi.ServerInterface.
+func (s *Server) GetXDSSyncStatus(w http.ResponseWriter, r *http.Request) {
 	resp := s.apiServer.GetXDSSyncStatusResponse()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -96,12 +88,8 @@ func (s *Server) handleXDSSyncStatus(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// GetHealth implements adminapi.ServerInterface.
+func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]string{
 		"status":    "healthy",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
@@ -112,15 +100,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func ipWhitelistMiddleware(allowedIPs []string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clientIP := extractClientIP(r)
-		if !isIPAllowed(clientIP, allowedIPs) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// createSelectiveIPWhitelistMiddleware creates a middleware that applies IP whitelist
+// to all endpoints except /health (which must be accessible for Docker/k8s health probes).
+func createSelectiveIPWhitelistMiddleware(allowedIPs []string) adminapi.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip IP whitelist for health endpoint
+			if r.URL.Path == "/health" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Apply IP whitelist for all other endpoints
+			clientIP := extractClientIP(r)
+			if !isIPAllowed(clientIP, allowedIPs) {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func extractClientIP(r *http.Request) string {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+	adminapi "github.com/wso2/api-platform/gateway/gateway-controller/pkg/adminapi/generated"
 	"github.com/wso2/api-platform/gateway/it/steps"
 )
 
@@ -207,10 +208,6 @@ func (h *HealthSteps) iWaitForEndpointToBeReadyWithMethodAndBody(url, method, bo
 	return fmt.Errorf("endpoint %s did not become ready with %s method after %d attempts", url, method, maxAttempts)
 }
 
-type xdsSyncStatusResponse struct {
-	PolicyChainVersion string `json:"policy_chain_version"`
-}
-
 func (h *HealthSteps) waitForPolicySnapshotSync() error {
 	maxAttempts := 50
 	attemptInterval := 300 * time.Millisecond
@@ -264,11 +261,14 @@ func (h *HealthSteps) getControllerPolicyVersion(url string) (string, error) {
 		return "", fmt.Errorf("controller xds sync endpoint returned status %d", resp.StatusCode)
 	}
 
-	var payload xdsSyncStatusResponse
+	var payload adminapi.XDSSyncStatusResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return "", err
 	}
-	return payload.PolicyChainVersion, nil
+	if payload.PolicyChainVersion == nil {
+		return "", fmt.Errorf("policy chain version is nil in response")
+	}
+	return *payload.PolicyChainVersion, nil
 }
 
 func (h *HealthSteps) getPolicyEnginePolicyVersion(url string) (string, error) {
@@ -282,9 +282,12 @@ func (h *HealthSteps) getPolicyEnginePolicyVersion(url string) (string, error) {
 		return "", fmt.Errorf("policy engine xds sync endpoint returned status %d", resp.StatusCode)
 	}
 
-	var payload xdsSyncStatusResponse
+	var payload adminapi.XDSSyncStatusResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return "", err
 	}
-	return payload.PolicyChainVersion, nil
+	if payload.PolicyChainVersion == nil {
+		return "", fmt.Errorf("policy chain version is nil in response")
+	}
+	return *payload.PolicyChainVersion, nil
 }
