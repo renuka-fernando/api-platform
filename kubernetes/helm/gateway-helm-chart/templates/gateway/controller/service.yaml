@@ -28,4 +28,12 @@ spec:
       port: {{ $service.ports.policy }}
       targetPort: policy
       protocol: TCP
+    - name: admin
+      port: {{ $service.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+    - name: metrics
+      port: {{ $service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
 {{- end }}
