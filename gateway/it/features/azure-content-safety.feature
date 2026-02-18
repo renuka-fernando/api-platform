@@ -53,10 +53,10 @@ Feature: Azure Content Safety Content Moderation Policy
                 params:
                   request:
                     jsonPath: ""
-                    hateCategory: 4
-                    violenceCategory: 4
-                    sexualCategory: 4
-                    selfHarmCategory: 4
+                    hateSeverityThreshold: 4
+                    violenceSeverityThreshold: 4
+                    sexualSeverityThreshold: 4
+                    selfHarmSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-safe-request/v1.0/health" to be ready
@@ -97,7 +97,8 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    hateCategory: 4
+                    jsonPath: "$.message"
+                    hateSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-hate-block/v1.0/health" to be ready
@@ -139,7 +140,8 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    violenceCategory: 4
+                    jsonPath: "$.message"
+                    violenceSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-violence-block/v1.0/health" to be ready
@@ -181,8 +183,9 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
+                    jsonPath: "$.message"
                     showAssessment: true
-                    hateCategory: 4
+                    hateSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-assessment/v1.0/health" to be ready
@@ -232,13 +235,14 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    hateCategory: -1
-                    violenceCategory: 4
+                    jsonPath: "$.message"
+                    hateSeverityThreshold: -1
+                    violenceSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-disabled-category/v1.0/health" to be ready
 
-    # Hate content should pass through because hateCategory is disabled (-1)
+    # Hate content should pass through because hateSeverityThreshold is disabled (-1)
     When I send a POST request to "http://localhost:8080/azure-disabled-category/v1.0/validate" with body:
       """
       {"message": "This contains hate speech but should pass"}
@@ -275,9 +279,10 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    hateCategory: 4
-                    violenceCategory: 4
-                    sexualCategory: 4
+                    jsonPath: "$.message"
+                    hateSeverityThreshold: 4
+                    violenceSeverityThreshold: 4
+                    sexualSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-multi-category/v1.0/health" to be ready
@@ -336,7 +341,7 @@ Feature: Azure Content Safety Content Moderation Policy
                 params:
                   request:
                     jsonPath: "$.message"
-                    violenceCategory: 4
+                    violenceSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-jsonpath/v1.0/health" to be ready
@@ -394,7 +399,7 @@ Feature: Azure Content Safety Content Moderation Policy
                 params:
                   request:
                     jsonPath: "$.data.content"
-                    hateCategory: 4
+                    hateSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-nested-jsonpath/v1.0/health" to be ready
@@ -458,9 +463,11 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    violenceCategory: 4
+                    jsonPath: "$.message"
+                    violenceSeverityThreshold: 4
                   response:
-                    hateCategory: 4
+                    jsonPath: ""
+                    hateSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-both-phases/v1.0/health" to be ready
@@ -504,7 +511,8 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
-                    violenceCategory: 4
+                    jsonPath: ""
+                    violenceSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-empty-body/v1.0/health" to be ready
@@ -545,8 +553,9 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
+                    jsonPath: "$.message"
                     passthroughOnError: true
-                    violenceCategory: 4
+                    violenceSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-passthrough/v1.0/health" to be ready
@@ -590,8 +599,9 @@ Feature: Azure Content Safety Content Moderation Policy
                 version: v0
                 params:
                   request:
+                    jsonPath: "$.message"
                     showAssessment: true
-                    hateCategory: 4
+                    hateSeverityThreshold: 4
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/azure-error-structure/v1.0/health" to be ready
