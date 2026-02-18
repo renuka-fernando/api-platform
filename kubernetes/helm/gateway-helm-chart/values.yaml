@@ -308,6 +308,8 @@ gateway:
         rest: 9090
         xds: 18000
         policy: 18001
+        admin: 9092
+        metrics: 9091
     controlPlane:
       host: host.docker.internal
       port: 8443
@@ -373,6 +375,8 @@ gateway:
     storage:
       type: sqlite
       sqlitePath: ./data/gateway.db
+    metrics:
+      port: 9091
     persistence:
       enabled: true
       existingClaim: ""
@@ -453,6 +457,7 @@ gateway:
       env:
         gatewayControllerHost: ""
         logLevel: info
+        moesifKey: ""
       extraEnv: []
       # extraEnvFrom:
       #   - configMapRef:

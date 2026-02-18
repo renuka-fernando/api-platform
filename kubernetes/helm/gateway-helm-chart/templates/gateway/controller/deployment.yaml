@@ -75,7 +75,7 @@ spec:
               value: {{ $controller.controlPlane.host | quote }}
             - name: APIP_GW_CONTROLPLANE_PORT
               value: {{ printf "%d" (int $controller.controlPlane.port) | quote }}
-            - name: APIP_GW_CONTROLPLANE_TOKEN
+            - name: APIP_GW_GATEWAY_REGISTRATION_TOKEN
               {{- if $controller.controlPlane.token.secretName }}
               valueFrom:
                 secretKeyRef:
@@ -84,14 +84,16 @@ spec:
               {{- else }}
               value: {{ $controller.controlPlane.token.value | quote }}
               {{- end }}
-            - name: APIP_GW_LOGGING_LEVEL
+            - name: APIP_GW_CONTROLLER_LOGGING_LEVEL
               value: {{ $controller.logging.level | quote }}
-            - name: APIP_GW_STORAGE_TYPE
+            - name: APIP_GW_CONTROLLER_STORAGE_TYPE
               value: {{ $controller.storage.type | quote }}
-            - name: APIP_GW_STORAGE_SQLITE_PATH
+            - name: APIP_GW_CONTROLLER_STORAGE_SQLITE_PATH
               value: {{ $controller.storage.sqlitePath | quote }}
             - name: GATEWAY_CONTROLLER_HOST
               value: {{ default (printf "%s-controller" (include "gateway-operator.fullname" .)) $deployment.env.gatewayControllerHost | quote }}
+            - name: APIP_GW_CONTROLLER_METRICS_PORT
+              value: {{ printf "%d" (int $controller.metrics.port) | quote }}
             {{- range $deployment.extraEnv }}
             - {{- toYaml . | nindent 14 }}
             {{- end }}
@@ -108,6 +110,12 @@ spec:
               protocol: TCP
             - name: policy
               containerPort: {{ $controller.service.ports.policy }}
+              protocol: TCP
+            - name: admin
+              containerPort: {{ $controller.service.ports.admin }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ $controller.service.ports.metrics }}
               protocol: TCP
           livenessProbe:
             {{- toYaml $deployment.livenessProbe | nindent 12 }}
