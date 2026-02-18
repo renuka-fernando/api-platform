@@ -54,6 +54,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[A-Z]{3}-[0-9]{4}$"
       """
     Then the response should be successful
@@ -105,6 +106,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "(badword|profanity|offensive)"
                     invert: true
       """
@@ -155,6 +157,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
       """
     Then the response should be successful
@@ -208,6 +211,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
                     invert: true
       """
@@ -258,6 +262,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
                     invert: true
       """
@@ -484,6 +489,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[0-9]{5}$"
                     showAssessment: true
       """
@@ -534,6 +540,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: ".*"
       """
     Then the response should be successful
@@ -575,6 +582,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^(approved|pending|rejected)$"
       """
     Then the response should be successful
@@ -631,6 +639,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^UPPERCASE$"
       """
     Then the response should be successful
@@ -680,6 +689,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "(?i)^hello$"
       """
     Then the response should be successful
@@ -740,8 +750,10 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[A-Za-z0-9 ]+$"
                   response:
+                    jsonPath: ""
                     regex: ".*"
       """
     Then the response should be successful
@@ -796,6 +808,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^\\+?[1-9]\\d{1,14}$"
       """
     Then the response should be successful
@@ -849,6 +862,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[0-9]+$"
                     showAssessment: true
       """
@@ -946,6 +960,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   response:
+                    jsonPath: ""
                     regex: "(internal|confidential|secret)"
                     invert: true
       """
@@ -1033,6 +1048,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[\\p{L}\\p{N}\\s]+$"
       """
     Then the response should be successful
@@ -1082,6 +1098,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: ".*"
       """
     Then the response should be successful
@@ -1138,6 +1155,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[a-zA-Z0-9\\s]+$"
                     invert: true
       """
@@ -1188,6 +1206,7 @@ Feature: Regex Guardrail
                 version: v0
                 params:
                   request:
+                    jsonPath: ""
                     regex: "^[\\p{L}\\s]+$"
       """
     Then the response should be successful

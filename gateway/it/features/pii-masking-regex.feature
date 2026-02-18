@@ -53,9 +53,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -99,9 +100,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "PHONE"
                       piiRegex: "\\b\\d{3}-\\d{3}-\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -143,13 +145,14 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
                     - piiEntity: "PHONE"
                       piiRegex: "\\b\\d{3}-\\d{3}-\\d{4}\\b"
                     - piiEntity: "SSN"
                       piiRegex: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -195,9 +198,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+                  jsonPath: ""
                   redactPII: true
       """
     Then the response should be successful
@@ -239,9 +243,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "SSN"
                       piiRegex: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: true
       """
     Then the response should be successful
@@ -283,11 +288,12 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
                     - piiEntity: "CREDIT_CARD"
                       piiRegex: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: true
       """
     Then the response should be successful
@@ -333,7 +339,7 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
                   jsonPath: "$.message"
@@ -383,7 +389,7 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "PHONE"
                       piiRegex: "\\b\\d{3}-\\d{3}-\\d{4}\\b"
                   jsonPath: "$.user.contact"
@@ -439,9 +445,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -483,9 +490,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -526,7 +534,7 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
                   jsonPath: "$.nonexistent.field"
@@ -579,9 +587,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+                  jsonPath: ""
                   redactPII: false
       """
     Then the response should be successful
@@ -623,9 +632,10 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "CREDIT_CARD"
                       piiRegex: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: true
       """
     Then the response should be successful
@@ -667,7 +677,7 @@ Feature: PII Masking Regex
               - name: pii-masking-regex
                 version: v0
                 params:
-                  piiEntities:
+                  customPIIEntities:
                     - piiEntity: "EMAIL"
                       piiRegex: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
                     - piiEntity: "PHONE"
@@ -676,6 +686,7 @@ Feature: PII Masking Regex
                       piiRegex: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
                     - piiEntity: "CREDIT_CARD"
                       piiRegex: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
+                  jsonPath: ""
                   redactPII: true
       """
     Then the response should be successful
