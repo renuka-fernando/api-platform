@@ -48,22 +48,33 @@ Update `.vscode/launch.json` in the **Gateway Controller** configuration with yo
 
 ### Step 2: Update Docker Compose Configuration
 
-Edit `gateway/docker-compose.yml` and comment out the policy engine port mappings in the `gateway-runtime` service, keeping only the router ports:
+In `gateway/docker-compose.yaml`, make two changes to the `gateway-runtime` service:
+
+1. Set `GATEWAY_CONTROLLER_HOST` to `host.docker.internal` so the runtime reaches the locally-running controller:
+
+```yaml
+services:
+  gateway-runtime:
+    environment:
+      GATEWAY_CONTROLLER_HOST: host.docker.internal
+```
+
+2. Comment out the **Policy Engine** port block:
 
 ```yaml
 services:
   gateway-runtime:
     ports:
-      # Router ports (keep these)
-      - "8080:8080"   # HTTP
-      - "8443:8443"   # HTTPS
-      - "9901:9901"   # Admin
-
-      # Policy engine ports (comment these out - running locally)
-      # - "9001:9001"   # ext_proc
-      # - "9002:9002"   # Policy engine admin
+      # Router (Envoy) - keep these
+      - "8080:8080"   # HTTP ingress
+      - "8443:8443"   # HTTPS ingress
+      - "8081:8081"   # xDS-managed API listener
+      - "8082:8082"   # WebSub Hub dynamic forward proxy
+      - "8083:8083"   # WebSub Hub internal listener
+      - "9901:9901"   # Envoy admin
+      # Policy Engine - comment these out
+      # - "9002:9002"   # Admin API
       # - "9003:9003"   # Metrics
-      # - "18090:18090" # ALS
 ```
 
 ### Step 3: Start Gateway Controller
