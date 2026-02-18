@@ -410,8 +410,8 @@ func (s *APIServer) SearchDeployments(c *gin.Context, kind string) {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "success",
-			"count":       len(mcpItems),
+			"status":     "success",
+			"count":      len(mcpItems),
 			"mcpProxies": mcpItems,
 		})
 	} else {
@@ -473,7 +473,7 @@ func (s *APIServer) GetAPIByNameVersion(c *gin.Context, name string, version str
 		"id":            cfg.GetHandle(),
 		"configuration": cfg.Configuration,
 		"metadata": gin.H{
-			"status":     string(cfg.Status),
+			"status":    string(cfg.Status),
 			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
 			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
@@ -531,7 +531,7 @@ func (s *APIServer) GetAPIById(c *gin.Context, id string) {
 		"id":            cfg.GetHandle(),
 		"configuration": cfg.Configuration,
 		"metadata": gin.H{
-			"status":     string(cfg.Status),
+			"status":    string(cfg.Status),
 			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
 			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
@@ -1316,7 +1316,7 @@ func (s *APIServer) GetLLMProviderById(c *gin.Context, id string) {
 	providerDetail := gin.H{
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
-			"status":     string(cfg.Status),
+			"status":    string(cfg.Status),
 			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
 			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
@@ -1567,7 +1567,7 @@ func (s *APIServer) GetLLMProxyById(c *gin.Context, id string) {
 	proxyDetail := gin.H{
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
-			"status":     string(cfg.Status),
+			"status":    string(cfg.Status),
 			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
 			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
@@ -1881,8 +1881,8 @@ func (s *APIServer) ListMCPProxies(c *gin.Context, params api.ListMCPProxiesPara
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":      "success",
-		"count":       len(items),
+		"status":     "success",
+		"count":      len(items),
 		"mcpProxies": items,
 	})
 }
@@ -1942,7 +1942,7 @@ func (s *APIServer) GetMCPProxyById(c *gin.Context, id string) {
 		"id":            cfg.GetHandle(),
 		"configuration": cfg.SourceConfiguration,
 		"metadata": gin.H{
-			"status":     string(cfg.Status),
+			"status":    string(cfg.Status),
 			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
 			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
 		},
