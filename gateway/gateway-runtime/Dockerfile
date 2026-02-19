@@ -102,13 +102,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY policy-engine/ /api-platform/gateway/gateway-runtime/policy-engine/
 COPY --from=sdk . /api-platform/sdk
 COPY --from=common . /api-platform/common
-COPY --from=system-policies . /workspace/system-policies/
-COPY --from=dev-policies . /workspace/policies/dev-policies/
-COPY --from=target build.yaml /workspace/policies/build.yaml
+COPY --from=system-policies . /api-platform/system-policies/
+COPY --from=dev-policies . /api-platform/policies/dev-policies/
+COPY --from=target build.yaml /api-platform/policies/build.yaml
 
-RUN mkdir -p /workspace/output
+RUN mkdir -p /api-platform/output
 
-WORKDIR /workspace
+WORKDIR /api-platform
 
 # Run gateway builder with build file, conditionally enable coverage or debug
 # Cache mounts let the builder's internal go build reuse compiled packages
@@ -117,10 +117,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     [ "$ENABLE_COVERAGE" = "true" ] && export COVERAGE=true || true; \
     [ "$ENABLE_DEBUG" = "true" ] && export DEBUG=true || true; \
     /usr/local/bin/gateway-builder \
-        -build-file /workspace/policies/build.yaml \
-        -system-build-lock /workspace/system-policies/system-build-lock.yaml \
+        -build-file /api-platform/policies/build.yaml \
+        -system-build-lock /api-platform/system-policies/system-build-lock.yaml \
         -policy-engine-src /api-platform/gateway/gateway-runtime/policy-engine \
-        -out-dir /workspace/output
+        -out-dir /api-platform/output
 
 # Stage 3a: dlv installer (builds dlv for the debug stage)
 FROM golang:1.25.7-bookworm AS debug-dlv-builder
@@ -146,7 +146,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN mkdir -p /app /var/run/api-platform /coverage
 
 COPY --from=debug-dlv-builder /go/bin/dlv /usr/local/bin/dlv
-COPY --from=policy-compiler /workspace/output/gateway-runtime/policy-engine /app/policy-engine
+COPY --from=policy-compiler /api-platform/output/gateway-runtime/policy-engine /app/policy-engine
 COPY router/config/envoy-bootstrap.yaml /etc/envoy/envoy.yaml
 COPY router/config/config-override.yaml /etc/envoy/config-override.yaml
 COPY docker-entrypoint-debug.sh /usr/local/bin/docker-entrypoint.sh
@@ -184,7 +184,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN mkdir -p /app /var/run/api-platform /coverage
 
-COPY --from=policy-compiler /workspace/output/gateway-runtime/policy-engine /app/policy-engine
+COPY --from=policy-compiler /api-platform/output/gateway-runtime/policy-engine /app/policy-engine
 COPY router/config/envoy-bootstrap.yaml /etc/envoy/envoy.yaml
 COPY router/config/config-override.yaml /etc/envoy/config-override.yaml
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

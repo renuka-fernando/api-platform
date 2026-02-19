@@ -46,6 +46,40 @@ Both can be attached simultaneously. Source path substitution is configured auto
 |---|---|---|
 | Gateway Controller | `gateway/gateway-controller` | `/build` |
 | Policy Engine | `gateway/gateway-runtime/policy-engine` | `/api-platform/gateway/gateway-runtime/policy-engine` |
+| SDK | `sdk` | `/root/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9` |
+| Common | `common` | `/api-platform/common` |
+| System policies | `gateway/system-policies/analytics` | `/api-platform/system-policies/analytics` |
+
+### Debugging SDK / Common / Policy Source Code
+
+#### `sdk` and `common`
+
+No extra steps required. Both are covered by the `substitutePath` entries in `.vscode/launch.json`.
+
+> **Note**: The `sdk` entry includes its version (`@v0.3.9`). If you update the sdk version in `policy-engine/go.mod`, update the matching entry in `.vscode/launch.json` accordingly.
+
+#### Gateway-controller policy source
+
+By default `build.yaml` uses `gomodule:` entries — policies compile from the Go module cache at a path like `/go/pkg/mod/...@vX.Y.Z/` inside the container. Add a `substitutePath` entry in `.vscode/launch.json` to map your local policy checkout to that path — no `build.yaml` changes or image rebuild needed.
+
+1. **Find the exact version compiled into the image:**
+   ```bash
+   docker exec $(docker ps -qf name=gateway-runtime) \
+     ls /go/pkg/mod/github.com/wso2/gateway-controllers/policies/
+   ```
+
+2. **Add an entry to the `substitutePath` array** in the `"Policy Engine (Remote)"` config (same pattern as the `sdk` entry):
+   ```json
+   {
+       "from": "/path/to/your/local/gateway-controllers/policies/api-key-auth",
+       "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.2.1"
+   }
+   ```
+   Repeat for each policy you want to step into.
+
+3. Set breakpoints in your local policy source files and attach the debugger.
+
+---
 
 ### Step 5: Deploy an API and Trigger Breakpoints
 
