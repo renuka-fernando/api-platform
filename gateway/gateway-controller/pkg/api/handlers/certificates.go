@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/middleware"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/utils"
 )
 
 // UploadCertificateRequest represents the request body for certificate upload
@@ -99,15 +99,15 @@ func (s *APIServer) UploadCertificate(c *gin.Context) {
 	}
 
 	// Generate unique ID (UUID v7)
-	u, err := uuid.NewV7()
+	certID, err := utils.GenerateUUID()
 	if err != nil {
+		log.Error("Failed to generate certificate ID", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Failed to generate certificate ID: " + err.Error(),
 		})
 		return
 	}
-	certID := u.String()
 
 	// Create certificate model
 	cert := &models.StoredCertificate{
