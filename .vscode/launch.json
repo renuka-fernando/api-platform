@@ -118,8 +118,9 @@
                     "to": "/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9" // find the exact version in policy-engine/go.mod
                 },
                 // Add substitutions below for policies that require debugging.
+                // Example: api-key-auth
                 {
-                    "from": "~/git/gateway-controllers/policies/api-key-auth", // replace with path in your local gateway-controllers repo
+                    "from": "${env:HOME}/git/gateway-controllers/policies/api-key-auth", // replace with path in your local gateway-controllers repo
                     "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0" // find the exact version in build-lock.yaml
                 },
             ],

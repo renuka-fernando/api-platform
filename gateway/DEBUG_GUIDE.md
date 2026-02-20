@@ -24,7 +24,7 @@ cd gateway
 docker compose -f docker-compose.debug.yaml up
 ```
 
-Wait until you see both containers are ready. The policy engine waits up to 30 seconds for dlv startup before the socket becomes available.
+Wait until you see both containers are ready. The policy engine waits up to 1 minute for dlv startup before the socket becomes available.
 
 ### Step 3: Set Breakpoints
 
@@ -66,13 +66,18 @@ No extra steps required. Covered by the `sdk` substitutePath entry.
 
 By default `build.yaml` uses `gomodule:` entries — policies compile from the Go module cache at a path like `/go/pkg/mod/...@vX.Y.Z/` inside the container. Add a `substitutePath` entry in `.vscode/launch.json` to map your local policy checkout to that path — no `build.yaml` changes or image rebuild needed.
 
-1. **Find the exact version compiled into the image:** check `build-lock.yaml` for the resolved version of the policy you want to debug.
+1. **Find the exact version compiled into the image:** look up the policy in `gateway/build-lock.yaml`. The `version` field is the resolved version and the `gomodule` field gives the module path:
+   ```yaml
+   - name: api-key-auth
+     version: v0.8.0
+     gomodule: github.com/wso2/gateway-controllers/policies/api-key-auth@v0
+   ```
 
-2. **Add an entry to the `substitutePath` array** in the `"Policy Engine (Remote)"` config (same pattern as the `sdk` entry):
+2. **Add an entry to the `substitutePath` array** in the `"Policy Engine (Remote)"` config — construct the `to` path from the `gomodule` module path and the `version`:
    ```json
    {
        "from": "/path/to/your/local/gateway-controllers/policies/api-key-auth",
-       "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.2.1"
+       "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0"
    }
    ```
    Repeat for each policy you want to step into.
@@ -97,7 +102,7 @@ curl http://localhost:8080/petstore/v1/pets
 
 - dlv runs with `--accept-multiclient` — you can detach and re-attach without restarting containers.
 - Containers run as root (required by dlv for ptrace); resource limits are removed for debug headroom.
-- Policy Engine socket wait timeout is 30s (vs 10s in production) to account for dlv startup overhead.
+- Policy Engine socket wait timeout is 60s (vs 10s in production) to account for dlv startup overhead.
 - All ports remain accessible: `9090` (Controller REST), `8080`/`8443` (Router), `9002` (PE admin), `18000`/`18001` (xDS).
 
 ---

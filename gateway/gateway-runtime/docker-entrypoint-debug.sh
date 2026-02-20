@@ -160,8 +160,8 @@ PE_PID=$!
 log "Policy Engine (dlv) started (PID $PE_PID)"
 
 # Wait for Policy Engine to create the socket (with timeout)
-# Increased to 30s to account for dlv startup overhead before policy-engine initialises
-SOCKET_WAIT_TIMEOUT=30
+# Increased to 60s to account for dlv startup overhead before policy-engine initialises
+SOCKET_WAIT_TIMEOUT=60
 SOCKET_WAIT_COUNT=0
 while [ ! -S "${POLICY_ENGINE_SOCKET}" ]; do
     if [ $SOCKET_WAIT_COUNT -ge $SOCKET_WAIT_TIMEOUT ]; then
