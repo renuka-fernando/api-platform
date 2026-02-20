@@ -141,7 +141,11 @@ func (s *APIDeploymentService) DeployAPIConfiguration(params APIDeploymentParams
 	// Generate API ID if not provided
 	apiID := params.APIID
 	if apiID == "" {
-		apiID = generateUUID()
+		var err error
+		apiID, err = generateUUID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate API ID: %w", err)
+		}
 	}
 
 	handle := apiConfig.Metadata.Name
@@ -528,7 +532,11 @@ func (s *APIDeploymentService) sendTopicRequestToHub(ctx context.Context, httpCl
 	return fmt.Errorf("WebSubHub request failed after %d retries; last status: %d", maxRetries, lastStatus)
 }
 
-// generateUUID generates a new UUID string
-func generateUUID() string {
-	return uuid.New().String()
+// generateUUID generates a new UUID v7 string
+func generateUUID() (string, error) {
+	u, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate UUID v7: %w", err)
+	}
+	return u.String(), nil
 }

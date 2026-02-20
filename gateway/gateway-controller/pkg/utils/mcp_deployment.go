@@ -77,7 +77,11 @@ func (s *MCPDeploymentService) DeployMCPConfiguration(params MCPDeploymentParams
 	// Generate API ID if not provided
 	apiID := params.ID
 	if apiID == "" {
-		apiID = generateUUID()
+		var err error
+		apiID, err = generateUUID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate API ID: %w", err)
+		}
 	}
 
 	// Create stored configuration

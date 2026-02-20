@@ -140,7 +140,11 @@ func (s *LLMDeploymentService) DeployLLMProviderConfiguration(params LLMDeployme
 	// Generate API ID if not provided
 	apiID := params.ID
 	if apiID == "" {
-		apiID = generateUUID()
+		var err error
+		apiID, err = generateUUID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate API ID: %w", err)
+		}
 	}
 
 	// Create stored configuration
@@ -257,7 +261,11 @@ func (s *LLMDeploymentService) DeployLLMProxyConfiguration(params LLMDeploymentP
 	// Generate API ID if not provided
 	apiID := params.ID
 	if apiID == "" {
-		apiID = generateUUID()
+		var err error
+		apiID, err = generateUUID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate API ID: %w", err)
+		}
 	}
 
 	// Create stored configuration
@@ -348,8 +356,13 @@ func (s *LLMDeploymentService) CreateLLMProviderTemplate(params LLMTemplateParam
 		return nil, err
 	}
 
+	id, err := generateUUID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate template ID: %w", err)
+	}
+
 	stored := &models.StoredLLMProviderTemplate{
-		ID:            generateUUID(),
+		ID:            id,
 		Configuration: *tmpl,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -481,8 +494,14 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 		// CREATE new template
 		// ---------------------------
 
+		id, err := generateUUID()
+		if err != nil {
+			allErrors = append(allErrors, fmt.Sprintf("failed to generate ID for template '%s': %v", tmpl.Metadata.Name, err))
+			continue
+		}
+
 		stored := &models.StoredLLMProviderTemplate{
-			ID:            generateUUID(),
+			ID:            id,
 			Configuration: *tmpl,
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),

@@ -98,8 +98,16 @@ func (s *APIServer) UploadCertificate(c *gin.Context) {
 		return
 	}
 
-	// Generate unique ID
-	certID := uuid.New().String()
+	// Generate unique ID (UUID v7)
+	u, err := uuid.NewV7()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to generate certificate ID: " + err.Error(),
+		})
+		return
+	}
+	certID := u.String()
 
 	// Create certificate model
 	cert := &models.StoredCertificate{
@@ -334,8 +342,8 @@ func (s *APIServer) ReloadCertificates(c *gin.Context) {
 
 	combinedCerts := certStore.GetCombinedCertificates()
 	c.JSON(http.StatusOK, gin.H{
-		"status":      "success",
-		"message":     "Certificates reloaded and SDS updated successfully",
+		"status":     "success",
+		"message":    "Certificates reloaded and SDS updated successfully",
 		"totalBytes": len(combinedCerts),
 	})
 }
