@@ -57,7 +57,7 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *model.Deployment
 	if deployment.DeploymentID == "" {
 		deploymentID, err := utils.GenerateUUID()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to generate deployment ID: %w", err)
 		}
 		deployment.DeploymentID = deploymentID
 	}

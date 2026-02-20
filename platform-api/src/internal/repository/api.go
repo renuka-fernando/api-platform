@@ -55,7 +55,7 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 	// Always generate a new UUID for the API
 	apiID, err := utils.GenerateUUID()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate API ID: %w", err)
 	}
 	api.ID = apiID
 	api.CreatedAt = time.Now()

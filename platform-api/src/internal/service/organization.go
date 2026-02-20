@@ -113,7 +113,7 @@ func (s *OrganizationService) RegisterOrganization(id string, handle string, nam
 	// Create default project for the organization
 	projectID, err := utils.GenerateUUID()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate default project ID: %w", err)
 	}
 	defaultProject := &model.Project{
 		ID:             projectID,

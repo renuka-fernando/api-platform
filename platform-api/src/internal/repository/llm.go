@@ -52,7 +52,7 @@ func NewLLMProviderTemplateRepo(db *database.DB) LLMProviderTemplateRepository {
 func (r *LLMProviderTemplateRepo) Create(t *model.LLMProviderTemplate) error {
 	uuidStr, err := utils.GenerateUUID()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate LLM provider template ID: %w", err)
 	}
 	t.UUID = uuidStr
 	t.CreatedAt = time.Now()
@@ -287,7 +287,7 @@ func NewLLMProviderRepo(db *database.DB) LLMProviderRepository {
 func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 	uuidStr, err := utils.GenerateUUID()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate LLM provider ID: %w", err)
 	}
 	p.UUID = uuidStr
 	now := time.Now()
@@ -559,7 +559,7 @@ func NewLLMProxyRepo(db *database.DB) LLMProxyRepository {
 func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
 	uuidStr, err := utils.GenerateUUID()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate LLM proxy ID: %w", err)
 	}
 	p.UUID = uuidStr
 	now := time.Now()

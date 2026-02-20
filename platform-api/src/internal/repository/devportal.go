@@ -43,7 +43,7 @@ func (r *devPortalRepository) Create(devPortal *model.DevPortal) error {
 	if devPortal.UUID == "" {
 		uuidStr, err := utils.GenerateUUID()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to generate DevPortal ID: %w", err)
 		}
 		devPortal.UUID = uuidStr
 	}
