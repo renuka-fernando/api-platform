@@ -166,10 +166,14 @@ SOCKET_WAIT_COUNT=0
 while [ ! -S "${POLICY_ENGINE_SOCKET}" ]; do
     if [ $SOCKET_WAIT_COUNT -ge $SOCKET_WAIT_TIMEOUT ]; then
         log "ERROR: Policy Engine socket not created within ${SOCKET_WAIT_TIMEOUT}s"
-        log "Checking if Policy Engine is still running..."
-        if ! kill -0 "$PE_PID" 2>/dev/null; then
-            log "ERROR: Policy Engine process has exited"
+        if kill -0 "$PE_PID" 2>/dev/null; then
+            log "Stopping Policy Engine / dlv (PID $PE_PID)..."
+            kill -TERM "$PE_PID" 2>/dev/null || true
+            wait "$PE_PID" 2>/dev/null || true
+        else
+            log "ERROR: Policy Engine process has already exited"
         fi
+        rm -f "${POLICY_ENGINE_SOCKET}"
         exit 1
     fi
 
@@ -200,6 +204,8 @@ log "Envoy started (PID $ENVOY_PID)"
 log "Gateway Runtime running (DEBUG) - Policy Engine/dlv (PID $PE_PID), Envoy (PID $ENVOY_PID)"
 
 # Monitor both processes - exit if either dies
+# Disable errexit so a non-zero child exit code doesn't abort before cleanup
+set +e
 wait -n "$PE_PID" "$ENVOY_PID"
 EXIT_CODE=$?
 
