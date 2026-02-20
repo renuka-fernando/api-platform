@@ -170,16 +170,16 @@ func TestGetTopicsForDelete(t *testing.T) {
 
 func TestGenerateUUID(t *testing.T) {
 	t.Run("Generates valid UUID", func(t *testing.T) {
-		uuid, err := generateUUID()
+		uuid, err := GenerateUUID()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, uuid)
 		assert.Len(t, uuid, 36) // Standard UUID length with hyphens
 	})
 
 	t.Run("Generates unique UUIDs", func(t *testing.T) {
-		uuid1, err := generateUUID()
+		uuid1, err := GenerateUUID()
 		assert.NoError(t, err)
-		uuid2, err := generateUUID()
+		uuid2, err := GenerateUUID()
 		assert.NoError(t, err)
 		assert.NotEqual(t, uuid1, uuid2)
 	})

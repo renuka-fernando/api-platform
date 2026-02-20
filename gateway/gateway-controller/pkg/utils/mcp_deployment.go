@@ -78,7 +78,7 @@ func (s *MCPDeploymentService) DeployMCPConfiguration(params MCPDeploymentParams
 	apiID := params.ID
 	if apiID == "" {
 		var err error
-		apiID, err = generateUUID()
+		apiID, err = GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API ID: %w", err)
 		}

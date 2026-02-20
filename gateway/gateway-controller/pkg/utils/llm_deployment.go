@@ -141,7 +141,7 @@ func (s *LLMDeploymentService) DeployLLMProviderConfiguration(params LLMDeployme
 	apiID := params.ID
 	if apiID == "" {
 		var err error
-		apiID, err = generateUUID()
+		apiID, err = GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API ID: %w", err)
 		}
@@ -262,7 +262,7 @@ func (s *LLMDeploymentService) DeployLLMProxyConfiguration(params LLMDeploymentP
 	apiID := params.ID
 	if apiID == "" {
 		var err error
-		apiID, err = generateUUID()
+		apiID, err = GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API ID: %w", err)
 		}
@@ -356,7 +356,7 @@ func (s *LLMDeploymentService) CreateLLMProviderTemplate(params LLMTemplateParam
 		return nil, err
 	}
 
-	id, err := generateUUID()
+	id, err := GenerateUUID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate template ID: %w", err)
 	}
@@ -494,7 +494,7 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 		// CREATE new template
 		// ---------------------------
 
-		id, err := generateUUID()
+		id, err := GenerateUUID()
 		if err != nil {
 			allErrors = append(allErrors, fmt.Sprintf("failed to generate ID for template '%s': %v", tmpl.Metadata.Name, err))
 			continue

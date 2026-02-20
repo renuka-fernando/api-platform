@@ -29,7 +29,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
@@ -142,7 +141,7 @@ func (s *APIDeploymentService) DeployAPIConfiguration(params APIDeploymentParams
 	apiID := params.APIID
 	if apiID == "" {
 		var err error
-		apiID, err = generateUUID()
+		apiID, err = GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API ID: %w", err)
 		}
@@ -530,13 +529,4 @@ func (s *APIDeploymentService) sendTopicRequestToHub(ctx context.Context, httpCl
 	}
 
 	return fmt.Errorf("WebSubHub request failed after %d retries; last status: %d", maxRetries, lastStatus)
-}
-
-// generateUUID generates a new UUID v7 string
-func generateUUID() (string, error) {
-	u, err := uuid.NewV7()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate UUID v7: %w", err)
-	}
-	return u.String(), nil
 }
