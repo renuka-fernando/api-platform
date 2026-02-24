@@ -35,9 +35,13 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 )
 
-// generateCertificateID creates a unique ID for a certificate
-func generateCertificateID() string {
-	return uuid.New().String()
+// generateCertificateID creates a unique ID for a certificate (UUID v7)
+func generateCertificateID() (string, error) {
+	u, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate certificate UUID: %w", err)
+	}
+	return u.String(), nil
 }
 
 // CertStore manages custom certificates for upstream TLS verification
@@ -421,8 +425,16 @@ func (cs *CertStore) bootstrapCertificatesFromFilesystem() error {
 			return nil
 		}
 
+		certID, err := generateCertificateID()
+		if err != nil {
+			cs.logger.Warn("Failed to generate certificate ID during bootstrap",
+				slog.String("filename", filename),
+				slog.Any("error", err))
+			return nil
+		}
+
 		cert := &models.StoredCertificate{
-			ID:          generateCertificateID(),
+			ID:          certID,
 			Name:        filename,
 			Certificate: certData,
 			Subject:     x509Cert.Subject.String(),
