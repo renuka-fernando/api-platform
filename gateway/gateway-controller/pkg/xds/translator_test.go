@@ -1359,7 +1359,7 @@ func TestTranslator_TranslateConfigs_WebSubAPIError(t *testing.T) {
 				Name: "test-websub-api",
 			},
 			Kind:       api.WebSubApi,
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Spec:       api.APIConfiguration_Spec{
 				// Invalid spec that will cause AsWebhookAPIData to fail
 			},
@@ -1567,7 +1567,7 @@ func TestTranslator_TranslateAsyncAPIConfig(t *testing.T) {
 					Labels: &map[string]string{"project-id": "proj-123"},
 				},
 				Kind:       api.WebSubApi,
-				ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+				ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 				Spec:       api.APIConfiguration_Spec{},
 			},
 		}

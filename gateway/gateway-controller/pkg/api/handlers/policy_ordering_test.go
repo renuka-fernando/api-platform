@@ -187,8 +187,8 @@ func TestPolicyOrderingDeterministic(t *testing.T) {
 			// Build a minimal StoredAPIConfig
 			cfg := &models.StoredConfig{
 				Configuration: api.APIConfiguration{
-					ApiVersion: api.APIConfigurationApiVersion(api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1),
-					Kind:       api.APIConfigurationKind(api.RestApi),
+					ApiVersion: api.ApiVersion(api.GatewayApiPlatformWso2Comv1alpha1),
+					Kind:       api.Kind(api.RestApi),
 					Spec:       specUnion,
 				},
 			}
@@ -319,8 +319,8 @@ func TestMultipleOperationsIndependentPolicies(t *testing.T) {
 
 	cfg := &models.StoredConfig{
 		Configuration: api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersion(api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1),
-			Kind:       api.APIConfigurationKind(api.RestApi),
+			ApiVersion: api.ApiVersion(api.GatewayApiPlatformWso2Comv1alpha1),
+			Kind:       api.Kind(api.RestApi),
 			Spec:       specUnion,
 		},
 	}
@@ -445,8 +445,8 @@ func TestPolicyOrderingConsistency(t *testing.T) {
 
 	cfg := &models.StoredConfig{
 		Configuration: api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersion(api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1),
-			Kind:       api.APIConfigurationKind(api.RestApi),
+			ApiVersion: api.ApiVersion(api.GatewayApiPlatformWso2Comv1alpha1),
+			Kind:       api.Kind(api.RestApi),
 			Spec:       specUnion,
 		},
 	}

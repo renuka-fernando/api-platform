@@ -1760,6 +1760,68 @@ paths:
 
 components:
   schemas:
+    ApiVersion:
+      type: string
+      description: Resource specification version
+      example: gateway.api-platform.wso2.com/v1alpha1
+      enum:
+        - gateway.api-platform.wso2.com/v1alpha1
+
+    Kind:
+      type: string
+      description: Resource kind
+      example: RestApi
+      enum:
+        - RestApi
+        - WebSubApi
+        - Mcp
+        - LlmProviderTemplate
+        - LlmProvider
+        - LlmProxy
+
+    DisplayName:
+      type: string
+      description: Human-readable resource name (URL-friendly — letters, numbers, spaces, hyphens, underscores, dots)
+      minLength: 1
+      maxLength: 253
+      pattern: '^[a-zA-Z0-9\-_\. ]+$'
+
+    ResourceVersion:
+      type: string
+      description: Semantic version of the resource
+      pattern: '^v\d+\.\d+$'
+      example: v1.0
+
+    Context:
+      type: string
+      description: Base path for all routes (must start with /, no trailing slash)
+      pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+      minLength: 1
+      maxLength: 200
+
+    Vhost:
+      type: string
+      description: >
+        Virtual host name used for routing. Supports standard domain names,
+        subdomains, or wildcard domains. Must follow RFC-compliant hostname
+        rules. Wildcards are only allowed in the left-most label (e.g., *.example.com).
+      pattern: '^(\*\.|[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+      minLength: 1
+      maxLength: 253
+
+    DeploymentStatus:
+      type: string
+      description: Deployment status of the resource
+      enum:
+        - pending
+        - deployed
+        - failed
+      example: deployed
+
+    Timestamp:
+      type: string
+      format: date-time
+
     APIConfiguration:
       type: object
       required:
@@ -1769,18 +1831,9 @@ components:
         - spec
       properties:
         apiVersion:
-          type: string
-          description: API specification version
-          example: gateway.api-platform.wso2.com/v1alpha1
-          enum:
-            - gateway.api-platform.wso2.com/v1alpha1
+          $ref: "#/components/schemas/ApiVersion"
         kind:
-          type: string
-          description: API type
-          example: RestApi
-          enum:
-            - RestApi
-            - WebSubApi
+          $ref: "#/components/schemas/Kind"
         metadata:
           $ref: "#/components/schemas/Metadata"
         spec:
@@ -1819,12 +1872,7 @@ components:
         # - kind
       properties:
         displayName:
-          type: string
-          description: Human-readable API name (must be URL-friendly - only letters, numbers, spaces, hyphens, underscores, and dots allowed)
-          minLength: 1
-          maxLength: 100
-          pattern: '^[a-zA-Z0-9\-_\. ]+$'
-          example: weather-api
+          $ref: "#/components/schemas/DisplayName"
         # kind:
         #   type: string
         #   description: API type
@@ -1832,17 +1880,9 @@ components:
         #   enum:
         #     - RestApi
         version:
-          type: string
-          description: Semantic version of the API
-          pattern: '^v\d+\.\d+$'
-          example: v1.0
+          $ref: "#/components/schemas/ResourceVersion"
         context:
-          type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
-          pattern: '^\/[a-zA-Z0-9_\-\/]*[^\/]$'
-          minLength: 1
-          maxLength: 200
-          example: /weather
+          $ref: "#/components/schemas/Context"
         upstreamDefinitions:
           type: array
           description: List of reusable upstream definitions with optional timeout configurations
@@ -2078,24 +2118,11 @@ components:
         - channels
       properties:
         displayName:
-          type: string
-          description: Human-readable API name (must be URL-friendly - only letters, numbers, spaces, hyphens, underscores, and dots allowed)
-          minLength: 1
-          maxLength: 100
-          pattern: '^[a-zA-Z0-9\-_\. ]+$'
-          example: weather-api
+          $ref: "#/components/schemas/DisplayName"
         version:
-          type: string
-          description: Semantic version of the API
-          pattern: '^v\d+\.\d+$'
-          example: v1.0
+          $ref: "#/components/schemas/ResourceVersion"
         context:
-          type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
-          pattern: '^\/[a-zA-Z0-9_\-\/]*[^\/]$'
-          minLength: 1
-          maxLength: 200
-          example: /weather
+          $ref: "#/components/schemas/Context"
         vhosts:
           type: object
           required:
@@ -2302,9 +2329,7 @@ components:
           description: Unique id for the created API configuration
           example: weather-api-v1.0
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
     APIUpdateResponse:
       type: object
       properties:
@@ -2318,9 +2343,7 @@ components:
           type: string
           example: weather-api-v1.0
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T11:45:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     APIKeyCreationRequest:
       type: object
@@ -2544,13 +2567,9 @@ components:
             - undeployed
           example: deployed
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
     APIDetailResponse:
       type: object
       properties:
@@ -2570,24 +2589,13 @@ components:
               type: object
               properties:
                 status:
-                  type: string
-                  enum:
-                    - pending
-                    - deployed
-                    - failed
-                  example: deployed
+                  $ref: "#/components/schemas/DeploymentStatus"
                 createdAt:
-                  type: string
-                  format: date-time
-                  example: 2025-10-11T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 updatedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-10-11T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 deployedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-10-11T10:30:05Z
+                  $ref: "#/components/schemas/Timestamp"
 
     MCPProxyConfiguration:
       type: object
@@ -2598,17 +2606,9 @@ components:
         - spec
       properties:
         apiVersion:
-          type: string
-          description: MCP Proxy specification version
-          example: gateway.api-platform.wso2.com/v1alpha1
-          enum:
-            - gateway.api-platform.wso2.com/v1alpha1
+          $ref: "#/components/schemas/ApiVersion"
         kind:
-          type: string
-          description: MCP Proxy type
-          example: Mcp
-          enum:
-            - Mcp
+          $ref: "#/components/schemas/Kind"
         metadata:
           $ref: "#/components/schemas/Metadata"
         spec:
@@ -2622,34 +2622,17 @@ components:
         - upstream
       properties:
         displayName:
-          type: string
-          description: Human-readable MCP Proxy display name
-          minLength: 1
-          maxLength: 100
-          pattern: '^[a-zA-Z0-9\-_\. ]+$'
-          example: mcp-proxy-1
+          $ref: "#/components/schemas/DisplayName"
         version:
-          type: string
-          description: MCP Proxy version
-          example: v1.0
+          $ref: "#/components/schemas/ResourceVersion"
         context:
-          type: string
-          description: MCP Proxy context path
-          example: /mcp-proxy
+          $ref: "#/components/schemas/Context"
         specVersion:
           type: string
           description: MCP specification version
           example: 2025-06-18
         vhost:
-          type: string
-          description: >
-            Virtual host name used for routing. Supports standard domain names,
-            subdomains, or wildcard domains. Must follow RFC-compliant hostname
-            rules. Wildcards are only allowed in the left-most label (e.g., *.example.com).
-          pattern: '^(\*\.|[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-          minLength: 1
-          maxLength: 253
-          example: "mcp1.example.com"
+          $ref: "#/components/schemas/Vhost"
         upstream:
           description: The backend MCP server url and auth configurations
           allOf:
@@ -2770,9 +2753,7 @@ components:
           description: Unique handle (metadata.name) for the created MCP proxy configuration
           example: some-mcp-v1.0
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-12-12T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     MCPProxyUpdateResponse:
       type: object
@@ -2788,9 +2769,7 @@ components:
           description: Unique handle (metadata.name) for the created MCP proxy configuration
           example: some-mcp-v1.0
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-12-12T11:45:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     MCPProxyListItem:
       type: object
@@ -2811,20 +2790,11 @@ components:
           type: string
           example: 2025-06-18
         status:
-          type: string
-          enum:
-            - pending
-            - deployed
-            - failed
-          example: deployed
+          $ref: "#/components/schemas/DeploymentStatus"
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-11-24T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-11-24T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     MCPDetailResponse:
       type: object
@@ -2845,24 +2815,13 @@ components:
               type: object
               properties:
                 status:
-                  type: string
-                  enum:
-                    - pending
-                    - deployed
-                    - failed
-                  example: deployed
+                  $ref: "#/components/schemas/DeploymentStatus"
                 createdAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-24T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 updatedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-24T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 deployedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-24T10:30:05Z
+                  $ref: "#/components/schemas/Timestamp"
 
     ErrorResponse:
       type: object
@@ -2904,17 +2863,9 @@ components:
         - spec
       properties:
         apiVersion:
-          type: string
-          description: Template specification version
-          example: gateway.api-platform.wso2.com/v1alpha1
-          enum:
-            - gateway.api-platform.wso2.com/v1alpha1
+          $ref: "#/components/schemas/ApiVersion"
         kind:
-          type: string
-          description: Template kind
-          example: LlmProviderTemplate
-          enum:
-            - LlmProviderTemplate
+          $ref: "#/components/schemas/Kind"
         metadata:
           $ref: "#/components/schemas/Metadata"
         spec:
@@ -2926,11 +2877,7 @@ components:
         - displayName
       properties:
         displayName:
-          type: string
-          description: Human-readable LLM Template name
-          minLength: 1
-          maxLength: 253
-          example: OpenAI
+          $ref: "#/components/schemas/DisplayName"
         promptTokens:
           $ref: '#/components/schemas/ExtractionIdentifier'
         completionTokens:
@@ -2977,9 +2924,7 @@ components:
           type: string
           example: openai
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderTemplateUpdateResponse:
       type: object
@@ -2994,9 +2939,7 @@ components:
           type: string
           example: openai
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T11:45:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderTemplateListItem:
       type: object
@@ -3008,13 +2951,9 @@ components:
           type: string
           example: OpenAI
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-10-11T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderTemplateDetailResponse:
       type: object
@@ -3034,13 +2973,9 @@ components:
               type: object
               properties:
                 createdAt:
-                  type: string
-                  format: date-time
-                  example: 2025-10-11T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 updatedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-10-11T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
 
     LLMProviderCreateResponse:
       type: object
@@ -3055,9 +2990,7 @@ components:
           type: string
           example: openai
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProxyCreateResponse:
       type: object
@@ -3072,9 +3005,7 @@ components:
           type: string
           example: wso2-con-assistant
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderUpdateResponse:
       type: object
@@ -3089,9 +3020,7 @@ components:
           type: string
           example: wso2-openai-provider
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T11:45:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProxyUpdateResponse:
       type: object
@@ -3106,9 +3035,7 @@ components:
           type: string
           example: wso2-con-assistant
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T11:45:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderListItem:
       type: object
@@ -3126,20 +3053,11 @@ components:
           type: string
           example: openai
         status:
-          type: string
-          enum:
-            - pending
-            - deployed
-            - failed
-          example: deployed
+          $ref: "#/components/schemas/DeploymentStatus"
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProxyListItem:
       type: object
@@ -3158,20 +3076,11 @@ components:
           description: Unique id of a deployed llm provider
           example: wso2-openai-provider
         status:
-          type: string
-          enum:
-            - pending
-            - deployed
-            - failed
-          example: deployed
+          $ref: "#/components/schemas/DeploymentStatus"
         createdAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          type: string
-          format: date-time
-          example: 2025-11-25T10:30:00Z
+          $ref: "#/components/schemas/Timestamp"
 
     LLMProviderDetailResponse:
       type: object
@@ -3188,27 +3097,16 @@ components:
             configuration:
               $ref: '#/components/schemas/LLMProviderConfiguration'
             deploymentStatus:
-              type: string
-              enum:
-                - pending
-                - deployed
-                - failed
-              example: deployed
+              $ref: "#/components/schemas/DeploymentStatus"
             metadata:
               type: object
               properties:
                 createdAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 updatedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 deployedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:35:00Z
+                  $ref: "#/components/schemas/Timestamp"
 
     LLMProxyDetailResponse:
       type: object
@@ -3225,27 +3123,16 @@ components:
             configuration:
               $ref: '#/components/schemas/LLMProxyConfiguration'
             deploymentStatus:
-              type: string
-              enum:
-                - pending
-                - deployed
-                - failed
-              example: deployed
+              $ref: "#/components/schemas/DeploymentStatus"
             metadata:
               type: object
               properties:
                 createdAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 updatedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:30:00Z
+                  $ref: "#/components/schemas/Timestamp"
                 deployedAt:
-                  type: string
-                  format: date-time
-                  example: 2025-11-25T10:35:00Z
+                  $ref: "#/components/schemas/Timestamp"
 
     LLMProviderConfiguration:
       type: object
@@ -3256,17 +3143,9 @@ components:
         - spec
       properties:
         apiVersion:
-          type: string
-          description: Provider specification version
-          example: gateway.api-platform.wso2.com/v1alpha1
-          enum:
-            - gateway.api-platform.wso2.com/v1alpha1
+          $ref: "#/components/schemas/ApiVersion"
         kind:
-          type: string
-          description: Provider kind
-          example: LlmProvider
-          enum:
-            - LlmProvider
+          $ref: "#/components/schemas/Kind"
         metadata:
           $ref: "#/components/schemas/Metadata"
         spec:
@@ -3282,35 +3161,13 @@ components:
         - accessControl
       properties:
         displayName:
-          type: string
-          description: Human-readable LLM Provider name
-          minLength: 1
-          maxLength: 100
-          pattern: '^[a-zA-Z0-9\-_\. ]+$'
-          example: WSO2 OpenAI Provider
+          $ref: "#/components/schemas/DisplayName"
         version:
-          type: string
-          description: Semantic version of the LLM Provider
-          pattern: '^v\d+\.\d+$'
-          example: v1.0
+          $ref: "#/components/schemas/ResourceVersion"
         context:
-          type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
-          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
-          default: /
-          minLength: 1
-          maxLength: 200
-          example: /openai
+          $ref: "#/components/schemas/Context"
         vhost:
-          type: string
-          description: >
-            Virtual host name used for routing. Supports standard domain names,
-            subdomains, or wildcard domains. Must follow RFC-compliant hostname
-            rules. Wildcards are only allowed in the left-most label (e.g., *.example.com).
-          pattern: '^(\*\.|[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-          minLength: 1
-          maxLength: 253
-          example: "api.openai"
+          $ref: "#/components/schemas/Vhost"
         template:
           type: string
           description: Template name to use for this LLM Provider
@@ -3455,17 +3312,9 @@ components:
         - spec
       properties:
         apiVersion:
-          type: string
-          description: Proxy specification version
-          example: gateway.api-platform.wso2.com/v1alpha1
-          enum:
-            - gateway.api-platform.wso2.com/v1alpha1
+          $ref: "#/components/schemas/ApiVersion"
         kind:
-          type: string
-          description: Proxy kind
-          example: LlmProxy
-          enum:
-            - LlmProxy
+          $ref: "#/components/schemas/Kind"
         metadata:
           $ref: "#/components/schemas/Metadata"
         spec:
@@ -3479,35 +3328,13 @@ components:
         - provider
       properties:
         displayName:
-          type: string
-          description: Human-readable LLM proxy name (must be URL-friendly - only letters, numbers, spaces, hyphens, underscores, and dots allowed)
-          minLength: 1
-          maxLength: 253
-          pattern: '^[a-zA-Z0-9\-_\. ]+$'
-          example: wso2-con-assistant
+          $ref: "#/components/schemas/DisplayName"
         version:
-          type: string
-          description: Semantic version of the LLM proxy
-          pattern: '^v\d+\.\d+$'
-          example: v1.0
+          $ref: "#/components/schemas/ResourceVersion"
         context:
-          type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
-          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
-          default: /
-          minLength: 1
-          maxLength: 200
-          example: /openai
+          $ref: "#/components/schemas/Context"
         vhost:
-          type: string
-          description: >
-            Virtual host name used for routing. Supports standard domain names,
-            subdomains, or wildcard domains. Must follow RFC-compliant hostname
-            rules. Wildcards are only allowed in the left-most label (e.g., *.example.com).
-          pattern: '^(\*\.|[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-          minLength: 1
-          maxLength: 253
-          example: "api.openai"
+          $ref: "#/components/schemas/Vhost"
         provider:
           $ref: '#/components/schemas/LLMProxyProvider'
         policies:

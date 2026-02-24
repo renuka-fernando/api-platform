@@ -501,7 +501,7 @@ func createTestStoredConfig(id, name, version, context string) *models.StoredCon
 		ID:   id,
 		Kind: string(api.RestApi),
 		Configuration: api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersion(api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1),
+			ApiVersion: api.ApiVersion(api.GatewayApiPlatformWso2Comv1alpha1),
 			Kind:       api.RestApi,
 			Metadata: api.Metadata{
 				Name: id,
@@ -1626,7 +1626,7 @@ func TestBuildStoredPolicyFromAPIInvalidKind(t *testing.T) {
 		ID:   "test-id",
 		Kind: "InvalidKind",
 		Configuration: api.APIConfiguration{
-			Kind: api.APIConfigurationKind("InvalidKind"),
+			Kind: api.Kind("InvalidKind"),
 		},
 	}
 

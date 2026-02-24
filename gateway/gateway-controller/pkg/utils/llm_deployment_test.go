@@ -650,7 +650,7 @@ func TestLLMDeploymentService_InitializeOOBTemplates_ValidTemplates(t *testing.T
 
 	templates := map[string]*api.LLMProviderTemplate{
 		"openai": {
-			ApiVersion: api.LLMProviderTemplateApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.LlmProviderTemplate,
 			Metadata:   api.Metadata{Name: "openai"},
 			Spec: api.LLMProviderTemplateData{
@@ -691,7 +691,7 @@ func TestLLMDeploymentService_InitializeOOBTemplates_UpdateExisting(t *testing.T
 	// Initialize with updated template
 	templates := map[string]*api.LLMProviderTemplate{
 		"existing": {
-			ApiVersion: api.LLMProviderTemplateApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.LlmProviderTemplate,
 			Metadata:   api.Metadata{Name: "existing"},
 			Spec: api.LLMProviderTemplateData{

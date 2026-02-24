@@ -161,7 +161,7 @@ func TestTransform_MinimalProvider(t *testing.T) {
 
 	// Verify basic fields
 	assert.Equal(t, api.RestApi, result.Kind)
-	assert.Equal(t, api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1, result.ApiVersion)
+	assert.Equal(t, api.GatewayApiPlatformWso2Comv1alpha1, result.ApiVersion)
 
 	// Extract spec
 	spec, err := result.Spec.AsAPIConfigData()

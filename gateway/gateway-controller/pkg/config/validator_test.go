@@ -119,7 +119,7 @@ func TestValidator_URLFriendlyName(t *testing.T) {
 				},
 			})
 			config := &api.APIConfiguration{
-				ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+				ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 				Kind:       api.RestApi,
 				Spec:       specUnion,
 			}
@@ -372,7 +372,7 @@ func TestValidator_LabelsValidation(t *testing.T) {
 				},
 			})
 			config := &api.APIConfiguration{
-				ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+				ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 				Kind:       api.RestApi,
 				Metadata: api.Metadata{
 					Name:   "test-api-v1.0",
@@ -437,7 +437,7 @@ func TestValidator_LabelsWithAllAPITypes(t *testing.T) {
 			},
 		})
 		config := &api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.RestApi,
 			Metadata: api.Metadata{
 				Name:   "test-api-v1.0",
@@ -472,7 +472,7 @@ func TestValidator_LabelsWithAllAPITypes(t *testing.T) {
 			},
 		})
 		config := &api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.WebSubApi,
 			Metadata: api.Metadata{
 				Name:   "test-api-v1.0",
@@ -514,7 +514,7 @@ func TestValidator_LabelsWithAllAPITypes(t *testing.T) {
 			},
 		})
 		config := &api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.RestApi,
 			Metadata: api.Metadata{
 				Name:   "test-api-v1.0",
@@ -548,7 +548,7 @@ func TestValidator_LabelsWithAllAPITypes(t *testing.T) {
 			},
 		})
 		config := &api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.WebSubApi,
 			Metadata: api.Metadata{
 				Name:   "test-api-v1.0",

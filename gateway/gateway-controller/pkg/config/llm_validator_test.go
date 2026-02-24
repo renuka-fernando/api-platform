@@ -169,7 +169,7 @@ func TestValidateLLMProviderTemplate_InvalidVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			template := api.LLMProviderTemplate{
-				ApiVersion: api.LLMProviderTemplateApiVersion(tt.version),
+				ApiVersion: api.ApiVersion(tt.version),
 				Kind:       api.LlmProviderTemplate,
 				Metadata:   api.Metadata{Name: "openai"},
 				Spec: api.LLMProviderTemplateData{
@@ -231,7 +231,7 @@ func TestValidateLLMProviderTemplate_InvalidKind(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			template := api.LLMProviderTemplate{
 				ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
-				Kind:       api.LLMProviderTemplateKind(tt.kind),
+				Kind:       api.Kind(tt.kind),
 				Metadata:   api.Metadata{Name: "openai"},
 				Spec: api.LLMProviderTemplateData{
 					DisplayName: "test",
@@ -760,7 +760,7 @@ func TestValidateLLMProvider_InvalidVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			provider := api.LLMProviderConfiguration{
-				ApiVersion: api.LLMProviderConfigurationApiVersion(tt.version),
+				ApiVersion: api.ApiVersion(tt.version),
 				Kind:       api.LlmProvider,
 				Metadata:   api.Metadata{Name: "openai"},
 				Spec: api.LLMProviderConfigData{
@@ -825,7 +825,7 @@ func TestValidateLLMProvider_InvalidKind(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			provider := api.LLMProviderConfiguration{
 				ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
-				Kind:       api.LLMProviderConfigurationKind(tt.kind),
+				Kind:       api.Kind(tt.kind),
 				Metadata:   api.Metadata{Name: "openai"},
 				Spec: api.LLMProviderConfigData{
 					DisplayName: "test",

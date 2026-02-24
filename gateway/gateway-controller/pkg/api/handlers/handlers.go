@@ -383,7 +383,7 @@ func (s *APIServer) SearchDeployments(c *gin.Context, kind string) {
 				continue
 			}
 
-			status := api.MCPProxyListItemStatus(cfg.Status)
+			status := api.DeploymentStatus(cfg.Status)
 			// Convert SourceConfiguration to MCPProxyConfiguration to get spec fields
 			var mcp api.MCPProxyConfiguration
 			j, _ := json.Marshal(cfg.SourceConfiguration)
@@ -1201,7 +1201,7 @@ func (s *APIServer) ListLLMProviders(c *gin.Context, params api.ListLLMProviders
 
 	items := make([]api.LLMProviderListItem, len(configs))
 	for i, cfg := range configs {
-		status := api.LLMProviderListItemStatus(cfg.Status)
+		status := api.DeploymentStatus(cfg.Status)
 
 		// Convert SourceConfiguration to LLMProviderConfiguration
 		var prov api.LLMProviderConfiguration
@@ -1452,7 +1452,7 @@ func (s *APIServer) ListLLMProxies(c *gin.Context, params api.ListLLMProxiesPara
 
 	items := make([]api.LLMProxyListItem, len(configs))
 	for i, cfg := range configs {
-		status := api.LLMProxyListItemStatus(cfg.Status)
+		status := api.DeploymentStatus(cfg.Status)
 
 		// Convert SourceConfiguration to LLMProxyConfiguration
 		var proxy api.LLMProxyConfiguration
@@ -1851,7 +1851,7 @@ func (s *APIServer) ListMCPProxies(c *gin.Context, params api.ListMCPProxiesPara
 
 	items := make([]api.MCPProxyListItem, len(configs))
 	for i, cfg := range configs {
-		status := api.MCPProxyListItemStatus(cfg.Status)
+		status := api.DeploymentStatus(cfg.Status)
 		// Convert SourceConfiguration to MCPProxyConfiguration
 		var mcp api.MCPProxyConfiguration
 		j, _ := json.Marshal(cfg.SourceConfiguration)

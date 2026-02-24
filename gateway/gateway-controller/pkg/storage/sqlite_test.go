@@ -867,7 +867,7 @@ func createTestLLMProviderTemplate() *models.StoredLLMProviderTemplate {
 	return &models.StoredLLMProviderTemplate{
 		ID: fmt.Sprintf("test-template-%d", llmTemplateCounter),
 		Configuration: api.LLMProviderTemplate{
-			ApiVersion: api.LLMProviderTemplateApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.LlmProviderTemplate,
 			Metadata:   api.Metadata{Name: fmt.Sprintf("test-template-%d", llmTemplateCounter)},
 			Spec: api.LLMProviderTemplateData{

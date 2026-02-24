@@ -82,7 +82,7 @@ func TestPolicyValidator_ValidatePolicies_Success(t *testing.T) {
 	}
 	// Create API config with valid policy
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -127,7 +127,7 @@ func TestPolicyValidator_PolicyNotFound(t *testing.T) {
 
 	// Create API config with non-existent policy
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -196,7 +196,7 @@ func TestPolicyValidator_InvalidParameters(t *testing.T) {
 		},
 	})
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -258,7 +258,7 @@ func TestPolicyValidator_OperationLevelPolicies(t *testing.T) {
 		},
 	})
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -318,7 +318,7 @@ func TestPolicyValidator_MultipleErrors(t *testing.T) {
 		},
 	})
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -379,7 +379,7 @@ func TestPolicyValidator_TypeMismatch(t *testing.T) {
 		},
 	})
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -442,7 +442,7 @@ func TestPolicyValidator_MissingRequiredParams(t *testing.T) {
 		},
 	})
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:    api.RestApi,
 		Spec:    specUnion,
 	}
@@ -537,7 +537,7 @@ func TestPolicyValidator_MixedMajorVersions_SamePolicyName(t *testing.T) {
 	}
 
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Spec:       specUnion,
 	}
@@ -587,7 +587,7 @@ func TestPolicyValidator_FullSemverRejected(t *testing.T) {
 	}
 
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Spec:       specUnion,
 	}
@@ -649,7 +649,7 @@ func TestPolicyValidator_MajorVersionResolution_Success(t *testing.T) {
 	}
 
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Spec:       specUnion,
 	}
@@ -699,7 +699,7 @@ func TestPolicyValidator_MajorVersionResolution_NotFound(t *testing.T) {
 	})
 
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Spec:       specUnion,
 	}
@@ -756,7 +756,7 @@ func TestPolicyValidator_MajorVersionResolution_MultipleMatches(t *testing.T) {
 	})
 
 	apiConfig := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Spec:       specUnion,
 	}

@@ -77,7 +77,7 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 
 	// Step 2: Configure API metadata and basic spec
 	output.Kind = api.RestApi
-	output.ApiVersion = api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1
+	output.ApiVersion = api.GatewayApiPlatformWso2Comv1alpha1
 	output.Metadata = proxy.Metadata
 
 	spec := api.APIConfigData{}
@@ -280,7 +280,7 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 	}
 
 	output.Kind = api.RestApi
-	output.ApiVersion = api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1
+	output.ApiVersion = api.GatewayApiPlatformWso2Comv1alpha1
 	output.Metadata = provider.Metadata
 
 	spec := api.APIConfigData{}

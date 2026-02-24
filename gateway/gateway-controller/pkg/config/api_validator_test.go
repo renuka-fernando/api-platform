@@ -88,12 +88,12 @@ func TestAPIValidator_ValidateAPIVersion(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		apiVersion api.APIConfigurationApiVersion
+		apiVersion api.ApiVersion
 		wantError  bool
 	}{
 		{
 			name:       "Valid API version",
-			apiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			apiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			wantError:  false,
 		},
 		{
@@ -131,7 +131,7 @@ func TestAPIValidator_ValidateKind(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		kind      api.APIConfigurationKind
+		kind      api.Kind
 		wantError bool
 	}{
 		{name: "Valid RestApi kind", kind: api.RestApi, wantError: false},
@@ -652,7 +652,7 @@ func TestAPIValidator_ValidatePathParametersForAsyncAPIs(t *testing.T) {
 
 func createValidRestAPIConfig() *api.APIConfiguration {
 	config := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.RestApi,
 		Metadata: api.Metadata{
 			Name: "test-api",
@@ -682,7 +682,7 @@ func createValidRestAPIConfig() *api.APIConfiguration {
 
 func createValidWebSubAPIConfig() *api.APIConfiguration {
 	config := &api.APIConfiguration{
-		ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+		ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 		Kind:       api.WebSubApi,
 		Metadata: api.Metadata{
 			Name: "test-websub",

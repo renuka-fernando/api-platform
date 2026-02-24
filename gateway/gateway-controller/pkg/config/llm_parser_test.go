@@ -142,8 +142,8 @@ spec:
 			require.NoError(t, err, "Failed to parse valid LLM Provider Template YAML")
 
 			// Verify version and kind
-			assert.Equal(t, api.LLMProviderTemplateApiVersion("gateway.api-platform.wso2.com/v1alpha1"), template.ApiVersion)
-			assert.Equal(t, api.LLMProviderTemplateKind("LlmProviderTemplate"), template.Kind)
+			assert.Equal(t, api.ApiVersion("gateway.api-platform.wso2.com/v1alpha1"), template.ApiVersion)
+			assert.Equal(t, api.Kind("LlmProviderTemplate"), template.Kind)
 
 			// Verify spec.name
 			assert.Equal(t, tt.expectedName, template.Spec.DisplayName)
@@ -245,8 +245,8 @@ func TestParseLLMProviderTemplate_JSON_Valid(t *testing.T) {
 			err := parser.Parse([]byte(tt.json), "application/json", &template)
 
 			require.NoError(t, err, "Failed to parse valid LLM Provider Template JSON")
-			assert.Equal(t, api.LLMProviderTemplateApiVersion("gateway.api-platform.wso2.com/v1alpha1"), template.ApiVersion)
-			assert.Equal(t, api.LLMProviderTemplateKind("LlmProviderTemplate"), template.Kind)
+			assert.Equal(t, api.ApiVersion("gateway.api-platform.wso2.com/v1alpha1"), template.ApiVersion)
+			assert.Equal(t, api.Kind("LlmProviderTemplate"), template.Kind)
 			assert.Equal(t, tt.expectedName, template.Spec.DisplayName)
 		})
 	}
@@ -492,8 +492,8 @@ spec:
 			require.NoError(t, err, "Failed to parse valid LLM Provider YAML")
 
 			// Verify version and kind
-			assert.Equal(t, api.LLMProviderConfigurationApiVersion("gateway.api-platform.wso2.com/v1alpha1"), provider.ApiVersion)
-			assert.Equal(t, api.LLMProviderConfigurationKind("LlmProvider"), provider.Kind)
+			assert.Equal(t, api.ApiVersion("gateway.api-platform.wso2.com/v1alpha1"), provider.ApiVersion)
+			assert.Equal(t, api.Kind("LlmProvider"), provider.Kind)
 
 			// Verify spec fields
 			assert.Equal(t, tt.expectedName, provider.Spec.DisplayName)
@@ -625,8 +625,8 @@ func TestParseLLMProvider_JSON_Valid(t *testing.T) {
 			err := parser.Parse([]byte(tt.json), "application/json", &provider)
 
 			require.NoError(t, err, "Failed to parse valid LLM Provider JSON")
-			assert.Equal(t, api.LLMProviderConfigurationApiVersion("gateway.api-platform.wso2.com/v1alpha1"), provider.ApiVersion)
-			assert.Equal(t, api.LLMProviderConfigurationKind("LlmProvider"), provider.Kind)
+			assert.Equal(t, api.ApiVersion("gateway.api-platform.wso2.com/v1alpha1"), provider.ApiVersion)
+			assert.Equal(t, api.Kind("LlmProvider"), provider.Kind)
 			assert.Equal(t, tt.expectedName, provider.Spec.DisplayName)
 			assert.Equal(t, tt.expectedVersion, provider.Spec.Version)
 		})

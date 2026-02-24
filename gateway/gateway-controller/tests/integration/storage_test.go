@@ -86,7 +86,7 @@ func createTestConfig(name, version string) *models.StoredConfig {
 	return &models.StoredConfig{
 		ID: uuid.New().String(),
 		Configuration: api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.RestApi,
 			Metadata:   api.Metadata{Name: name + "-" + version},
 			Spec:       specUnion,
@@ -337,7 +337,7 @@ func createTestConfigWithLabels(name, version string, labels map[string]string) 
 	return &models.StoredConfig{
 		ID: uuid.New().String(),
 		Configuration: api.APIConfiguration{
-			ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.RestApi,
 			Metadata: api.Metadata{
 				Name:   name + "-" + version,
@@ -623,7 +623,7 @@ func TestConfigStore_LabelsWithAllAPITypes(t *testing.T) {
 		cfg := &models.StoredConfig{
 			ID: uuid.New().String(),
 			Configuration: api.APIConfiguration{
-				ApiVersion: api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+				ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 				Kind:       api.WebSubApi,
 				Metadata: api.Metadata{
 					Name:   "async-api-v1.0",

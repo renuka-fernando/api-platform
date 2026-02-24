@@ -258,7 +258,7 @@ func TestListLLMProvidersWithData(t *testing.T) {
 		Kind:   "LlmProvider",
 		Status: "active",
 		SourceConfiguration: api.LLMProviderConfiguration{
-			ApiVersion: api.LLMProviderConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.LlmProvider,
 			Metadata: api.Metadata{
 				Name: "openai-provider",
@@ -320,7 +320,7 @@ func TestListLLMProxiesWithData(t *testing.T) {
 		Kind:   "LlmProxy",
 		Status: "active",
 		SourceConfiguration: api.LLMProxyConfiguration{
-			ApiVersion: api.LLMProxyConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			ApiVersion: api.GatewayApiPlatformWso2Comv1alpha1,
 			Kind:       api.LlmProxy,
 			Metadata: api.Metadata{
 				Name: "llm-proxy-1",

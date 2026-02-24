@@ -86,7 +86,7 @@ func (v *LLMValidator) validateLLMProviderTemplate(template *api.LLMProviderTemp
 	}
 
 	// Validate version
-	if template.ApiVersion != api.LLMProviderTemplateApiVersionGatewayApiPlatformWso2Comv1alpha1 {
+	if template.ApiVersion != api.GatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
 			Message: "Version must be 'gateway.api-platform.wso2.com/v1alpha1'",
@@ -217,7 +217,7 @@ func (v *LLMValidator) validateLLMProvider(provider *api.LLMProviderConfiguratio
 	}
 
 	// Validate version
-	if provider.ApiVersion != api.LLMProviderConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1 {
+	if provider.ApiVersion != api.GatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
 			Message: "Version must be in the format 'gateway.api-platform.wso2.com/v1alpha1'",
@@ -399,7 +399,7 @@ func (v *LLMValidator) validateLLMProxy(proxy *api.LLMProxyConfiguration) []Vali
 	}
 
 	// Validate version
-	if proxy.ApiVersion != api.LLMProxyConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1 {
+	if proxy.ApiVersion != api.GatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
 			Message: "Version must be in the format 'gateway.api-platform.wso2.com/v1alpha1'",

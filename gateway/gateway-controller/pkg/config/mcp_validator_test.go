@@ -96,7 +96,7 @@ func TestMCPValidator_ValidateAPIVersion(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		apiVersion api.MCPProxyConfigurationApiVersion
+		apiVersion api.ApiVersion
 		wantError  bool
 	}{
 		{
@@ -151,7 +151,7 @@ func TestMCPValidator_ValidateKind(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		kind      api.MCPProxyConfigurationKind
+		kind      api.Kind
 		wantError bool
 	}{
 		{
