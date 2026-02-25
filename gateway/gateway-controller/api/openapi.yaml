@@ -1789,7 +1789,7 @@ components:
     ResourceVersion:
       type: string
       description: Semantic version of the resource
-      pattern: '^v\d+\.\d+$'
+      pattern: '^v\d+\.\d+(\.\d+)?$'
       example: v1.0
 
     Context:
@@ -1816,6 +1816,7 @@ components:
         - pending
         - deployed
         - failed
+        - undeployed
       example: deployed
 
     Timestamp:
