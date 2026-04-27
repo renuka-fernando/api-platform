@@ -26,7 +26,7 @@ func hydrateStoredConfigsFromDatabaseOnStartup(
 	}
 
 	if err := hydrateConfigsByKindForStartup(
-		configStore.GetAllByKind(string(api.Mcp)),
+		configStore.GetAllByKind(string(api.MCPProxyConfigurationKindMcp)),
 		"stored MCP proxy configuration",
 		log,
 		skipInvalidDeployments,
@@ -36,7 +36,7 @@ func hydrateStoredConfigsFromDatabaseOnStartup(
 	}
 
 	if err := hydrateConfigsByKindForStartup(
-		configStore.GetAllByKind(string(api.LlmProvider)),
+		configStore.GetAllByKind(string(api.LLMProviderConfigurationKindLlmProvider)),
 		"stored LLM provider configuration",
 		log,
 		skipInvalidDeployments,
@@ -48,7 +48,7 @@ func hydrateStoredConfigsFromDatabaseOnStartup(
 	}
 
 	return hydrateConfigsByKindForStartup(
-		configStore.GetAllByKind(string(api.LlmProxy)),
+		configStore.GetAllByKind(string(api.LLMProxyConfigurationKindLlmProxy)),
 		"stored LLM proxy configuration",
 		log,
 		skipInvalidDeployments,
@@ -163,7 +163,7 @@ func loadRuntimeConfigsFromExistingAPIConfigurations(
 
 func supportsRuntimeBootstrapKind(kind string) bool {
 	switch kind {
-	case models.KindRestApi, models.KindWebSubApi, models.KindMcp, models.KindLlmProvider, models.KindLlmProxy:
+	case models.KindRestApi, models.KindMcp, models.KindLlmProvider, models.KindLlmProxy:
 		return true
 	default:
 		return false

@@ -5,15 +5,24 @@
 The API Gateway consists of two main components: **Gateway Controller** and **Gateway Runtime**.
 
 - **Gateway Controller** is the control plane that manages API configurations and pushes them to the Gateway Runtime via the xDS protocol.
-- **Gateway Runtime** is the data plane that processes API traffic. It contains two sub-components:
+- **Gateway Runtime** is the data plane that processes API traffic. It contains three sub-components:
   - **Router** (Envoy proxy) — handles traffic routing, load balancing, and TLS termination.
-  - **Policy Engine** — an ext_proc filter that executes request/response policies. Policies are compiled into the Policy Engine binary at image build time by the Gateway Builder.
+  - **Policy Engine** — an ext_proc filter that executes request/response policies. **Go-based** policies are compiled into the Policy Engine binary at image build time by the Gateway Builder.
+  - **Python Executor** — a dedicated runtime component that dynamically evaluates Python-based policies, allowing developers to leverage the extensive Python ecosystem for custom logic.
 
 The Gateway Controller configures the Gateway Runtime by pushing API and route configurations through xDS. When a request arrives, the Router forwards it to the Policy Engine for policy evaluation, then routes it to the upstream backend.
 
 ## Gateway Architecture
 
 ![Gateway Architecture](../images/gateway-architecture.png)
+<!-- image source: https://docs.google.com/drawings/d/1pgADdQNpNcvLrLVvV1fx2hxQOb3syoU0DEBhJd2N6Aw/edit?usp=sharing -->
+
+### Policy Development
+
+The Gateway offers a flexible, dual-language approach to policy development, empowering teams to build custom API logic tailored to their performance and ecosystem needs:
+
+- **Go:** Compiled directly into the Policy Engine binary, Go provides maximum execution performance, strict type safety, and minimal latency for critical path operations.
+- **Python:** Executed dynamically by the integrated Python Executor, Python is particularly ideal for AI/ML use cases and complex data transformations due to its extensive ecosystem support and specialized libraries.
 
 ## High Availability Setup
 
@@ -23,6 +32,7 @@ In a production HA deployment:
 - **Gateway Runtime** instances connect to a shared **Redis** instance used for distributed rate limiting, ensuring rate limit counters are synchronized across all runtime instances.
 
 ![Gateway High Availability Setup](../images/gateway-ha-setup.png)
+<!-- image source: https://docs.google.com/drawings/d/1CIH3V8Uc2YxCWEGS7yUz3qyBfSpdLK1VpWK0NgmP4OQ/edit?usp=sharing -->
 
 ## Configuration
 

@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -79,12 +80,7 @@ func (s *APIServer) CreateWebSubAPI(c *gin.Context) {
 
 	cfg := result.StoredConfig
 
-	c.JSON(http.StatusCreated, api.WebSubAPICreateResponse{
-		Status:    stringPtr("success"),
-		Message:   stringPtr("WebSub API configuration created successfully"),
-		Id:        stringPtr(cfg.Handle),
-		CreatedAt: timePtr(cfg.CreatedAt),
-	})
+	c.JSON(http.StatusCreated, buildResourceResponseFromStored(cfg.Configuration, cfg))
 
 	if result.IsStale {
 		return
@@ -102,11 +98,11 @@ func (s *APIServer) ListWebSubAPIs(c *gin.Context, params api.ListWebSubAPIsPara
 		(params.Version != nil && *params.Version != "") ||
 		(params.Context != nil && *params.Context != "") ||
 		(params.Status != nil && *params.Status != "") {
-		s.SearchDeployments(c, string(api.WebSubApi))
+		s.SearchDeployments(c, string(api.WebSubAPIKindWebSubApi))
 		return
 	}
 
-	configs, err := s.db.GetAllConfigsByKind(string(api.WebSubApi))
+	configs, err := s.db.GetAllConfigsByKind(string(api.WebSubAPIKindWebSubApi))
 	if err != nil {
 		s.logger.Error("Failed to list WebSub APIs", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
@@ -116,26 +112,21 @@ func (s *APIServer) ListWebSubAPIs(c *gin.Context, params api.ListWebSubAPIsPara
 		return
 	}
 
-	items := make([]api.WebSubAPIListItem, 0, len(configs))
+	contextFilter := params.Context != nil && *params.Context != ""
+	items := make([]any, 0, len(configs))
 	for _, cfg := range configs {
-		cfgContext, err := cfg.GetContext()
+		_, err := cfg.GetContext()
 		if err != nil {
 			s.logger.Warn("Failed to get context for WebSub API config",
 				slog.String("id", cfg.UUID),
+				slog.String("displayName", cfg.DisplayName),
 				slog.Any("error", err))
-			continue
+			if contextFilter {
+				continue
+			}
 		}
 
-		status := string(cfg.DesiredState)
-		items = append(items, api.WebSubAPIListItem{
-			Id:          stringPtr(cfg.Handle),
-			DisplayName: stringPtr(cfg.DisplayName),
-			Version:     stringPtr(cfg.Version),
-			Context:     stringPtr(cfgContext),
-			Status:      (*api.WebSubAPIListItemStatus)(&status),
-			CreatedAt:   timePtr(cfg.CreatedAt),
-			UpdatedAt:   timePtr(cfg.UpdatedAt),
-		})
+		items = append(items, buildResourceResponseFromStored(cfg.Configuration, cfg))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -169,24 +160,7 @@ func (s *APIServer) GetWebSubAPIById(c *gin.Context, id string) {
 		return
 	}
 
-	apiDetail := gin.H{
-		"id":            cfg.Handle,
-		"configuration": cfg.SourceConfiguration,
-		"metadata": gin.H{
-			"status":    string(cfg.DesiredState),
-			"createdAt": cfg.CreatedAt.Format(time.RFC3339),
-			"updatedAt": cfg.UpdatedAt.Format(time.RFC3339),
-		},
-	}
-
-	if cfg.DeployedAt != nil {
-		apiDetail["metadata"].(gin.H)["deployedAt"] = cfg.DeployedAt.Format(time.RFC3339)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"api":    apiDetail,
-	})
+	c.JSON(http.StatusOK, buildResourceResponseFromStored(cfg.SourceConfiguration, cfg))
 }
 
 // UpdateWebSubAPI implements ServerInterface.UpdateWebSubAPI
@@ -249,12 +223,7 @@ func (s *APIServer) UpdateWebSubAPI(c *gin.Context, id string) {
 		slog.String("id", updated.UUID),
 		slog.String("handle", handle))
 
-	c.JSON(http.StatusOK, api.WebSubAPIUpdateResponse{
-		Status:    stringPtr("success"),
-		Message:   stringPtr("WebSub API configuration updated successfully"),
-		Id:        stringPtr(updated.Handle),
-		UpdatedAt: timePtr(updated.UpdatedAt),
-	})
+	c.JSON(http.StatusOK, buildResourceResponseFromStored(updated.Configuration, updated))
 }
 
 // DeleteWebSubAPI implements ServerInterface.DeleteWebSubAPI
@@ -318,4 +287,213 @@ func (s *APIServer) DeleteWebSubAPI(c *gin.Context, id string) {
 		"message": "WebSub API configuration deleted successfully",
 		"id":      handle,
 	})
+}
+
+// CreateWebSubAPIKey implements ServerInterface.CreateWebSubAPIKey
+// (POST /websub-apis/{id}/api-keys)
+func (s *APIServer) CreateWebSubAPIKey(c *gin.Context, id string) {
+	log := middleware.GetLogger(c, s.logger)
+	handle := id
+	correlationID := middleware.GetCorrelationID(c)
+
+	user, ok := s.extractAuthenticatedUser(c, "CreateWebSubAPIKey", correlationID)
+	if !ok {
+		return
+	}
+
+	var request api.APIKeyCreationRequest
+	if err := s.bindRequestBody(c, &request); err != nil {
+		log.Error("Failed to parse request body for WebSub API key creation",
+			slog.Any("error", err),
+			slog.String("handle", handle),
+			slog.String("correlation_id", correlationID))
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("Invalid request body: %v", err)})
+		return
+	}
+
+	params := utils.APIKeyCreationParams{
+		Kind:          models.KindWebSubApi,
+		Handle:        handle,
+		Request:       request,
+		User:          user,
+		CorrelationID: correlationID,
+		Logger:        log,
+	}
+
+	result, err := s.apiKeyService.CreateAPIKey(params)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("WebSub API '%s' not found", handle)})
+		} else if storage.IsConflictError(err) {
+			c.JSON(http.StatusConflict, api.ErrorResponse{Status: "error", Message: err.Error()})
+		} else {
+			log.Error("Failed to create WebSub API key", slog.String("handle", handle), slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to create API key"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, result.Response)
+}
+
+// ListWebSubAPIKeys implements ServerInterface.ListWebSubAPIKeys
+// (GET /websub-apis/{id}/api-keys)
+func (s *APIServer) ListWebSubAPIKeys(c *gin.Context, id string) {
+	log := middleware.GetLogger(c, s.logger)
+	handle := id
+	correlationID := middleware.GetCorrelationID(c)
+
+	user, ok := s.extractAuthenticatedUser(c, "ListWebSubAPIKeys", correlationID)
+	if !ok {
+		return
+	}
+
+	params := utils.ListAPIKeyParams{
+		Kind:          models.KindWebSubApi,
+		Handle:        handle,
+		User:          user,
+		CorrelationID: correlationID,
+		Logger:        log,
+	}
+
+	result, err := s.apiKeyService.ListAPIKeys(params)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("WebSub API '%s' not found", handle)})
+		} else {
+			log.Error("Failed to list WebSub API keys", slog.String("handle", handle), slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to list API keys"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result.Response)
+}
+
+// RevokeWebSubAPIKey implements ServerInterface.RevokeWebSubAPIKey
+// (DELETE /websub-apis/{id}/api-keys/{apiKeyName})
+func (s *APIServer) RevokeWebSubAPIKey(c *gin.Context, id string, apiKeyName string) {
+	log := middleware.GetLogger(c, s.logger)
+	handle := id
+	correlationID := middleware.GetCorrelationID(c)
+
+	user, ok := s.extractAuthenticatedUser(c, "RevokeWebSubAPIKey", correlationID)
+	if !ok {
+		return
+	}
+
+	params := utils.APIKeyRevocationParams{
+		Kind:          models.KindWebSubApi,
+		Handle:        handle,
+		APIKeyName:    apiKeyName,
+		User:          user,
+		CorrelationID: correlationID,
+		Logger:        log,
+	}
+
+	result, err := s.apiKeyService.RevokeAPIKey(params)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("WebSub API '%s' not found", handle)})
+		} else {
+			log.Error("Failed to revoke WebSub API key", slog.String("handle", handle), slog.String("key", apiKeyName), slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to revoke API key"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result.Response)
+}
+
+// UpdateWebSubAPIKey implements ServerInterface.UpdateWebSubAPIKey
+// (PUT /websub-apis/{id}/api-keys/{apiKeyName})
+func (s *APIServer) UpdateWebSubAPIKey(c *gin.Context, id string, apiKeyName string) {
+	log := middleware.GetLogger(c, s.logger)
+	handle := id
+	correlationID := middleware.GetCorrelationID(c)
+
+	user, ok := s.extractAuthenticatedUser(c, "UpdateWebSubAPIKey", correlationID)
+	if !ok {
+		return
+	}
+
+	var request api.APIKeyCreationRequest
+	if err := s.bindRequestBody(c, &request); err != nil {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("Invalid request body: %v", err)})
+		return
+	}
+
+	if request.ApiKey == nil || strings.TrimSpace(*request.ApiKey) == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: "apiKey is required"})
+		return
+	}
+
+	params := utils.APIKeyUpdateParams{
+		Kind:          models.KindWebSubApi,
+		Handle:        handle,
+		APIKeyName:    apiKeyName,
+		Request:       request,
+		User:          user,
+		CorrelationID: correlationID,
+		Logger:        log,
+	}
+
+	result, err := s.apiKeyService.UpdateAPIKey(params)
+	if err != nil {
+		if storage.IsOperationNotAllowedError(err) {
+			c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: err.Error()})
+		} else if storage.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("WebSub API or API key '%s' not found", apiKeyName)})
+		} else if storage.IsConflictError(err) {
+			c.JSON(http.StatusConflict, api.ErrorResponse{Status: "error", Message: err.Error()})
+		} else {
+			log.Error("Failed to update WebSub API key", slog.String("handle", handle), slog.String("key", apiKeyName), slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to update API key"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result.Response)
+}
+
+// RegenerateWebSubAPIKey implements ServerInterface.RegenerateWebSubAPIKey
+// (POST /websub-apis/{id}/api-keys/{apiKeyName}/regenerate)
+func (s *APIServer) RegenerateWebSubAPIKey(c *gin.Context, id string, apiKeyName string) {
+	log := middleware.GetLogger(c, s.logger)
+	handle := id
+	correlationID := middleware.GetCorrelationID(c)
+
+	user, ok := s.extractAuthenticatedUser(c, "RegenerateWebSubAPIKey", correlationID)
+	if !ok {
+		return
+	}
+
+	var request api.APIKeyRegenerationRequest
+	if err := s.bindRequestBody(c, &request); err != nil {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("Invalid request body: %v", err)})
+		return
+	}
+
+	params := utils.APIKeyRegenerationParams{
+		Kind:          models.KindWebSubApi,
+		Handle:        handle,
+		APIKeyName:    apiKeyName,
+		Request:       request,
+		User:          user,
+		CorrelationID: correlationID,
+		Logger:        log,
+	}
+
+	result, err := s.apiKeyService.RegenerateAPIKey(params)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("WebSub API or API key '%s' not found", apiKeyName)})
+		} else {
+			log.Error("Failed to regenerate WebSub API key", slog.String("handle", handle), slog.String("key", apiKeyName), slog.Any("error", err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to regenerate API key"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result.Response)
 }

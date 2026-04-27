@@ -50,7 +50,7 @@ type CreateResult struct {
 
 // ListResult holds the result of a List operation.
 type ListResult struct {
-	Items []api.RestAPIListItem
+	Items []*models.StoredConfig
 }
 
 // GetResult holds the result of a GetByHandle operation.
@@ -74,8 +74,6 @@ type RestAPIService struct {
 	db                 storage.Storage
 	snapshotManager    *xds.SnapshotManager
 	policyManager      *policyxds.PolicyManager
-	policyDefinitions  map[string]models.PolicyDefinition
-	policyDefMu        *sync.RWMutex
 	deploymentService  *utils.APIDeploymentService
 	apiKeyXDSManager   *apikeyxds.APIKeyStateManager
 	controlPlaneClient controlplane.ControlPlaneClient
@@ -95,8 +93,6 @@ func NewRestAPIService(
 	db storage.Storage,
 	snapshotManager *xds.SnapshotManager,
 	policyManager *policyxds.PolicyManager,
-	policyDefinitions map[string]models.PolicyDefinition,
-	policyDefMu *sync.RWMutex,
 	deploymentService *utils.APIDeploymentService,
 	apiKeyXDSManager *apikeyxds.APIKeyStateManager,
 	controlPlaneClient controlplane.ControlPlaneClient,
@@ -130,8 +126,6 @@ func NewRestAPIService(
 		db:                 db,
 		snapshotManager:    snapshotManager,
 		policyManager:      policyManager,
-		policyDefinitions:  policyDefinitions,
-		policyDefMu:        policyDefMu,
 		deploymentService:  deploymentService,
 		apiKeyXDSManager:   apiKeyXDSManager,
 		controlPlaneClient: controlPlaneClient,
@@ -151,6 +145,7 @@ type CreateParams struct {
 	Body          []byte
 	ContentType   string
 	CorrelationID string
+	Kind          string
 	Logger        *slog.Logger
 }
 
@@ -158,10 +153,15 @@ type CreateParams struct {
 func (s *RestAPIService) Create(params CreateParams) (*CreateResult, error) {
 	log := params.Logger
 
+	kind := params.Kind
+	if kind == "" {
+		kind = "RestApi"
+	}
+
 	result, err := s.deploymentService.DeployAPIConfiguration(utils.APIDeploymentParams{
 		Data:          params.Body,
 		ContentType:   params.ContentType,
-		Kind:          "RestApi",
+		Kind:          kind,
 		APIID:         "",
 		Origin:        models.OriginGatewayAPI,
 		CorrelationID: params.CorrelationID,
@@ -172,6 +172,15 @@ func (s *RestAPIService) Create(params CreateParams) (*CreateResult, error) {
 	}
 
 	if !result.IsStale {
+		// Trigger bottom-up sync immediately if connected and control plane type is on-prem
+		if s.controlPlaneClient != nil && s.controlPlaneClient.IsConnected() && s.controlPlaneClient.IsOnPrem() {
+			go func() {
+				if err := s.controlPlaneClient.SyncArtifactsToOnPremAPIM(s.controlPlaneClient.GetAPIMConfig()); err != nil {
+					log.Error("Failed to sync API to on-prem APIM", slog.Any("error", err))
+				}
+			}()
+		}
+
 		// Push to control plane asynchronously if connected
 		if s.controlPlaneClient != nil && s.controlPlaneClient.IsConnected() && s.systemConfig.Controller.ControlPlane.DeploymentPushEnabled {
 			go s.waitForDeploymentAndPush(result.StoredConfig.UUID, params.CorrelationID, log)
@@ -210,13 +219,13 @@ func (s *RestAPIService) validateArtifactConflicts(kind, currentID, displayName,
 
 // List returns REST API configurations, optionally filtered.
 func (s *RestAPIService) List(params api.ListRestAPIsParams) (*ListResult, error) {
-	configs, err := s.db.GetAllConfigsByKind(string(api.RestApi))
+	configs, err := s.db.GetAllConfigsByKind(string(api.RestAPIKindRestApi))
 	if err != nil {
 		s.logger.Error("Failed to get APIs", slog.Any("error", err))
 		return nil, fmt.Errorf("Failed to retrieve API configurations")
 	}
 
-	items := make([]api.RestAPIListItem, 0, len(configs))
+	items := make([]*models.StoredConfig, 0, len(configs))
 	for _, cfg := range configs {
 		// Apply filters when present
 		if params.DisplayName != nil && *params.DisplayName != "" && cfg.DisplayName != *params.DisplayName {
@@ -237,16 +246,7 @@ func (s *RestAPIService) List(params api.ListRestAPIsParams) (*ListResult, error
 			continue
 		}
 
-		status := string(cfg.DesiredState)
-		items = append(items, api.RestAPIListItem{
-			Id:          stringPtr(cfg.Handle),
-			DisplayName: stringPtr(cfg.DisplayName),
-			Version:     stringPtr(cfg.Version),
-			Context:     stringPtr(cfgContext),
-			Status:      (*api.RestAPIListItemStatus)(&status),
-			CreatedAt:   timePtr(cfg.CreatedAt),
-			UpdatedAt:   timePtr(cfg.UpdatedAt),
-		})
+		items = append(items, cfg)
 	}
 
 	return &ListResult{Items: items}, nil
@@ -338,6 +338,10 @@ func (s *RestAPIService) Update(params UpdateParams) (*UpdateResult, error) {
 			slog.String("handle", params.Handle))
 	}
 
+	if existing.Origin == models.OriginGatewayAPI {
+		existing.CPSyncStatus = models.CPSyncStatusPending
+	}
+
 	// Dual-write: database first, then in-memory
 	if err := s.db.UpdateConfig(existing); err != nil {
 		log.Error("Failed to update config in database", slog.Any("error", err))
@@ -345,6 +349,15 @@ func (s *RestAPIService) Update(params UpdateParams) (*UpdateResult, error) {
 	}
 
 	s.publishEvent(eventhub.EventTypeAPI, "UPDATE", existing.UUID, params.CorrelationID, log)
+
+	// Trigger bottom-up sync if enabled and connected
+	if existing.Origin == models.OriginGatewayAPI && s.controlPlaneClient != nil && s.controlPlaneClient.IsConnected() && s.controlPlaneClient.IsOnPrem() {
+		go func() {
+			if err := s.controlPlaneClient.SyncArtifactsToOnPremAPIM(s.controlPlaneClient.GetAPIMConfig()); err != nil {
+				log.Error("Failed to sync API to on-prem APIM", slog.Any("error", err))
+			}
+		}()
+	}
 
 	log.Info("API configuration updated",
 		slog.String("id", existing.UUID),
@@ -544,3 +557,4 @@ func (s *RestAPIService) publishEvent(eventType eventhub.EventType, action, enti
 			slog.String("entity_id", entityID))
 	}
 }
+
