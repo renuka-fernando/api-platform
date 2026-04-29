@@ -1,0 +1,9 @@
+make build
+
+    - image: ghcr.io/wso2/api-platform/gateway-controller-coverage:test
+    + image: ghcr.io/wso2/api-platform/gateway-controller:1.1.0-SNAPSHOT
+
+cd gateway/it
+export DOCKER_HOST="unix://$HOME/.rd/docker.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+IT_FEATURE_PATHS="features/prompt-compressor.feature" make test
