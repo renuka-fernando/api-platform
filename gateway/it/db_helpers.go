@@ -51,27 +51,42 @@ const (
 )
 
 // backendCache memoises which DB backend is reachable for the current run.
+// cachedDriver is only set when a running container is detected; if detection
+// failed the mutex is not held between calls so future calls can retry.
 var (
-	backendOnce  sync.Once
+	backendMu    sync.Mutex
 	cachedDriver string
 )
 
 // detectDBDriver inspects which reader container is actually running and
-// returns "sqlite" or "postgres". Result is cached for the lifetime of the
-// process so we don't shell out on every assertion.
+// returns "sqlite" or "postgres". The result is cached once a running
+// container is found; if no container is detected, the cache is left empty
+// so subsequent calls will retry detection.
 func detectDBDriver(ctx context.Context) string {
-	backendOnce.Do(func() {
-		if containerRunning(ctx, dbReaderContainer) {
-			cachedDriver = "sqlite"
-			return
+	backendMu.Lock()
+	if cachedDriver != "" {
+		driver := cachedDriver
+		backendMu.Unlock()
+		return driver
+	}
+	backendMu.Unlock()
+
+	// Perform container checks outside the lock (they can be slow).
+	var detected string
+	if containerRunning(ctx, dbReaderContainer) {
+		detected = "sqlite"
+	} else if containerRunning(ctx, postgresContainer) {
+		detected = "postgres"
+	}
+
+	if detected != "" {
+		backendMu.Lock()
+		if cachedDriver == "" { // another goroutine may have set it first
+			cachedDriver = detected
 		}
-		if containerRunning(ctx, postgresContainer) {
-			cachedDriver = "postgres"
-			return
-		}
-		cachedDriver = "" // unknown — caller surfaces the resulting error
-	})
-	return cachedDriver
+		backendMu.Unlock()
+	}
+	return detected
 }
 
 // containerRunning returns true if `docker inspect` reports the container as
