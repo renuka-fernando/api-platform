@@ -569,7 +569,7 @@ func (s *LLMDeploymentService) parseAndValidateLLMTemplate(params LLMTemplatePar
 	}
 	renderedTmpl, ok := renderHolder.Configuration.(api.LLMProviderTemplate)
 	if !ok {
-		renderedTmpl = tmpl
+		return nil, fmt.Errorf("%w: template '%s' RenderSpec returned unexpected configuration type %T", ErrLLMTemplateValidation, tmpl.Metadata.Name, renderHolder.Configuration)
 	}
 
 	validationErrors := s.validator.Validate(&renderedTmpl)

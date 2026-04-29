@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +50,18 @@ const (
 	// retries) so a stuck reader container can't hang a scenario.
 	defaultDBQueryTimeout = 10 * time.Second
 )
+
+// validSQLIdentifier matches safe table/column identifiers: letters, digits and
+// underscores only. Used to guard against SQL identifier injection.
+var validSQLIdentifier = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+
+// sqlLiteral escapes s for safe embedding as a single-quoted SQL string
+// literal. It doubles any embedded single quotes (SQL-standard escaping).
+// Used when the query is sent to a CLI tool (sqlite3 / psql) that doesn't
+// support bind parameters.
+func sqlLiteral(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
 
 // backendCache memoises which DB backend is reachable for the current run.
 // cachedDriver is only set when a running container is detected; if detection
@@ -112,11 +125,12 @@ func containerRunning(ctx context.Context, name string) bool {
 // the join so a handle collision across kinds returns the right row. table is
 // the per-kind table name (e.g. "rest_apis").
 func queryStoredConfiguration(ctx context.Context, kind, table, handle string) (string, error) {
-	// The values flowing through this helper are alphanumeric/hyphen-only test
-	// handles; safe to interpolate as single-quoted SQL literals.
+	if !validSQLIdentifier.MatchString(table) {
+		return "", fmt.Errorf("invalid SQL table identifier %q: must match [A-Za-z0-9_]+", table)
+	}
 	query := fmt.Sprintf(
 		"SELECT t.configuration FROM %s t JOIN artifacts a ON t.uuid = a.uuid AND t.gateway_id = a.gateway_id WHERE a.kind = '%s' AND a.handle = '%s';",
-		table, kind, handle,
+		table, sqlLiteral(kind), sqlLiteral(handle),
 	)
 
 	row, err := executeQuery(ctx, query)
@@ -135,6 +149,11 @@ func queryStoredConfiguration(ctx context.Context, kind, table, handle string) (
 // zero rows; returns a non-nil error if no reader container is reachable or
 // the CLI exited non-zero.
 func executeQuery(ctx context.Context, query string) (string, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultDBQueryTimeout)
+		defer cancel()
+	}
 	driver := detectDBDriver(ctx)
 	var cmd *exec.Cmd
 	switch driver {
