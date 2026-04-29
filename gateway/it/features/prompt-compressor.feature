@@ -66,6 +66,57 @@ Feature: Prompt Compressor Policy
     When I delete the API "pc-deploy-test-api"
     Then the response should be successful
 
+  Scenario: Deterministic compression produces exact expected output
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: pc-deterministic-api
+      spec:
+        displayName: Prompt Compressor Deterministic Test
+        version: v1.0
+        context: /pc-deterministic/$version
+        upstream:
+          main:
+            url: http://echo-backend:80/anything
+        operations:
+          - method: GET
+            path: /health
+          - method: POST
+            path: /chat
+            policies:
+              - name: prompt-compressor
+                version: v0
+                params:
+                  jsonPath: "$.messages[0].content"
+                  rules:
+                    - upperTokenLimit: -1
+                      type: ratio
+                      value: 0.50
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/pc-deterministic/v1.0/health" to be ready
+
+    When I send a POST request to "http://localhost:8080/pc-deterministic/v1.0/chat" with body:
+      """
+      {
+        "messages": [
+          {
+            "content": "Artificial intelligence and machine learning have transformed the technology landscape significantly over the past decade. Deep learning models now power everything from natural language processing to computer vision applications. The advancement of transformer architectures has enabled breakthrough capabilities in text generation and understanding."
+          }
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be valid JSON
+    And the JSON response field "json.messages[0].content" should be "Artificial intelligence machine transformed technology landscape decade. Deep models everything natural language processing computer applications. advancement transformer enabled breakthrough capabilities text generation understanding."
+
+    Given I authenticate using basic auth as "admin"
+    When I delete the API "pc-deterministic-api"
+    Then the response should be successful
+
   # ============================================================================
   # Section B: Ratio-Mode Compression
   # ============================================================================
@@ -117,6 +168,7 @@ Feature: Prompt Compressor Policy
     And the response should be valid JSON
     # Full length is 894, 0.5 ratio should make it significantly less. Let's say < 600
     And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
     And the response body should not contain "The deployment pipeline for the cloud-native application underwent significant changes during the last quarter. The engineering team migrated from a monolithic architecture to a microservices-based approach."
 
     Given I authenticate using basic auth as "admin"
@@ -271,6 +323,7 @@ Feature: Prompt Compressor Policy
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-token-api"
@@ -370,6 +423,7 @@ Feature: Prompt Compressor Policy
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response string field "json.prompt" should have length less than 850
+    And the JSON response string field "json.prompt" should have length greater than 100
     And the JSON response field "json.model" should be "gpt-4"
 
     Given I authenticate using basic auth as "admin"
@@ -423,6 +477,7 @@ Feature: Prompt Compressor Policy
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response string field "json.request.data.prompt" should have length less than 850
+    And the JSON response string field "json.request.data.prompt" should have length greater than 100
     And the JSON response field "json.request.meta" should be "keep"
 
     Given I authenticate using basic auth as "admin"
@@ -475,6 +530,7 @@ Feature: Prompt Compressor Policy
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response string field "json.messages[2].content" should have length less than 850
+    And the JSON response string field "json.messages[2].content" should have length greater than 100
     And the JSON response field "json.messages[0].content" should be "First"
 
     Given I authenticate using basic auth as "admin"
@@ -628,6 +684,7 @@ Feature: Prompt Compressor Policy
     And the response body should not contain "<APIP-COMPRESS>"
     And the response body should not contain "</APIP-COMPRESS>"
     And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-tags-api"
@@ -682,6 +739,7 @@ Feature: Prompt Compressor Policy
     And the response body should contain "Part 2"
     And the response body should not contain "<APIP-COMPRESS>"
     And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-multi-tags-api"
@@ -790,6 +848,7 @@ Feature: Prompt Compressor Policy
       """
     Then the response status code should be 200
     And the JSON response string field "json.messages[0].content" should have length less than 320
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-multi-rule-api"
@@ -850,12 +909,69 @@ Feature: Prompt Compressor Policy
     And the response should be valid JSON
     # 2684 total length, ratio 0.3 should give < 1200
     And the JSON response string field "json.messages[0].content" should have length less than 1200
+    And the JSON response string field "json.messages[0].content" should have length greater than 200
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-multi-rule-fallback-api"
     Then the response should be successful
 
+  Scenario: Invalid rules are dropped, valid rules still work
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: pc-invalid-rules-api
+      spec:
+        displayName: Prompt Compressor Invalid Rules
+        version: v1.0
+        context: /pc-invalid-rules/$version
+        upstream:
+          main:
+            url: http://echo-backend:80/anything
+        operations:
+          - method: GET
+            path: /health
+          - method: POST
+            path: /chat
+            policies:
+              - name: prompt-compressor
+                version: v0
+                params:
+                  jsonPath: "$.messages[0].content"
+                  rules:
+                    - upperTokenLimit: -5
+                      type: ratio
+                      value: 0.50
+                    - upperTokenLimit: -1
+                      type: ratio
+                      value: 0
+                    - upperTokenLimit: -1
+                      type: ratio
+                      value: 0.50
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/pc-invalid-rules/v1.0/health" to be ready
 
+    When I send a POST request to "http://localhost:8080/pc-invalid-rules/v1.0/chat" with body:
+      """
+      {
+        "messages": [
+          {
+            "content": "The deployment pipeline for the cloud-native application underwent significant changes during the last quarter. The engineering team migrated from a monolithic architecture to a microservices-based approach. This transition involved refactoring the authentication module, updating the database connection pooling strategy, and implementing new caching mechanisms. The team also introduced automated regression testing suites that run on every pull request submission. Performance benchmarks showed a notable improvement in response latency after the migration was completed. The operations team documented all configuration changes and created runbooks for common incident response scenarios. Additionally, the security team conducted a comprehensive audit of all service endpoints and updated the firewall rules accordingly. The monitoring infrastructure was enhanced with new dashboards and alerting configurations to provide better visibility into system health and performance metrics across all environments."
+          }
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response should be valid JSON
+    And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
+
+    Given I authenticate using basic auth as "admin"
+    When I delete the API "pc-invalid-rules-api"
+    Then the response should be successful
 
   # ============================================================================
   # Section G: Graceful Passthrough
@@ -1078,7 +1194,8 @@ Feature: Prompt Compressor Policy
       }
       """
     Then the response status code should be 200
-    And the JSON response string field "json.messages[0].content" should have length less than 1100
+    And the response body should contain "The deployment pipeline for the cloud-native application underwent significant changes"
+    And the response body should contain "performance metrics across all environments"
 
     # Phase 2: Add policy (aggressive ratio 0.3)
     When I update the API "pc-lifecycle-api" with this configuration:
@@ -1125,6 +1242,7 @@ Feature: Prompt Compressor Policy
       """
     Then the response status code should be 200
     And the JSON response string field "json.messages[0].content" should have length less than 850
+    And the JSON response string field "json.messages[0].content" should have length greater than 100
 
     # Phase 3: Update policy (high ratio 0.95 -> skip compression)
     When I update the API "pc-lifecycle-api" with this configuration:
@@ -1170,8 +1288,47 @@ Feature: Prompt Compressor Policy
       }
       """
     Then the response status code should be 200
-    # Length should be original (894)
-    And the JSON response string field "json.messages[0].content" should have length less than 1100
+    And the JSON response field "json.messages[0].content" should contain "deployment pipeline"
+    And the JSON response field "json.messages[0].content" should contain "microservices-based approach"
+    And the JSON response field "json.messages[0].content" should contain "authentication module"
+
+    # Phase 4: Remove policy entirely
+    When I update the API "pc-lifecycle-api" with this configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: pc-lifecycle-api
+      spec:
+        displayName: Prompt Compressor Lifecycle
+        version: v1.0
+        context: /pc-lifecycle/$version
+        upstream:
+          main:
+            url: http://echo-backend:80/anything
+        operations:
+          - method: GET
+            path: /health
+          - method: POST
+            path: /chat
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/pc-lifecycle/v1.0/health" to be ready
+    And I wait for 2 seconds
+
+    When I send a POST request to "http://localhost:8080/pc-lifecycle/v1.0/chat" with body:
+      """
+      {
+        "messages": [
+          {
+            "content": "The deployment pipeline for the cloud-native application underwent significant changes during the last quarter. The engineering team migrated from a monolithic architecture to a microservices-based approach. This transition involved refactoring the authentication module, updating the database connection pooling strategy, and implementing new caching mechanisms. The team also introduced automated regression testing suites that run on every pull request submission. Performance benchmarks showed a notable improvement in response latency after the migration was completed. The operations team documented all configuration changes and created runbooks for common incident response scenarios. Additionally, the security team conducted a comprehensive audit of all service endpoints and updated the firewall rules accordingly. The monitoring infrastructure was enhanced with new dashboards and alerting configurations to provide better visibility into system health and performance metrics across all environments."
+          }
+        ]
+      }
+      """
+    Then the response status code should be 200
+    And the response body should contain "The deployment pipeline for the cloud-native application underwent significant changes"
+    And the response body should contain "performance metrics across all environments"
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-lifecycle-api"
