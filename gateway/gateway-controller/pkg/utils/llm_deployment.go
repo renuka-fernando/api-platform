@@ -562,16 +562,17 @@ func (s *LLMDeploymentService) parseAndValidateLLMTemplate(params LLMTemplatePar
 		return nil, fmt.Errorf("%w: failed to parse template configuration: %v", ErrLLMTemplateValidation, err)
 	}
 
-	// Render template expressions before validation so the validator sees resolved values.
+	// Render template expressions into a separate copy for validation only; tmpl stays unrendered for persistence.
 	renderHolder := &models.StoredConfig{Configuration: tmpl}
 	if err := templateengine.RenderSpec(renderHolder, s.deploymentService.secretResolver, params.Logger); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrLLMTemplateValidation, err)
 	}
-	if rendered, ok := renderHolder.Configuration.(api.LLMProviderTemplate); ok {
-		tmpl = rendered
+	renderedTmpl, ok := renderHolder.Configuration.(api.LLMProviderTemplate)
+	if !ok {
+		renderedTmpl = tmpl
 	}
 
-	validationErrors := s.validator.Validate(&tmpl)
+	validationErrors := s.validator.Validate(&renderedTmpl)
 	if len(validationErrors) > 0 {
 		errs := make([]string, 0, len(validationErrors))
 		if params.Logger != nil {
@@ -623,7 +624,6 @@ func (s *LLMDeploymentService) CreateLLMProviderTemplate(params LLMTemplateParam
 	return stored, nil
 }
 
-
 // InitializeOOBTemplates persists OOB templates to database and memory store
 func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[string]*api.LLMProviderTemplate) error {
 	if len(templateDefinitions) == 0 {
@@ -634,7 +634,8 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 	processedHandles := make(map[string]bool) // Track which templates were processed from files
 
 	for _, tmpl := range templateDefinitions {
-		// Render template expressions before validation so the validator sees resolved values.
+		// Render template expressions into a separate copy so the validator sees resolved values.
+		// The original tmpl is kept intact so that unresolved template expressions are persisted.
 		renderHolder := &models.StoredConfig{Configuration: *tmpl}
 		if err := templateengine.RenderSpec(renderHolder, s.deploymentService.secretResolver, nil); err != nil {
 			allErrors = append(allErrors, fmt.Sprintf(
@@ -642,12 +643,16 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 				tmpl.Metadata.Name, err))
 			continue
 		}
-		if rendered, ok := renderHolder.Configuration.(api.LLMProviderTemplate); ok {
-			*tmpl = rendered
+		rendered, ok := renderHolder.Configuration.(api.LLMProviderTemplate)
+		if !ok {
+			allErrors = append(allErrors, fmt.Sprintf(
+				"template '%s' rendered configuration type assertion failed",
+				tmpl.Metadata.Name))
+			continue
 		}
 
-		// Validate the template configuration
-		validationErrors := s.validator.Validate(tmpl)
+		// Validate the rendered (resolved) copy; tmpl is not mutated.
+		validationErrors := s.validator.Validate(&rendered)
 		if len(validationErrors) > 0 {
 			errs := make([]string, 0, len(validationErrors))
 			for _, ve := range validationErrors {
@@ -689,8 +694,9 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 				continue
 			}
 
-			// Publish updated template to policy engine via lazy resource xDS (ID = template ID)
-			if err := s.publishTemplateAsLazyResource(tmpl, ""); err != nil {
+			// Publish updated template to policy engine via lazy resource xDS (ID = template ID).
+			// Use the rendered (resolved) copy so the policy engine receives actual values.
+			if err := s.publishTemplateAsLazyResource(&rendered, ""); err != nil {
 				allErrors = append(allErrors,
 					fmt.Sprintf("failed to publish template '%s' to policy engine via lazy resource xDS: %v", tmpl.Metadata.Name, err))
 				continue
@@ -737,8 +743,9 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 			continue
 		}
 
-		// Publish new template to policy engine via lazy resource xDS (ID = template ID)
-		if err := s.publishTemplateAsLazyResource(tmpl, ""); err != nil {
+		// Publish new template to policy engine via lazy resource xDS (ID = template ID).
+		// Use the rendered (resolved) copy so the policy engine receives actual values.
+		if err := s.publishTemplateAsLazyResource(&rendered, ""); err != nil {
 			allErrors = append(allErrors,
 				fmt.Sprintf("failed to publish template '%s' to policy engine via lazy resource xDS: %v", tmpl.Metadata.Name, err))
 			continue

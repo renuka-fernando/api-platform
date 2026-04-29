@@ -69,12 +69,15 @@ func (s *APIServer) CreateWebSubAPI(c *gin.Context) {
 				Status:  "error",
 				Message: err.Error(),
 			})
-		} else {
-			c.JSON(http.StatusBadRequest, api.ErrorResponse{
-				Status:  "error",
-				Message: err.Error(),
-			})
+			return
 		}
+		if mapRenderError(c, "create", err) {
+			return
+		}
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: err.Error(),
+		})
 		return
 	}
 
@@ -208,12 +211,15 @@ func (s *APIServer) UpdateWebSubAPI(c *gin.Context, id string) {
 				Status:  "error",
 				Message: err.Error(),
 			})
-		} else {
-			c.JSON(http.StatusBadRequest, api.ErrorResponse{
-				Status:  "error",
-				Message: err.Error(),
-			})
+			return
 		}
+		if mapRenderError(c, "update", err) {
+			return
+		}
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: err.Error(),
+		})
 		return
 	}
 
