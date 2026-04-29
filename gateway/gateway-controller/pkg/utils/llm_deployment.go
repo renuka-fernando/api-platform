@@ -156,14 +156,34 @@ func (s *LLMDeploymentService) hydrateStoredLLMConfig(cfg *models.StoredConfig) 
 
 	switch src := cfg.SourceConfiguration.(type) {
 	case api.LLMProviderConfiguration:
+		// Render template expressions (secrets/env/defaults) before transforming so the
+		// transformer sees resolved values, not raw template syntax. cfg.SourceConfiguration
+		// is left intact — only cfg.Configuration (the derived RestAPI) is updated.
+		renderHolder := &models.StoredConfig{Configuration: src}
+		if err := templateengine.RenderSpec(renderHolder, s.deploymentService.secretResolver, nil); err != nil {
+			return fmt.Errorf("failed to render stored LLM provider %s: %w", cfg.UUID, err)
+		}
+		rendered, ok := renderHolder.Configuration.(api.LLMProviderConfiguration)
+		if !ok {
+			return fmt.Errorf("unexpected configuration type %T after rendering stored LLM provider %s", renderHolder.Configuration, cfg.UUID)
+		}
 		var restAPI api.RestAPI
-		if _, err := s.transformer.Transform(&src, &restAPI); err != nil {
+		if _, err := s.transformer.Transform(&rendered, &restAPI); err != nil {
 			return fmt.Errorf("failed to transform stored LLM provider %s: %w", cfg.UUID, err)
 		}
 		cfg.Configuration = restAPI
 	case api.LLMProxyConfiguration:
+		// Render template expressions before transforming for the same reason as above.
+		renderHolder := &models.StoredConfig{Configuration: src}
+		if err := templateengine.RenderSpec(renderHolder, s.deploymentService.secretResolver, nil); err != nil {
+			return fmt.Errorf("failed to render stored LLM proxy %s: %w", cfg.UUID, err)
+		}
+		rendered, ok := renderHolder.Configuration.(api.LLMProxyConfiguration)
+		if !ok {
+			return fmt.Errorf("unexpected configuration type %T after rendering stored LLM proxy %s", renderHolder.Configuration, cfg.UUID)
+		}
 		var restAPI api.RestAPI
-		if _, err := s.transformer.Transform(&src, &restAPI); err != nil {
+		if _, err := s.transformer.Transform(&rendered, &restAPI); err != nil {
 			return fmt.Errorf("failed to transform stored LLM proxy %s: %w", cfg.UUID, err)
 		}
 		cfg.Configuration = restAPI
@@ -759,8 +779,22 @@ func (s *LLMDeploymentService) InitializeOOBTemplates(templateDefinitions map[st
 	for _, stored := range allTemplates {
 		handle := stored.GetHandle()
 		if !processedHandles[handle] {
-			// This template exists in store but wasn't in file definitions - publish it
-			if err := s.publishTemplateAsLazyResource(&stored.Configuration, ""); err != nil {
+			// Render the stored (unresolved) configuration before publishing so the
+			// policy engine receives actual resolved values, not raw template expressions.
+			renderHolder := &models.StoredConfig{Configuration: stored.Configuration}
+			if err := templateengine.RenderSpec(renderHolder, s.deploymentService.secretResolver, nil); err != nil {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"DB-only template '%s' template rendering failed: %v", handle, err))
+				continue
+			}
+			rendered, ok := renderHolder.Configuration.(api.LLMProviderTemplate)
+			if !ok {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"DB-only template '%s' rendered configuration type assertion failed (got %T)",
+					handle, renderHolder.Configuration))
+				continue
+			}
+			if err := s.publishTemplateAsLazyResource(&rendered, ""); err != nil {
 				allErrors = append(allErrors,
 					fmt.Sprintf("failed to publish DB-only template '%s' to policy engine via lazy resource xDS: %v", handle, err))
 			}
