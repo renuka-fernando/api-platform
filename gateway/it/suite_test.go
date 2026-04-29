@@ -125,6 +125,7 @@ func getFeaturePaths() []string {
 		"features/api-error-responses.feature",
 		"features/api-keys.feature",
 		"features/api-with-policies.feature",
+		"features/interceptor-service.feature",
 		"features/llm-proxies.feature",
 		"features/startup-db-bootstrap.feature",
 		"features/search-deployments.feature",
