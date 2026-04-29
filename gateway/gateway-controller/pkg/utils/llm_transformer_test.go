@@ -1064,14 +1064,9 @@ func TestTransformProvider_PolicyOrderDoesNotAffectWildcardCoverage(t *testing.T
 	chatOp := findOperation(result.Spec.Operations, "/chat/completions", "POST")
 	require.NotNil(t, chatOp)
 	require.NotNil(t, chatOp.Policies)
-
-	policyNames := make(map[string]bool)
-	for _, policy := range *chatOp.Policies {
-		policyNames[policy.Name] = true
-	}
-
-	assert.True(t, policyNames["set-headers-all"], "/chat/completions should inherit the wildcard policy")
-	assert.True(t, policyNames["set-headers"], "/chat/completions should keep its specific policy")
+	require.Len(t, *chatOp.Policies, 2)
+	assert.Equal(t, "set-headers-all", (*chatOp.Policies)[0].Name, "/chat/completions should apply the wildcard policy before the specific policy")
+	assert.Equal(t, "set-headers", (*chatOp.Policies)[1].Name, "/chat/completions should keep its specific policy after the wildcard policy")
 
 	wildcardOp := findOperation(result.Spec.Operations, "/*", "POST")
 	require.NotNil(t, wildcardOp)
