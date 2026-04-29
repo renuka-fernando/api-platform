@@ -100,6 +100,7 @@ func getFeaturePaths() []string {
 		"features/url-guardrail.feature",
 		"features/regex-guardrail.feature",
 		"features/prompt-decorator.feature",
+		"features/prompt-compressor.feature",
 		"features/prompt-template.feature",
 		"features/pii-masking-regex.feature",
 		"features/model-weighted-round-robin.feature",
