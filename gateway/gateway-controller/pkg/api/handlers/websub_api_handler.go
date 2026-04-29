@@ -80,7 +80,7 @@ func (s *APIServer) CreateWebSubAPI(c *gin.Context) {
 
 	cfg := result.StoredConfig
 
-	c.JSON(http.StatusCreated, buildResourceResponseFromStored(cfg.Configuration, cfg))
+	c.JSON(http.StatusCreated, buildResourceResponseFromStored(cfg.SourceConfiguration, cfg))
 
 	if result.IsStale {
 		return
@@ -126,7 +126,7 @@ func (s *APIServer) ListWebSubAPIs(c *gin.Context, params api.ListWebSubAPIsPara
 			}
 		}
 
-		items = append(items, buildResourceResponseFromStored(cfg.Configuration, cfg))
+		items = append(items, buildResourceResponseFromStored(cfg.SourceConfiguration, cfg))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -223,7 +223,7 @@ func (s *APIServer) UpdateWebSubAPI(c *gin.Context, id string) {
 		slog.String("id", updated.UUID),
 		slog.String("handle", handle))
 
-	c.JSON(http.StatusOK, buildResourceResponseFromStored(updated.Configuration, updated))
+	c.JSON(http.StatusOK, buildResourceResponseFromStored(updated.SourceConfiguration, updated))
 }
 
 // DeleteWebSubAPI implements ServerInterface.DeleteWebSubAPI
