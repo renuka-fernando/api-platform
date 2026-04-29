@@ -211,12 +211,12 @@ Feature: Prompt Compressor Policy
     When I send a POST request to "http://localhost:8080/pc-ratio-short/v1.0/chat" with body:
       """
       {
-        "messages": [{"content": "Short text"}]
+        "messages": [{"content": "Hi"}]
       }
       """
     Then the response status code should be 200
     And the response should be valid JSON
-    And the JSON response string field "json.messages[0].content" should have length less than 15
+    And the JSON response field "json.messages[0].content" should be "Hi"
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-ratio-short-api"
@@ -268,6 +268,7 @@ Feature: Prompt Compressor Policy
     Then the response status code should be 200
     And the response should be valid JSON
     And the JSON response field "json.messages[0].content" should contain "The deployment pipeline for the cloud-native application"
+    And the JSON response field "json.messages[0].content" should contain "performance metrics across all environments."
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-ratio-one-api"
@@ -848,7 +849,7 @@ Feature: Prompt Compressor Policy
       """
     Then the response status code should be 200
     And the JSON response string field "json.messages[0].content" should have length less than 320
-    And the JSON response string field "json.messages[0].content" should have length greater than 100
+    And the JSON response string field "json.messages[0].content" should have length greater than 200
 
     Given I authenticate using basic auth as "admin"
     When I delete the API "pc-multi-rule-api"
