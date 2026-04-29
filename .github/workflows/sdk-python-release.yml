@@ -60,13 +60,18 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install --upgrade build twine hatch
+        run: pip install --upgrade build twine
 
       - name: Pin version in pyproject.toml
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
-          hatch version "${VERSION}"
-          echo "Pinned version to $(hatch version)"
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
+          # Verify the pin actually took effect
+          grep -q "^version = \"${VERSION}\"" pyproject.toml || {
+            echo "::error::Failed to pin version to ${VERSION} in pyproject.toml"
+            exit 1
+          }
+          echo "Pinned version to ${VERSION}"
 
       - name: Build sdist and wheel
         run: python -m build
