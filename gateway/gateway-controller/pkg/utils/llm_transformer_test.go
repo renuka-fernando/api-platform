@@ -1024,55 +1024,75 @@ func TestTransformProvider_PolicyOrderDoesNotAffectWildcardCoverage(t *testing.T
 	require.NoError(t, err)
 
 	upstreamURL := "https://api.openai.com"
-	provider := &api.LLMProviderConfiguration{
-		Metadata: api.Metadata{Name: "openai-provider"},
-		Spec: api.LLMProviderConfigData{
-			DisplayName: "OpenAI Provider",
-			Version:     "1.0.0",
-			Template:    "openai",
-			Upstream: api.LLMProviderConfigData_Upstream{
-				Url: &upstreamURL,
-			},
-			AccessControl: api.LLMAccessControl{Mode: api.AllowAll},
-			Policies: &[]api.LLMPolicy{
-				{
-					Name:    "set-headers-all",
-					Version: "v1",
-					Paths: []api.LLMPolicyPath{{
-						Path:    "/*",
-						Methods: []api.LLMPolicyPathMethods{"POST"},
-						Params:  map[string]interface{}{"scope": "all"},
-					}},
-				},
-				{
-					Name:    "set-headers",
-					Version: "v1",
-					Paths: []api.LLMPolicyPath{{
-						Path:    "/chat/completions",
-						Methods: []api.LLMPolicyPathMethods{"POST"},
-						Params:  map[string]interface{}{"scope": "specific"},
-					}},
-				},
-			},
-		},
+	assertPolicies := func(t *testing.T, result *api.RestAPI) {
+		chatOp := findOperation(result.Spec.Operations, "/chat/completions", "POST")
+		require.NotNil(t, chatOp)
+		require.NotNil(t, chatOp.Policies)
+		require.Len(t, *chatOp.Policies, 2)
+		assert.Equal(t, "set-headers-all", (*chatOp.Policies)[0].Name, "/chat/completions should apply the wildcard policy before the specific policy")
+		assert.Equal(t, "set-headers", (*chatOp.Policies)[1].Name, "/chat/completions should keep its specific policy after the wildcard policy")
+
+		wildcardOp := findOperation(result.Spec.Operations, "/*", "POST")
+		require.NotNil(t, wildcardOp)
+		require.NotNil(t, wildcardOp.Policies)
+		assert.Len(t, *wildcardOp.Policies, 1)
+		assert.Equal(t, "set-headers-all", (*wildcardOp.Policies)[0].Name)
 	}
 
-	result, err := transformer.Transform(provider, &api.RestAPI{})
-	require.NoError(t, err)
-	require.NotNil(t, result)
+	newProvider := func(policies []api.LLMPolicy) *api.LLMProviderConfiguration {
+		return &api.LLMProviderConfiguration{
+			Metadata: api.Metadata{Name: "openai-provider"},
+			Spec: api.LLMProviderConfigData{
+				DisplayName: "OpenAI Provider",
+				Version:     "1.0.0",
+				Template:    "openai",
+				Upstream: api.LLMProviderConfigData_Upstream{
+					Url: &upstreamURL,
+				},
+				AccessControl: api.LLMAccessControl{Mode: api.AllowAll},
+				Policies:      &policies,
+			},
+		}
+	}
 
-	chatOp := findOperation(result.Spec.Operations, "/chat/completions", "POST")
-	require.NotNil(t, chatOp)
-	require.NotNil(t, chatOp.Policies)
-	require.Len(t, *chatOp.Policies, 2)
-	assert.Equal(t, "set-headers-all", (*chatOp.Policies)[0].Name, "/chat/completions should apply the wildcard policy before the specific policy")
-	assert.Equal(t, "set-headers", (*chatOp.Policies)[1].Name, "/chat/completions should keep its specific policy after the wildcard policy")
+	wildcardPolicy := api.LLMPolicy{
+		Name:    "set-headers-all",
+		Version: "v1",
+		Paths: []api.LLMPolicyPath{{
+			Path:    "/*",
+			Methods: []api.LLMPolicyPathMethods{"POST"},
+			Params:  map[string]interface{}{"scope": "all"},
+		}},
+	}
+	specificPolicy := api.LLMPolicy{
+		Name:    "set-headers",
+		Version: "v1",
+		Paths: []api.LLMPolicyPath{{
+			Path:    "/chat/completions",
+			Methods: []api.LLMPolicyPathMethods{"POST"},
+			Params:  map[string]interface{}{"scope": "specific"},
+		}},
+	}
 
-	wildcardOp := findOperation(result.Spec.Operations, "/*", "POST")
-	require.NotNil(t, wildcardOp)
-	require.NotNil(t, wildcardOp.Policies)
-	assert.Len(t, *wildcardOp.Policies, 1)
-	assert.Equal(t, "set-headers-all", (*wildcardOp.Policies)[0].Name)
+	t.Run("wildcard then specific", func(t *testing.T) {
+		provider := newProvider([]api.LLMPolicy{wildcardPolicy, specificPolicy})
+
+		result, err := transformer.Transform(provider, &api.RestAPI{})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assertPolicies(t, result)
+	})
+
+	t.Run("specific then wildcard", func(t *testing.T) {
+		provider := newProvider([]api.LLMPolicy{specificPolicy, wildcardPolicy})
+
+		result, err := transformer.Transform(provider, &api.RestAPI{})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assertPolicies(t, result)
+	})
 }
 
 func TestTransformProvider_WithUpstreamAuth(t *testing.T) {
