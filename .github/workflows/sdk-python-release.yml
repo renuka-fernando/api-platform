@@ -1,4 +1,4 @@
-name: SDK Python (apip-sdk-core) — Publish to PyPI
+name: Python SDK Release
 
 # Manual-only release gate.
 # Trigger via Actions → "Run workflow", provide the version (e.g. 0.1.0).
