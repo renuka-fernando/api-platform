@@ -8,10 +8,9 @@ on:
 jobs:
   hourly-build:
     name: Periodic Gateway Build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: read
+    runs-on: ubuntu-latest
+
+    # BUILDX_BUILDER will be detected and exported by the initiation step
 
     steps:
       # ------------------------------------------------------------
@@ -35,26 +34,8 @@ jobs:
             docker.log
 
       # ------------------------------------------------------------
-      # 1. Docker / Buildx (aligned with gateway-release.yml)
+      # 1. Initiation
       # ------------------------------------------------------------
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          install: true
-          driver: docker-container
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Initiate environment
         run: |
           set -o pipefail
@@ -62,12 +43,79 @@ jobs:
             echo "== Repository =="
             git rev-parse HEAD
 
+            echo "== Go version =="
+            go version || true
+
             echo "== Docker =="
             docker version
 
-            echo "== Buildx =="
-            docker buildx ls
+            echo "== Buildx setup =="
+
+            # Prefer an active docker-backed builder. Strategy:
+            # 1. If there's an active builder (starred), and it's docker-backed, use it.
+            # 2. Otherwise, find any existing docker-backed builder and use it.
+            # 3. Otherwise, attempt to create `docker-local` and use it only if creation succeeded.
+            # 4. If none of the above work, fall back to whatever builder is active (do not attempt to `use` a non-existent name).
+            ACTIVE_BUILDER=$(docker buildx ls 2>/dev/null | awk '/\*/{print $1}' | sed 's/\*//g' | head -n1 || true)
+            CHOSEN_BUILDER=""
+
+            if [ -n "${ACTIVE_BUILDER}" ] && docker buildx inspect "${ACTIVE_BUILDER}" >/dev/null 2>&1 && docker buildx inspect "${ACTIVE_BUILDER}" | grep -qi 'Driver: *docker'; then
+              CHOSEN_BUILDER="${ACTIVE_BUILDER}"
+              echo "Active docker-backed builder detected: ${CHOSEN_BUILDER}"
+            else
+              # find any docker-backed builder
+              for b in $(docker buildx ls 2>/dev/null | tail -n +2 | awk '{print $1}' | sed 's/\*//g'); do
+                if docker buildx inspect "$b" >/dev/null 2>&1 && docker buildx inspect "$b" | grep -qi 'Driver: *docker'; then
+                  CHOSEN_BUILDER="$b"
+                  echo "Found existing docker-backed builder: ${CHOSEN_BUILDER}"
+                  break
+                fi
+              done
+            fi
+
+            if [ -z "${CHOSEN_BUILDER}" ]; then
+              echo "No existing docker-backed builder found; attempting to create docker-local"
+              if docker buildx create --name docker-local --driver docker >/dev/null 2>&1; then
+                CHOSEN_BUILDER="docker-local"
+                echo "Created docker-local builder"
+              else
+                echo "Could not create docker-local builder; will not call 'docker buildx use' for a missing builder"
+              fi
+            fi
+
+            # Only call `docker buildx use` if the chosen builder actually exists.
+            if [ -n "${CHOSEN_BUILDER}" ] && docker buildx inspect "${CHOSEN_BUILDER}" >/dev/null 2>&1; then
+              docker buildx use "${CHOSEN_BUILDER}"
+            else
+              echo "Proceeding without switching builder (using runner's default)"
+            fi
+
             docker buildx inspect --bootstrap
+            docker buildx ls
+
+            # Determine and export the builder for later steps.
+            CURRENT_BUILDER=$(docker buildx ls 2>/dev/null | awk '/\*/{print $1}' | sed 's/\*//g' | head -n1 || true)
+            if [ -z "${CURRENT_BUILDER}" ]; then
+              if [ -n "${CHOSEN_BUILDER}" ]; then
+                CURRENT_BUILDER="${CHOSEN_BUILDER}"
+              elif docker buildx inspect docker-local >/dev/null 2>&1; then
+                CURRENT_BUILDER="docker-local"
+              else
+                for b in $(docker buildx ls 2>/dev/null | tail -n +2 | awk '{print $1}' | sed 's/\*//g'); do
+                  if docker buildx inspect "$b" >/dev/null 2>&1 && docker buildx inspect "$b" | grep -qi 'Driver: *docker'; then
+                    CURRENT_BUILDER="$b"
+                    break
+                  fi
+                done
+              fi
+            fi
+            if [ -n "${CURRENT_BUILDER}" ]; then
+              echo "BUILDX_BUILDER=${CURRENT_BUILDER}" >> $GITHUB_ENV
+              echo "Exported BUILDX_BUILDER=${CURRENT_BUILDER}"
+            else
+              echo "BUILDX_BUILDER=" >> $GITHUB_ENV
+              echo "No docker-backed builder available; subsequent steps may use runner default"
+            fi
           } 2>&1 | tee 1-initiate.log || true
 
       - name: Set up Go
@@ -134,7 +182,9 @@ jobs:
         run: |
           set -o pipefail
 
-          LOG_ROOT="$HOME/.wso2ap/.tmp"
+          REAL_DOCKER_LOG="$HOME/.wso2ap/.tmp/gateway-image-build/logs/docker.log"
+
+          mkdir -p "$(dirname "$REAL_DOCKER_LOG")"
 
             set -o pipefail
 
@@ -144,11 +194,8 @@ jobs:
             (./ap gateway image build) 2>&1 | tee "$GITHUB_WORKSPACE/5-ap-gw-image-build.log"
             BUILD_RC=${PIPESTATUS[0]}
 
-            # Resolve the most recent gateway build log directory (CLI uses gateway-image-build-<id>/logs/docker.log)
-            LOG_DIR="$(ls -dt "$LOG_ROOT"/gateway-image-build*/logs 2>/dev/null | head -n1 || true)"
-            REAL_DOCKER_LOG="${LOG_DIR:+$LOG_DIR/docker.log}"
-
             # Post-build diagnostics: list/log sizes/stat to help debug missing files
+            LOG_DIR="$(dirname "$REAL_DOCKER_LOG")"
             echo "=== DIAGNOSTICS: list $LOG_DIR ===" >> "$GITHUB_WORKSPACE/5-ap-gw-image-build.log" 2>&1
             ls -la "$LOG_DIR" >> "$GITHUB_WORKSPACE/5-ap-gw-image-build.log" 2>&1 || true
             echo "=== DIAGNOSTICS: stat $REAL_DOCKER_LOG ===" >> "$GITHUB_WORKSPACE/5-ap-gw-image-build.log" 2>&1
@@ -175,10 +222,6 @@ jobs:
 
             # Exit with the build return code so failures are visible
             if [ "${BUILD_RC}" -ne 0 ]; then
-              if [ -f "$REAL_DOCKER_LOG" ]; then
-                echo "=== docker.log (last 200 lines) ===" >> "$GITHUB_WORKSPACE/5-ap-gw-image-build.log"
-                tail -n 200 "$REAL_DOCKER_LOG" >> "$GITHUB_WORKSPACE/5-ap-gw-image-build.log" 2>&1 || true
-              fi
               echo "ap gateway image build failed (rc=${BUILD_RC})" >&2
               exit ${BUILD_RC}
             fi
@@ -195,7 +238,9 @@ jobs:
         run: |
           set -o pipefail
 
-          LOG_ROOT="$HOME/.wso2ap/.tmp"
+          REAL_DOCKER_LOG="$HOME/.wso2ap/.tmp/gateway-image-build/logs/docker.log"
+
+          mkdir -p "$(dirname "$REAL_DOCKER_LOG")"
 
             set -o pipefail
 
@@ -203,10 +248,8 @@ jobs:
             (cd sample-policies && ../ap gateway image build) 2>&1 | tee "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log"
             BUILD_RC=${PIPESTATUS[0]}
 
-            LOG_DIR="$(ls -dt "$LOG_ROOT"/gateway-image-build*/logs 2>/dev/null | head -n1 || true)"
-            REAL_DOCKER_LOG="${LOG_DIR:+$LOG_DIR/docker.log}"
-
             # Post-build diagnostics
+            LOG_DIR="$(dirname "$REAL_DOCKER_LOG")"
             echo "=== DIAGNOSTICS: list $LOG_DIR ===" >> "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log" 2>&1
             ls -la "$LOG_DIR" >> "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log" 2>&1 || true
             echo "=== DIAGNOSTICS: stat $REAL_DOCKER_LOG ===" >> "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log" 2>&1
@@ -230,10 +273,6 @@ jobs:
 
             # Exit with the build return code so failures are visible
             if [ "${BUILD_RC}" -ne 0 ]; then
-              if [ -f "$REAL_DOCKER_LOG" ]; then
-                echo "=== docker.log (last 200 lines) ===" >> "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log"
-                tail -n 200 "$REAL_DOCKER_LOG" >> "$GITHUB_WORKSPACE/6-sample-policies-gw-image-build.log" 2>&1 || true
-              fi
               echo "ap gateway image build with sample policies failed (rc=${BUILD_RC})" >&2
               exit ${BUILD_RC}
             fi
