@@ -32,20 +32,23 @@
 #### CLI Command
 
 ```shell
-ap gateway add --display-name <name> --server <server-url> --admin-server <admin-server-url> [--auth <none|basic|bearer>]
+ap gateway add --display-name <name> --server <server-url> [--auth <none|basic|bearer>]
 ```
 
 #### Sample Commands
 
 ```shell
 # Add a gateway with no authentication (default)
-ap gateway add --display-name dev --server http://localhost:9090 --admin-server http://localhost:9094
+ap gateway add --display-name dev --server http://localhost:9090
 
 # Add a gateway with basic authentication
-ap gateway add --display-name dev --server http://localhost:9090 --admin-server http://localhost:9094 --auth basic
+ap gateway add --display-name dev --server http://localhost:9090 --auth basic
 
 # Add a gateway with bearer token authentication
-ap gateway add --display-name prod --server https://api.example.com --admin-server http://localhost:9094 --auth bearer
+ap gateway add --display-name prod --server https://api.example.com --auth bearer
+
+# Add a gateway, overriding the default admin server URL
+ap gateway add --display-name dev --server http://localhost:9090 --admin-server http://localhost:9094
 ```
 
 #### Authentication Setup
