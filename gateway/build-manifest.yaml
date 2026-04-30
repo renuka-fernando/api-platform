@@ -35,7 +35,7 @@ policies:
       gomodule: github.com/wso2/gateway-controllers/policies/host-rewrite@v1
     - name: interceptor-service
       version: v1.0.0
-      gomodule: github.com/wso2/gateway-controllers/policies/interceptor-service@v0
+      gomodule: github.com/wso2/gateway-controllers/policies/interceptor-service@v1
     - name: json-schema-guardrail
       version: v1.0.1
       gomodule: github.com/wso2/gateway-controllers/policies/json-schema-guardrail@v1
@@ -43,7 +43,7 @@ policies:
       version: v1.0.2
       gomodule: github.com/wso2/gateway-controllers/policies/json-xml-mediator@v1
     - name: jwt-auth
-      version: v1.0.3
+      version: v1.0.4
       gomodule: github.com/wso2/gateway-controllers/policies/jwt-auth@v1
     - name: llm-cost
       version: v1.0.3
