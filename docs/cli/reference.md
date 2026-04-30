@@ -32,20 +32,20 @@
 #### CLI Command
 
 ```shell
-ap gateway add --display-name <name> --server <server> [--auth <none|basic|bearer>]
+ap gateway add --display-name <name> --server <server-url> --admin-server <admin-server-url> [--auth <none|basic|bearer>]
 ```
 
 #### Sample Commands
 
 ```shell
 # Add a gateway with no authentication (default)
-ap gateway add --display-name dev --server http://localhost:9090
+ap gateway add --display-name dev --server http://localhost:9090 --admin-server http://localhost:9094
 
 # Add a gateway with basic authentication
-ap gateway add --display-name dev --server http://localhost:9090 --auth basic
+ap gateway add --display-name dev --server http://localhost:9090 --admin-server http://localhost:9094 --auth basic
 
 # Add a gateway with bearer token authentication
-ap gateway add --display-name prod --server https://api.example.com --auth bearer
+ap gateway add --display-name prod --server https://api.example.com --admin-server http://localhost:9094 --auth bearer
 ```
 
 #### Authentication Setup
@@ -166,13 +166,13 @@ ap gateway apply --file petstore-api.yaml
 #### CLI Command
 
 ```shell
-ap gateway api list
+ap gateway rest-api list
 ```
 
 #### Sample Command
 
 ```shell
-ap gateway api list
+ap gateway rest-api list
 ```
 
 ---
@@ -182,15 +182,15 @@ ap gateway api list
 #### CLI Command
 
 ```shell
-ap gateway api get --display-name <name> --version <version> --format <json|yaml>
-ap gateway api get --id <id> --format <json|yaml>
+ap gateway rest-api get --display-name <name> --version <version> --format <json|yaml>
+ap gateway rest-api get --id <id> --format <json|yaml>
 ```
 
 #### Sample Command
 
 ```shell
-ap gateway api get --display-name "PetStore API" --version v1.0 --format yaml
-ap gateway api get --id sample-1 --format yaml
+ap gateway rest-api get --display-name "PetStore API" --version v1.0 --format yaml
+ap gateway rest-api get --id sample-1 --format yaml
 ```
 
 ---
@@ -200,13 +200,13 @@ ap gateway api get --id sample-1 --format yaml
 #### CLI Command
 
 ```shell
-ap gateway api delete --id <id> 
+ap gateway rest-api delete --id <id> 
 ```
 
 #### Sample Command
 
 ```shell
-ap gateway api delete --id <id>
+ap gateway rest-api delete --id <id>
 ```
 
 ---
