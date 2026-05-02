@@ -78,7 +78,7 @@ extract-policies: ## Extract controller policy YAMLs from the policy-compiler st
 	@echo "Extracting controller policy definitions to $(POLICIES_EXPORT_DIR)..."
 	@mkdir -p target/configs && [ -f target/build.yaml ] || cp ../build.yaml target/
 	@[ -d target/configs/llm-pricing ] || cp -r ../configs/llm-pricing target/configs/
-	@mkdir -p $(POLICIES_EXPORT_DIR)
+	@rm -rf $(POLICIES_EXPORT_DIR) && mkdir -p $(POLICIES_EXPORT_DIR)
 	docker buildx build -f Dockerfile \
 		--build-context sdk=../../sdk \
 		--build-context sdk-python=../../sdk-python \
@@ -93,8 +93,7 @@ extract-policies: ## Extract controller policy YAMLs from the policy-compiler st
 		--target policy-export \
 		--output type=local,dest=$(POLICIES_EXPORT_DIR) \
 		.
-	@mkdir -p $(POLICIES_DEV_LAUNCH_DIR)
-	@rm -rf $(POLICIES_DEV_LAUNCH_DIR) && cp -R $(POLICIES_EXPORT_DIR) $(POLICIES_DEV_LAUNCH_DIR)
+	@rm -rf $(POLICIES_DEV_LAUNCH_DIR) && mkdir -p $(POLICIES_DEV_LAUNCH_DIR) && cp -R $(POLICIES_EXPORT_DIR)/. $(POLICIES_DEV_LAUNCH_DIR)
 	@echo "  ✓ Policies extracted to $(POLICIES_EXPORT_DIR) and mirrored to $(POLICIES_DEV_LAUNCH_DIR)"
 
 
