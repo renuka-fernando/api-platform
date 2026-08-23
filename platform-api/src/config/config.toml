@@ -80,3 +80,32 @@ scopes        = "ap:organization:manage ap:gateway:manage ap:gateway_custom_poli
 # ---------------------------------------------------------------------------
 [default_devportal]
 enabled = false
+
+# ---------------------------------------------------------------------------
+# Dual-write (intermediate v1 -> v2 bridge)
+# ---------------------------------------------------------------------------
+# When enabled, every v1 mutation is ALSO mirrored into the v2 database (via the shared
+# migrationcore package) after the v1 write commits. v1 stays the source of truth and the
+# rollback point; reads are always served from v1; a v2 failure never affects the REST
+# response (it is logged + recorded in v2_dual_write_failures and later reconciled).
+# Disabled ⇒ byte-for-byte stock v1 (no v2 connection is opened).
+[dual_write]
+enabled       = false                   # master switch
+write_timeout = "2s"                     # bounds the in-line v2 write (statement/connect timeout)
+epoch         = "2026-01-01T00:00:00Z"  # MUST equal the batch's -migration-epoch
+source_tz     = "UTC"                    # MUST equal the batch's -source-tz
+# Failures are recorded to an append-only JSONL FILE (never a v1-DB table), so v1 stays
+# pristine. In HA point this at a per-replica persistent volume and gather all for reconcile.
+failure_log   = "./data/v2_dual_write_failures.jsonl"
+
+# v2 target database (same shape as [database]). Its subscription-token encryption key
+# MUST be the same key v1 used, set BEFORE the backfill; do not change v1's key when
+# enabling dual-write. Do NOT init the v2 schema from this build — dbmigrate owns it.
+# [dual_write.database]
+# driver   = "postgres"
+# host     = "localhost"
+# port     = 5432
+# name     = "platform_api_v2"
+# user     = "platform_api"
+# password = "change-me"
+# ssl_mode = "disable"

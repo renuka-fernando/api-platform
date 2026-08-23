@@ -131,5 +131,15 @@ func defaultConfig() *Server {
 			CleanupInterval: 10 * time.Minute,
 			RetentionPeriod: 1 * time.Hour,
 		},
+		DualWrite: DualWrite{
+			// Off by default ⇒ byte-for-byte stock v1 (no v2 connection opened). The
+			// epoch/source_tz defaults MUST match the batch backfill's -migration-epoch /
+			// -source-tz; the v2 Database is left empty and must be supplied when enabling.
+			Enabled:      false,
+			WriteTimeout: 2 * time.Second,
+			Epoch:        "2026-01-01T00:00:00Z",
+			SourceTZ:     "UTC",
+			FailureLog:   "./data/v2_dual_write_failures.jsonl",
+		},
 	}
 }

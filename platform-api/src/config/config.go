@@ -86,6 +86,7 @@ type Server struct {
 	APIKey           APIKey           `koanf:"api_key"`
 	Gateway          Gateway          `koanf:"gateway"`
 	EventHub         EventHub         `koanf:"event_hub"`
+	DualWrite        DualWrite        `koanf:"dual_write"`
 
 	EnableScopeValidation      bool `koanf:"enable_scope_validation"`
 	OrgCreationRequiresAuth    bool `koanf:"org_creation_requires_auth"`
@@ -176,6 +177,44 @@ type Database struct {
 
 	ExecuteSchemaDDL               bool   `koanf:"execute_schema_ddl"`
 	SubscriptionTokenEncryptionKey string `koanf:"subscription_token_encryption_key"`
+}
+
+// DualWrite holds configuration for the dual-write intermediate build (§4). When
+// Enabled, every v1 repository mutation is mirrored into the v2 Database (via the shared
+// migrationcore package) after the v1 write commits. Disabled ⇒ byte-for-byte stock v1:
+// no v2 connection is opened and no mirror path runs.
+type DualWrite struct {
+	// Enabled is the master switch; false ⇒ stock v1.
+	Enabled bool `koanf:"enabled"`
+
+	// WriteTimeout bounds the in-line v2 mirror. migrationcore.Execer has no context, so
+	// this is enforced at the v2 connection level (statement_timeout + connect_timeout).
+	// On expiry the failure is logged + recorded; the v1 REST response is never affected.
+	WriteTimeout time.Duration `koanf:"write_timeout"`
+
+	// Epoch (RFC3339) MUST equal the batch backfill's -migration-epoch: it seeds the
+	// deterministic synthesized identity UUIDs, so a divergent epoch splits the audit
+	// identity. Parsed via ParsedEpoch at startup.
+	Epoch string `koanf:"epoch"`
+
+	// SourceTZ MUST equal the batch's -source-tz (the timezone of tz-naive v1 TIMESTAMP
+	// values); a divergent value shifts every mirrored timestamp.
+	SourceTZ string `koanf:"source_tz"`
+
+	// FailureLog is the path to the append-only JSONL file that durably records every
+	// mirror write that failed or timed out (§6.5). Keeping it in a FILE (not a v1-DB
+	// table) means the mirror never writes to the v1 database — v1 stays byte-for-byte
+	// pristine. In HA each replica writes its OWN file; point it at a per-replica
+	// persistent volume and gather all of them when reconciling.
+	FailureLog string `koanf:"failure_log"`
+
+	// Database is the v2 target DB — same shape as [database].
+	Database Database `koanf:"database"`
+}
+
+// ParsedEpoch parses Epoch as an RFC3339 instant for migrationcore.Options.Epoch.
+func (d DualWrite) ParsedEpoch() (time.Time, error) {
+	return time.Parse(time.RFC3339, d.Epoch)
 }
 
 // DefaultDevPortal holds default DevPortal configuration for new organizations.
@@ -293,6 +332,9 @@ func LoadConfig(configPath string) (*Server, error) {
 	if err := validateFileBasedConfig(&cfg.Auth.FileBased); err != nil {
 		return nil, err
 	}
+	if err := validateDualWriteConfig(&cfg.DualWrite); err != nil {
+		return nil, err
+	}
 
 	if cfg.Auth.JWT.Enabled && cfg.Auth.JWT.SecretKey == "" {
 		key, err := generateRandomSecret()
@@ -344,6 +386,25 @@ func envToKoanfKey(s string) string {
 	case "database_conn_max_lifetime":   return "database.conn_max_lifetime"
 	case "database_execute_schema_ddl":  return "database.execute_schema_ddl"
 	case "database_subscription_token_encryption_key": return "database.subscription_token_encryption_key"
+
+	// Dual-write (§4)
+	case "dual_write_enabled":       return "dual_write.enabled"
+	case "dual_write_write_timeout": return "dual_write.write_timeout"
+	case "dual_write_epoch":         return "dual_write.epoch"
+	case "dual_write_source_tz":     return "dual_write.source_tz"
+	case "dual_write_failure_log":   return "dual_write.failure_log"
+	case "dual_write_database_driver":            return "dual_write.database.driver"
+	case "dual_write_database_db_path":           return "dual_write.database.path"
+	case "dual_write_database_host":              return "dual_write.database.host"
+	case "dual_write_database_port":              return "dual_write.database.port"
+	case "dual_write_database_name":              return "dual_write.database.name"
+	case "dual_write_database_user":              return "dual_write.database.user"
+	case "dual_write_database_password":          return "dual_write.database.password"
+	case "dual_write_database_ssl_mode":          return "dual_write.database.ssl_mode"
+	case "dual_write_database_max_open_conns":    return "dual_write.database.max_open_conns"
+	case "dual_write_database_max_idle_conns":    return "dual_write.database.max_idle_conns"
+	case "dual_write_database_conn_max_lifetime": return "dual_write.database.conn_max_lifetime"
+	case "dual_write_database_subscription_token_encryption_key": return "dual_write.database.subscription_token_encryption_key"
 
 	// Auth
 	case "auth_skip_paths": return "auth.skip_paths"
@@ -532,6 +593,40 @@ func validateEventHubConfig(e *EventHub) error {
 	}
 	if e.RetentionPeriod <= 0 {
 		return fmt.Errorf("event_hub.retention_period must be a positive duration (got %s)", e.RetentionPeriod)
+	}
+	return nil
+}
+
+// validateDualWriteConfig checks the [dual_write] block STRUCTURALLY when enabled
+// (write_timeout > 0; epoch non-zero RFC3339; source_tz a valid location; v2 database
+// driver present). It deliberately does NOT test v2 connectivity: a down v2 must never
+// stop v1 from booting or serving (§3.3), so the connection is attempted non-fatally in
+// the server, and any failure is logged + reconciled — never propagated to a client.
+func validateDualWriteConfig(d *DualWrite) error {
+	if !d.Enabled {
+		return nil
+	}
+	if d.WriteTimeout <= 0 {
+		return fmt.Errorf("dual_write.write_timeout must be a positive duration (got %s)", d.WriteTimeout)
+	}
+	if strings.TrimSpace(d.Epoch) == "" {
+		return fmt.Errorf("dual_write.epoch is required when dual_write.enabled=true (must equal the batch's -migration-epoch)")
+	}
+	epoch, err := d.ParsedEpoch()
+	if err != nil {
+		return fmt.Errorf("dual_write.epoch %q is not RFC3339: %w", d.Epoch, err)
+	}
+	if epoch.IsZero() {
+		return fmt.Errorf("dual_write.epoch must be a non-zero instant")
+	}
+	if strings.TrimSpace(d.SourceTZ) == "" {
+		return fmt.Errorf("dual_write.source_tz is required when dual_write.enabled=true (must equal the batch's -source-tz)")
+	}
+	if _, err := time.LoadLocation(d.SourceTZ); err != nil {
+		return fmt.Errorf("dual_write.source_tz %q is not a valid time zone: %w", d.SourceTZ, err)
+	}
+	if strings.TrimSpace(d.Database.Driver) == "" {
+		return fmt.Errorf("dual_write.database is required when dual_write.enabled=true (set at least dual_write.database.driver)")
 	}
 	return nil
 }

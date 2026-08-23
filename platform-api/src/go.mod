@@ -1,25 +1,26 @@
 module platform-api/src
 
-go 1.26.2
+go 1.26.5
 
 require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
-	github.com/go-playground/validator/v10 v10.29.0
-	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/go-playground/validator/v10 v10.30.1
+	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.0
 	github.com/knadh/koanf/providers/env v1.1.0
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.2
 	github.com/mattn/go-sqlite3 v1.14.41
-	github.com/oapi-codegen/runtime v1.1.2
+	github.com/oapi-codegen/runtime v1.5.0
 	github.com/pb33f/libopenapi v0.28.2
 	github.com/wso2/api-platform/common v0.0.0
-	golang.org/x/crypto v0.47.0
+	github.com/wso2/api-platform/platform-api v0.0.0
+	golang.org/x/crypto v0.54.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -60,14 +61,23 @@ require (
 	github.com/quic-go/quic-go v0.57.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
+	github.com/wso2/go-httpkit v0.0.0-local // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 replace github.com/wso2/api-platform/common => ../../common
+
+// Dual-write intermediate build: import migrationcore from the v2 module (§2). The v2
+// module is unpublished, so use a local replace. NOTE: a local replace tracks the v2
+// WORKING TREE, not a pinned commit — check out v2 at commit a2911a09 before building so
+// the intermediate is reproducible. go-httpkit is a transitive dep of v2's internal/utils.
+replace github.com/wso2/api-platform/platform-api => /Users/renuka/git/api-platform-migration/platform-api
+
+replace github.com/wso2/go-httpkit => /Users/renuka/git/api-platform-migration/httpkit

@@ -43,6 +43,7 @@ import (
 	"platform-api/src/internal/handler"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
+	"platform-api/src/internal/repository/dualwrite"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
 	"platform-api/src/internal/websocket"
@@ -102,10 +103,44 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 	llmTemplateRepo := repository.NewLLMProviderTemplateRepo(db)
 	llmProviderRepo := repository.NewLLMProviderRepo(db)
 	llmProxyRepo := repository.NewLLMProxyRepo(db)
-	mcpProxyRepo := repository.NewMCPProxyRepo(db)
-	websubAPIRepo := repository.NewWebSubAPIRepo(db)
-	webbrokerAPIRepo := repository.NewWebBrokerAPIRepo(db)
+	// NewMCPProxyRepo/NewWebSubAPIRepo/NewWebBrokerAPIRepo return concrete types; declare
+	// these as the interface so the optional dual-write wrap below can reassign them.
+	var mcpProxyRepo repository.MCPProxyRepository = repository.NewMCPProxyRepo(db)
+	var websubAPIRepo repository.WebSubAPIRepository = repository.NewWebSubAPIRepo(db)
+	var webbrokerAPIRepo repository.WebBrokerAPIRepository = repository.NewWebBrokerAPIRepo(db)
 	apiKeyRepo := repository.NewAPIKeyRepo(db)
+
+	// Dual-write (§6.3): when enabled, wrap every mutating repository so each v1 mutation is
+	// mirrored into the v2 database after it commits. Reads still delegate to v1. Services
+	// take repository interfaces, so this is a drop-in wrap with no service changes. A
+	// misconfigured or unreachable v2 is logged loudly and leaves the repos as stock v1 —
+	// v2 never blocks v1 boot (§3.3). Wrapping happens BEFORE org/template seeding so those
+	// startup writes are mirrored too.
+	if cfg.DualWrite.Enabled {
+		sink, err := dualwrite.NewSink(&cfg.DualWrite, db, slogger)
+		if err != nil {
+			slogger.Error("dual-write is enabled but the v2 sink could not be initialized — running as stock v1 (no mirroring)",
+				slog.String("code", dualwrite.MirrorFailure), "error", err)
+		} else {
+			orgRepo = dualwrite.NewOrganizationRepo(orgRepo, sink)
+			projectRepo = dualwrite.NewProjectRepo(projectRepo, sink)
+			apiRepo = dualwrite.NewAPIRepo(apiRepo, sink)
+			appRepo = dualwrite.NewApplicationRepo(appRepo, sink)
+			gatewayRepo = dualwrite.NewGatewayRepo(gatewayRepo, sink)
+			customPolicyRepo = dualwrite.NewCustomPolicyRepo(customPolicyRepo, sink)
+			deploymentRepo = dualwrite.NewDeploymentRepo(deploymentRepo, sink)
+			subscriptionRepo = dualwrite.NewSubscriptionRepo(subscriptionRepo, sink)
+			subscriptionPlanRepo = dualwrite.NewSubscriptionPlanRepo(subscriptionPlanRepo, sink)
+			llmTemplateRepo = dualwrite.NewLLMProviderTemplateRepo(llmTemplateRepo, sink)
+			llmProviderRepo = dualwrite.NewLLMProviderRepo(llmProviderRepo, sink)
+			llmProxyRepo = dualwrite.NewLLMProxyRepo(llmProxyRepo, sink)
+			mcpProxyRepo = dualwrite.NewMCPProxyRepo(mcpProxyRepo, sink)
+			websubAPIRepo = dualwrite.NewWebSubAPIRepo(websubAPIRepo, sink)
+			webbrokerAPIRepo = dualwrite.NewWebBrokerAPIRepo(webbrokerAPIRepo, sink)
+			apiKeyRepo = dualwrite.NewAPIKeyRepo(apiKeyRepo, sink)
+			slogger.Info("dual-write ENABLED: v1 mutations will be mirrored into the v2 database")
+		}
+	}
 
 	// Seed the file-based organization on startup if file-based auth mode is enabled.
 	if cfg.Auth.FileBased.Enabled {
