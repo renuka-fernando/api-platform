@@ -75,7 +75,7 @@ func (d *apiRepo) DeleteAPI(apiUUID, orgUUID string) error {
 	}
 	// DeleteArtifact cascades the rest_apis row + all artifact-keyed children in v2.
 	d.sink.mirrorDelete("rest_api", "rest_apis", apiUUID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, apiUUID)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, apiUUID)
 	})
 	return nil
 }

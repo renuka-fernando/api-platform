@@ -66,7 +66,7 @@ func (d *deploymentRepo) CreateWithLimitEnforcement(deployment *model.Deployment
 				if !after[id] {
 					evicted := id
 					d.sink.mirrorDelete("deployment", "deployments", evicted, org, func(ex migrationcore.Execer) error {
-						return migrationcore.DeleteDeployment(ex, evicted)
+						return migrationcore.DeleteDeployment(ex, d.sink.opts, evicted)
 					})
 				}
 			}
@@ -92,7 +92,7 @@ func (d *deploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) erro
 		return err
 	}
 	d.sink.mirrorDelete("deployment", "deployments", deploymentID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteDeployment(ex, deploymentID)
+		return migrationcore.DeleteDeployment(ex, d.sink.opts, deploymentID)
 	})
 	return nil
 }
@@ -132,7 +132,7 @@ func (d *deploymentRepo) DeleteStatus(artifactUUID, orgUUID, gatewayID string) e
 		return err
 	}
 	d.sink.mirrorDelete("deployment_status", "deployment_status", orgUUID+"|"+artifactUUID+"|"+gatewayID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteDeploymentStatus(ex, orgUUID, artifactUUID, gatewayID)
+		return migrationcore.DeleteDeploymentStatus(ex, d.sink.opts, orgUUID, artifactUUID, gatewayID)
 	})
 	return nil
 }

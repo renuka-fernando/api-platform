@@ -82,7 +82,7 @@ func (d *apiKeyRepo) Delete(artifactUUID, name string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("api_key", "api_keys", uuid, "", func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteAPIKey(ex, uuid)
+		return migrationcore.DeleteAPIKey(ex, d.sink.opts, uuid)
 	})
 	return nil
 }

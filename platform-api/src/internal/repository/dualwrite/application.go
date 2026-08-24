@@ -69,7 +69,7 @@ func (d *applicationRepo) DeleteApplication(appID, orgID string) error {
 		return err
 	}
 	d.sink.mirrorDelete("application", "applications", appID, orgID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteApplication(ex, appID)
+		return migrationcore.DeleteApplication(ex, d.sink.opts, appID)
 	})
 	return nil
 }
@@ -115,7 +115,7 @@ func (d *applicationRepo) RemoveApplicationAPIKey(applicationUUID, apiKeyID stri
 		return err
 	}
 	d.sink.mirrorDelete("application_api_key_mapping", "application_api_key_mappings", applicationUUID+"|"+apiKeyID, "", func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteApplicationAPIKeyMapping(ex, applicationUUID, apiKeyID)
+		return migrationcore.DeleteApplicationAPIKeyMapping(ex, d.sink.opts, applicationUUID, apiKeyID)
 	})
 	return nil
 }
@@ -125,7 +125,7 @@ func (d *applicationRepo) RemoveApplicationAssociation(applicationUUID, targetUU
 		return err
 	}
 	d.sink.mirrorDelete("application_artifact_mapping", "application_artifact_mappings", applicationUUID+"|"+targetUUID, "", func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteApplicationArtifactMapping(ex, applicationUUID, targetUUID)
+		return migrationcore.DeleteApplicationArtifactMapping(ex, d.sink.opts, applicationUUID, targetUUID)
 	})
 	return nil
 }

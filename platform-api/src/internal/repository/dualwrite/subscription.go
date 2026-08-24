@@ -71,7 +71,7 @@ func (d *subscriptionRepo) Delete(subscriptionID, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorDelete("subscription", "subscriptions", subscriptionID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteSubscription(ex, subscriptionID)
+		return migrationcore.DeleteSubscription(ex, d.sink.opts, subscriptionID)
 	})
 	return nil
 }
@@ -123,7 +123,7 @@ func (d *subscriptionPlanRepo) Delete(planID, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorDelete("subscription_plan", "subscription_plans", planID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteSubscriptionPlan(ex, planID)
+		return migrationcore.DeleteSubscriptionPlan(ex, d.sink.opts, planID)
 	})
 	return nil
 }

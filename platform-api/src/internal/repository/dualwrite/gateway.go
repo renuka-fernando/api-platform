@@ -89,7 +89,7 @@ func (d *gatewayRepo) Delete(gatewayID, organizationID string) error {
 	// DeleteGateway cascades gateway_endpoints/gateway_tokens/deployments/deployment_status/
 	// artifact_gateway_mappings in v2 (matching v1's cleanup).
 	d.sink.mirrorDelete("gateway", "gateways", gatewayID, organizationID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteGateway(ex, gatewayID)
+		return migrationcore.DeleteGateway(ex, d.sink.opts, gatewayID)
 	})
 	return nil
 }

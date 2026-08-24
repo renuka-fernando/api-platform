@@ -29,18 +29,16 @@ package dualwrite
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"platform-api/src/config"
 	"platform-api/src/internal/database"
 
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib" // v2 target is PostgreSQL (pgx stdlib)
 	"github.com/wso2/api-platform/platform-api/migrationcore"
 )
@@ -56,22 +54,23 @@ const MirrorFailure = "V2_DUAL_WRITE_FAILURE"
 // rows), the shared migrationcore Options + Reporter, and the write timeout. It is built
 // once at startup and shared (read-only) by all decorators.
 type Sink struct {
-	v2           *sql.DB
-	v2Postgres   bool
-	v1           *database.DB // v1 connection — used ONLY for read-back (reads); never written to
+	v2         *sql.DB
+	v2Postgres bool
+	// v1 is used for the raw read-back (reads) AND for the operational failure/outbox table
+	// (v2_dual_write_failures). The mirror NEVER writes to v1's BUSINESS tables.
+	v1           *database.DB
 	opts         migrationcore.Options
 	reporter     migrationcore.Reporter
 	writeTimeout time.Duration
 	logger       *slog.Logger
 
-	// failureLog is the append-only JSONL path; failMu serializes appends from concurrent
-	// in-flight requests within this process.
-	failureLog string
-	failMu     sync.Mutex
+	// replica identifies the pod/host that recorded a failure. Under HA the shared v1 failure
+	// table is written by ALL replicas, so this attributes each row to the pod that saw it.
+	replica string
 }
 
-// NewSink opens the v2 connection (non-fatally — see openV2Pool), ensures the v1-side
-// v2_dual_write_failures table exists, and builds the shared migrationcore Options from the
+// NewSink opens the v2 connection (non-fatally — see openV2Pool), verifies the v1-side
+// v2_dual_write_failures table has been provisioned, and builds the shared migrationcore Options from the
 // dual-write config (Epoch + SourceTZ pinned to the batch's values). It returns an error
 // only for a misconfiguration the operator must fix (bad driver / unparseable epoch or tz);
 // the caller treats that as "run stock v1, loudly" so a dual-write problem never blocks boot.
@@ -84,26 +83,27 @@ func NewSink(cfg *config.DualWrite, v1 *database.DB, logger *slog.Logger) (*Sink
 	if err != nil {
 		return nil, fmt.Errorf("dual_write.source_tz %q: %w", cfg.SourceTZ, err)
 	}
-	// Failure log is a FILE, not a v1-DB table, so the mirror never writes to the v1
-	// database (v1 stays pristine). Ensure its directory exists.
-	failureLog := strings.TrimSpace(cfg.FailureLog)
-	if failureLog == "" {
-		failureLog = "./data/v2_dual_write_failures.jsonl"
-	}
-	if dir := filepath.Dir(failureLog); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, fmt.Errorf("create dual_write.failure_log dir %q: %w", dir, err)
-		}
-	}
 	v2, isPg, err := openV2Pool(&cfg.Database, cfg.WriteTimeout, logger)
 	if err != nil {
 		return nil, err
 	}
+	// The failure store is a TABLE in the v1 DB (not a per-pod file): under HA every replica
+	// records into the SAME table, so the reconcile work list is complete and survives pod
+	// restarts. Its DDL is provisioned out-of-band (internal/database/dualwrite_failures.sql);
+	// the app role is DML-only and issues no DDL. Here we only PROBE that it exists — a missing
+	// table is logged (not fatal: v1 must still boot, and failures still surface on the ERROR
+	// log). Because provisioning is a deploy-time choice, a flag-off v1.1 (dual-write disabled →
+	// NewSink never called) never touches it, so flag-off remains byte-for-byte stock v1.
+	if err := checkFailureTable(v1); err != nil {
+		logger.Error("v1 dual-write failure table missing — apply internal/database/dualwrite_failures.sql before enabling dual-write; failures will still be logged at ERROR",
+			slog.String("code", MirrorFailure), slog.String("table", failureTable), slog.Any("err", err))
+	}
+	host, _ := os.Hostname()
 	return &Sink{
 		v2:         v2,
 		v2Postgres: isPg,
 		v1:         v1,
-		failureLog: failureLog,
+		replica:    host,
 		opts: migrationcore.Options{
 			// EncryptionKey is intentionally nil: migrationcore uses it only for the batch's
 			// token decrypt guard, which the live path never runs. Subscription tokens are
@@ -237,8 +237,27 @@ func (s *Sink) runTx(fn func(migrationcore.Execer) error) error {
 	return nil
 }
 
-// failureRecord is one JSONL line in the dual-write failure log. Its fields double as the
-// reconcile work list: `dbmigrate migrate -only-keys <this file>` reads op/table/key directly.
+// failureTable is the shared v1-side store of mirror failures — a TABLE, not a per-pod file.
+// Under HA every replica records into it, so the reconcile work list is complete and survives
+// pod restarts. Its columns ARE the work list: failures-to-keys reads (op, table_name, v1_key);
+// reconciled_at is stamped once a replay has healed the row. Its DDL ships as
+// internal/database/dualwrite_failures.sql and is applied OUT-OF-BAND at provisioning time —
+// the runtime app role is assumed DML-only, so the app never issues DDL.
+const failureTable = "v2_dual_write_failures"
+
+// checkFailureTable is a read-only probe that the failure table has been provisioned. It runs
+// no DDL: sql.ErrNoRows means the table exists but is empty (fine); a non-nil, non-ErrNoRows
+// error means it is missing/unreadable (the operator must apply dualwrite_failures.sql).
+func checkFailureTable(v1 *database.DB) error {
+	var x int
+	if err := v1.QueryRow("SELECT 1 FROM " + failureTable + " LIMIT 1").Scan(&x); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	return nil
+}
+
+// failureRecord is the in-memory carrier for a mirror failure and the shape read back from the
+// failure table in tests. Its op/table/key fields double as the reconcile work list.
 type failureRecord struct {
 	Code       string `json:"code"`
 	Entity     string `json:"entity"`
@@ -263,37 +282,20 @@ func (s *Sink) recordFailure(entity, op, table, key, org string, cause error) {
 		slog.String("table", table),
 		slog.String("uuid", key),
 		slog.String("org", org),
+		slog.String("replica", s.replica),
 		slog.Any("err", cause),
 	)
-	line, err := json.Marshal(failureRecord{
-		Code: MirrorFailure, Entity: entity, Op: op, Table: table, Key: key, Org: org,
-		Error: cause.Error(), OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
-	})
-	if err != nil {
-		s.logger.Error("V2_DUAL_WRITE_FAILURE: could not marshal a failure record",
+	// Durably record into the shared v1 failure table. Best-effort: if this insert itself
+	// fails we have already emitted the ERROR line above (the ultimate fallback), and a
+	// periodic `dbmigrate migrate -since <t>` re-sync would still heal any lost record.
+	if _, err := s.v1.Exec(s.v1.Rebind(
+		`INSERT INTO `+failureTable+` (id, code, entity, op, table_name, v1_key, org_uuid, error, replica, occurred_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+		uuid.NewString(), MirrorFailure, entity, op, table, key, org, cause.Error(), s.replica,
+		time.Now().UTC().Format(time.RFC3339Nano),
+	); err != nil {
+		s.logger.Error("V2_DUAL_WRITE_FAILURE: could not record the failure row (already logged above)",
 			slog.String("code", MirrorFailure), slog.Any("err", err))
-		return
-	}
-	s.appendFailureLine(line)
-}
-
-// appendFailureLine appends one JSONL line to the failure log. Failures are rare (v2 is
-// healthy in steady state), so it opens/appends/closes per line — each line is durable
-// immediately with no long-lived handle to manage. failMu serializes concurrent requests
-// within this process (across replicas each writes its own file — collect all for reconcile).
-func (s *Sink) appendFailureLine(line []byte) {
-	s.failMu.Lock()
-	defer s.failMu.Unlock()
-	f, err := os.OpenFile(s.failureLog, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		s.logger.Error("V2_DUAL_WRITE_FAILURE: could not open the failure log",
-			slog.String("code", MirrorFailure), slog.String("path", s.failureLog), slog.Any("err", err))
-		return
-	}
-	defer f.Close()
-	if _, err := f.Write(append(line, '\n')); err != nil {
-		s.logger.Error("V2_DUAL_WRITE_FAILURE: could not append to the failure log",
-			slog.String("code", MirrorFailure), slog.String("path", s.failureLog), slog.Any("err", err))
 	}
 }
 

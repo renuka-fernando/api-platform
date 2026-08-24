@@ -75,7 +75,7 @@ func (d *customPolicyRepo) DeleteCustomPolicy(orgUUID, name, version string) err
 		return err
 	}
 	d.sink.mirrorResolvedDelete("gateway_custom_policy", "gateway_custom_policies", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteGatewayCustomPolicy(ex, uuid)
+		return migrationcore.DeleteGatewayCustomPolicy(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -87,7 +87,7 @@ func (d *customPolicyRepo) DeleteCustomPolicyIfUnused(orgUUID, policyUUID string
 		return err
 	}
 	d.sink.mirrorDelete("gateway_custom_policy", "gateway_custom_policies", policyUUID, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteGatewayCustomPolicy(ex, policyUUID)
+		return migrationcore.DeleteGatewayCustomPolicy(ex, d.sink.opts, policyUUID)
 	})
 	return nil
 }
@@ -107,7 +107,7 @@ func (d *customPolicyRepo) DeleteCustomPolicyUsage(policyUUID, apiUUID string) e
 		return err
 	}
 	d.sink.mirrorDelete("policy_usage", "gateway_custom_policy_usages", policyUUID+"|"+apiUUID, "", func(ex migrationcore.Execer) error {
-		return migrationcore.DeletePolicyUsage(ex, policyUUID, apiUUID)
+		return migrationcore.DeletePolicyUsage(ex, d.sink.opts, policyUUID, apiUUID)
 	})
 	return nil
 }

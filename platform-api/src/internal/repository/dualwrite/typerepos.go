@@ -78,7 +78,7 @@ func (d *llmTemplateRepo) Delete(templateID, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("llm_provider_template", "llm_provider_templates", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteLLMProviderTemplate(ex, uuid)
+		return migrationcore.DeleteLLMProviderTemplate(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -130,7 +130,7 @@ func (d *llmProviderRepo) Delete(providerID, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("llm_provider", "llm_providers", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, uuid)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -182,7 +182,7 @@ func (d *llmProxyRepo) Delete(proxyID, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("llm_proxy", "llm_proxies", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, uuid)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -234,7 +234,7 @@ func (d *mcpProxyRepo) Delete(handle, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("mcp_proxy", "mcp_proxies", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, uuid)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -288,7 +288,7 @@ func (d *webSubAPIRepo) Delete(handle, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("websub_api", "websub_apis", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, uuid)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, uuid)
 	})
 	return nil
 }
@@ -340,7 +340,7 @@ func (d *webBrokerAPIRepo) Delete(handle, orgUUID string) error {
 		return err
 	}
 	d.sink.mirrorResolvedDelete("webbroker_api", "webbroker_apis", uuid, orgUUID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteArtifact(ex, uuid)
+		return migrationcore.DeleteArtifact(ex, d.sink.opts, uuid)
 	})
 	return nil
 }

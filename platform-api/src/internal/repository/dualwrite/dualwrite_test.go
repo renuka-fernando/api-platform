@@ -20,7 +20,6 @@ package dualwrite
 import (
 	"bytes"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -40,8 +39,8 @@ import (
 
 // newTestSink builds a Sink whose v2 side is a pool that is closed on purpose, so every
 // mirror Begin fails — exercising the swallow-and-record path without needing a live
-// Postgres. Failures land in a temp JSONL file (never a v1-DB table; the mirror never writes
-// to v1). The v1 side is a real in-memory SQLite for realism, though these tests fail at the
+// Postgres. Failures are recorded into the v1-side v2_dual_write_failures TABLE (the shared HA
+// store). The v1 side is a real in-memory SQLite for realism, though these tests fail at the
 // v2 Begin before the read-back is reached. (Convergence/success is the §9.4 integration test.)
 func newTestSink(t *testing.T) (*Sink, *bytes.Buffer) {
 	t.Helper()
@@ -51,6 +50,7 @@ func newTestSink(t *testing.T) (*Sink, *bytes.Buffer) {
 		t.Fatalf("open v1 sqlite: %v", err)
 	}
 	t.Cleanup(func() { _ = v1.Close() })
+	applyFailureTableDDL(t, v1) // provisioned out-of-band in prod; applied here for the test
 
 	v2, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -64,6 +64,7 @@ func newTestSink(t *testing.T) (*Sink, *bytes.Buffer) {
 		v2:         v2,
 		v2Postgres: false,
 		v1:         v1,
+		replica:    "test-replica",
 		opts: migrationcore.Options{
 			SourceTZ: time.UTC,
 			Epoch:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -71,31 +72,45 @@ func newTestSink(t *testing.T) (*Sink, *bytes.Buffer) {
 		reporter:     reporter{logger: logger},
 		writeTimeout: time.Second,
 		logger:       logger,
-		failureLog:   filepath.Join(t.TempDir(), "failures.jsonl"),
 	}
 	return sink, buf
 }
 
-// readFailures parses the sink's JSONL failure log.
+// applyFailureTableDDL provisions the failure table by executing the SAME shipped DDL file the
+// operator applies in prod (internal/database/dualwrite_failures.sql) — keeping one source of
+// truth. In prod this is a deploy-time step; the app itself never runs this DDL.
+func applyFailureTableDDL(t *testing.T, v1 *database.DB) {
+	t.Helper()
+	ddl, err := os.ReadFile(filepath.Join("..", "..", "database", "dualwrite_failures.sql"))
+	if err != nil {
+		t.Fatalf("read dualwrite_failures.sql: %v", err)
+	}
+	if _, err := v1.Exec(string(ddl)); err != nil {
+		t.Fatalf("apply failure-table DDL: %v", err)
+	}
+}
+
+// readFailures reads the rows the sink recorded into the v1 v2_dual_write_failures table.
 func readFailures(t *testing.T, sink *Sink) []failureRecord {
 	t.Helper()
-	data, err := os.ReadFile(sink.failureLog)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
+	rows, err := sink.v1.Query(sink.v1.Rebind(
+		"SELECT code, entity, op, table_name, v1_key, org_uuid, error, occurred_at FROM " + failureTable + " ORDER BY occurred_at"))
 	if err != nil {
-		t.Fatalf("read failure log: %v", err)
+		t.Fatalf("query failure table: %v", err)
 	}
+	defer rows.Close()
 	var recs []failureRecord
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-		if line == "" {
-			continue
-		}
+	for rows.Next() {
 		var r failureRecord
-		if err := json.Unmarshal([]byte(line), &r); err != nil {
-			t.Fatalf("parse failure line %q: %v", line, err)
+		var org, errStr sql.NullString
+		if err := rows.Scan(&r.Code, &r.Entity, &r.Op, &r.Table, &r.Key, &org, &errStr, &r.OccurredAt); err != nil {
+			t.Fatalf("scan failure row: %v", err)
 		}
+		r.Org, r.Error = org.String, errStr.String
 		recs = append(recs, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate failure rows: %v", err)
 	}
 	return recs
 }
@@ -149,14 +164,9 @@ func TestRevokeTokenMirrorsAsUpsertAndSwallowsV2Failure(t *testing.T) {
 	if !strings.Contains(buf.String(), MirrorFailure) {
 		t.Error("expected an ERROR log carrying the MirrorFailure marker")
 	}
-	// The mirror must NOT have created any table in the v1 DB.
-	var n int
-	if err := sink.v1.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='v2_dual_write_failures'").Scan(&n); err != nil {
-		t.Fatalf("query v1 sqlite_master: %v", err)
-	}
-	if n != 0 {
-		t.Error("the mirror must not create a table in the v1 database")
-	}
+	// The failure was recorded as a ROW in the shared v1 v2_dual_write_failures table — the
+	// readFailures assertions above read it back. The mirror still writes NO v1 BUSINESS
+	// tables; only this operational failure table (whose DDL is provisioned out-of-band).
 }
 
 // TestV1ErrorPropagatesWithoutMirroring asserts that when the v1 write fails, the error is

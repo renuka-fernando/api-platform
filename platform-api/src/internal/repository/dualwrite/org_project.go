@@ -73,7 +73,7 @@ func (d *orgRepo) DeleteOrganization(orgID string) error {
 		return err
 	}
 	d.sink.mirrorDelete("organization", "organizations", orgID, orgID, func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteOrganization(ex, orgID)
+		return migrationcore.DeleteOrganization(ex, d.sink.opts, orgID)
 	})
 	return nil
 }
@@ -124,7 +124,7 @@ func (d *projectRepo) DeleteProject(projectID string) error {
 	}
 	// v1 DeleteProject takes only the id; org is informational in the failure row.
 	d.sink.mirrorDelete("project", "projects", projectID, "", func(ex migrationcore.Execer) error {
-		return migrationcore.DeleteProject(ex, projectID)
+		return migrationcore.DeleteProject(ex, d.sink.opts, projectID)
 	})
 	return nil
 }
