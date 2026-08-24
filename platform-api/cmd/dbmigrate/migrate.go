@@ -119,13 +119,7 @@ func runMigrate(argv []string) error {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	registerCommonFlags(fs, o)
 	fs.BoolVar(&o.DryRun, "dry-run", false, "Transform and validate everything but perform no inserts")
-	fs.BoolVar(&o.InitSchema, "init-schema", true, "Apply the v2 core + plugin DDL before migrating (idempotent)")
-	fs.StringVar(&o.CoreSchema, "core-schema",
-		"internal/database/schema.postgres.sql", "Path to the v2 core PostgreSQL DDL")
-	fs.StringVar(&o.PluginSchema, "plugin-schema",
-		"plugins/eventgateway/schema/schema.postgres.sql", "Path to the EventGateway plugin PostgreSQL DDL")
-	fs.StringVar(&o.SourceTZ, "source-tz", "UTC", "Time zone of naive v1 TIMESTAMP values")
-	fs.IntVar(&o.BatchSize, "batch-size", 1000, "Rows per progress checkpoint")
+	fs.StringVar(&o.SourceTZ, "source-tz", "", "IANA time zone the naive v1 TIMESTAMP values were written in, e.g. UTC or Asia/Colombo (required; determine it first, see RUNBOOK.md, and use the same value for verify)")
 	fs.StringVar(&o.IDPRefStrategy, "idp-ref-strategy", "org-uuid", "Strategy for organizations.idp_organization_ref_uuid (org-uuid)")
 	fs.StringVar(&o.GroupIDStrategy, "group-id-strategy", "handle", "Strategy for llm_provider_templates.group_id (handle)")
 	epochStr := fs.String("migration-epoch", defaultMigrationEpoch, "Fixed epoch (RFC3339) for deterministic synthesized UUIDs")
@@ -192,11 +186,8 @@ func runMigrate(argv []string) error {
 	}
 	defer v2.Close()
 
-	if o.InitSchema && !o.DryRun {
-		if err := applySchemas(v2, o, logger); err != nil {
-			return err
-		}
-	}
+	// The v2 core + EventGateway plugin schema must already exist in the target DB
+	// (applied manually before running — see RUNBOOK.md). The tool never creates it.
 
 	// Preflight: fail-fast on any artifact kind outside the six migrated types.
 	if err := preflightKinds(v1); err != nil {
@@ -344,28 +335,6 @@ func loadEncryptionKey(o *Options) error {
 	return nil
 }
 
-// applySchemas applies the v2 core DDL then the EventGateway plugin DDL. Both are
-// idempotent (CREATE TABLE IF NOT EXISTS). The plugin DDL is NOT auto-applied for
-// Postgres by the product, so the tool applies it every run (§K.2).
-func applySchemas(v2 *database.DB, o *Options, logger *slog.Logger) error {
-	core, err := os.ReadFile(o.CoreSchema)
-	if err != nil {
-		return fmt.Errorf("read core schema %s: %w", o.CoreSchema, err)
-	}
-	if err := v2.InitSchemaSQL(string(core), logger); err != nil {
-		return fmt.Errorf("apply core schema: %w", err)
-	}
-	plugin, err := os.ReadFile(o.PluginSchema)
-	if err != nil {
-		return fmt.Errorf("read plugin schema %s: %w", o.PluginSchema, err)
-	}
-	if err := v2.InitSchemaSQL(string(plugin), logger); err != nil {
-		return fmt.Errorf("apply plugin schema: %w", err)
-	}
-	logger.Info("applied v2 core + plugin DDL")
-	return nil
-}
-
 // preflightKinds fails fast if v1 holds any artifact kind outside the six migrated
 // types (unknown destination ⇒ mapping incomplete).
 func preflightKinds(v1 *database.DB) error {
@@ -429,4 +398,3 @@ func (mc *migCtx) carriedHandle(table, org, v1uuid, v1handle string) (string, er
 	}
 	return h, nil
 }
-

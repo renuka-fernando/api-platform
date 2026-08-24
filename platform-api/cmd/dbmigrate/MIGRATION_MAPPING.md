@@ -12,8 +12,9 @@
 > **Why this tool was rebuilt (2026-08-22):** the prior run (`prod-20260818`) **dropped**
 > all event APIs (84 `websub_apis` + 8 `webbroker_apis`) via the removed-feature path. Under
 > the settled 2026-08-19 decision, event APIs are **first-class and always migrated** into the
-> plugin tables, and the plugin DDL is always applied. This build migrates all six artifact
-> types and never routes event APIs to the drop path.
+> plugin tables. This build migrates all six artifact types and never routes event APIs to the
+> drop path. The target v2 schema (core **and** EventGateway plugin DDL) must be applied
+> manually before running — the tool never creates it.
 
 ---
 
@@ -55,8 +56,9 @@ Reused verbatim (all exported, un-tagged — no `-tags experimental`):
   `Encrypt/DecryptSubscriptionToken`, `DeriveEncryptionKey`.
 - `internal/constants` — kind strings (`RestApi`/`WebSubApi`/`WebBrokerApi`/`LlmProvider`/
   `LlmProxy`/`Mcp`), throttle units (`MINUTE`/`HOUR`/`DAY`/`MONTH`), `DeletedUser`.
-- `internal/database` — `NewConnection` (pgx stdlib via `database/sql`), `(*DB).InitSchemaSQL`
-  (applies core **and** plugin DDL), `Rebind` (`?`→`$n`), `IsDuplicateKeyError`.
+- `internal/database` — `NewConnection` (pgx stdlib via `database/sql`), `Rebind` (`?`→`$n`),
+  `IsDuplicateKeyError`. The tool does not create schema; the v2 core + plugin DDL is applied
+  manually before running.
 
 All migration state is **file-based** (checkpoint, handle map, quarantine, flags, drops,
 reports) — the v2 DB contains only migrated data conforming to the v2 DDL.
@@ -161,7 +163,7 @@ gateway_states, events.
    to the mapped UUID. **Assumption (unverifiable from DB):** v1 `idp_id` == the claim v2
    extracts from the token (`sub`/configured). If v1 stored a username but v2 auths on `sub`,
    the seeded identity displays correctly but won't unify with that user's future live-login UUID.
-6. **Event APIs → plugin tables**, plugin DDL applied every run.
+6. **Event APIs → plugin tables** (the plugin schema must already exist in the target DB).
 7. **`websub_api_hmac_secrets` = empty** (v2-new; re-issue post-migration). No `APIP_CP_ENCRYPTION_KEY` needed.
 8. **`artifact_subscription_plans` = empty by default** (dead in v2 code). `-populate-artifact-subscription-plans` to derive.
 9. **`audit` = empty by default.** `-audit-marker` to emit one per org.

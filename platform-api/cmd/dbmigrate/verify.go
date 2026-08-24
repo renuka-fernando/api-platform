@@ -74,7 +74,7 @@ func runVerify(argv []string) error {
 	o := &Options{}
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	registerCommonFlags(fs, o)
-	fs.StringVar(&o.SourceTZ, "source-tz", "UTC", "Time zone of naive v1 TIMESTAMP values (must match the migrate run)")
+	fs.StringVar(&o.SourceTZ, "source-tz", "", "IANA time zone of the naive v1 TIMESTAMP values (required; must be the exact same value passed to the migrate run)")
 	epochStr := fs.String("migration-epoch", defaultMigrationEpoch, "Migration epoch used at migrate time (for audit-identity checks)")
 	fs.IntVar(&o.DecryptSampleSize, "decrypt-sample-size", 25, "Subscription tokens to sample for the decrypt round-trip")
 	fs.StringVar(&o.EncKeyFile, "encryption-key-file", "", "File with the subscription-token key (else APIP_MIGRATION_ENCRYPTION_KEY); enables the token round-trip check")
