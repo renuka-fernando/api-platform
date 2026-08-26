@@ -74,7 +74,8 @@ reports) — the v2 DB contains only migrated data conforming to the v2 DDL.
 | TIMESTAMP → TIMESTAMPTZ | all `created_at`/`updated_at`/`*_at` (source TZ = `-source-tz`, default UTC; never `now()`) |
 | BOOLEAN → SMALLINT (`true`→1) | `gateways.is_active`/`is_critical`, `subscription_plans.stop_on_quota_reach` |
 | VARCHAR widen (safe) | `subscription_token_hash` 64→255, `gateway_custom_policies.version` 15→30 |
-| VARCHAR narrow (flag if truncating) | all `handle` 255→40, `created_by` 255→200, `gateway_custom_policies.description` TEXT→1023, `api_keys.issuer`/`allowed_targets` TEXT→255 |
+| VARCHAR narrow (flag if truncating) | `created_by` 255→200, `gateway_custom_policies.description` TEXT→1023, `api_keys.issuer`/`allowed_targets` TEXT→255 |
+| **`handle` — carried VERBATIM (NOT narrowed)** | Carried tables (organizations, applications, rest_apis, llm_provider_templates, llm_providers, llm_proxies, mcp_proxies, websub_apis, webbroker_apis) preserve the v1 handle **unchanged** — v1 already enforced a valid, org-unique slug, so GET-by-handle references stay stable (v1 & v2 both resolve `/…/{id}` by handle). The v2 `handle` column is widened to `VARCHAR(255)` for the migration window; a handle >40 is flagged `HANDLE_EXCEEDS_NATIVE_CAP`; the post-migration `ALTER … TYPE VARCHAR(40)` is the conformance gate (RUNBOOK step 8). Generated handles (projects/subscription_plans/gateways/api_keys) remain `GenerateHandle`-capped at 40. |
 
 ## Config-blob structural reshapes
 
@@ -119,12 +120,12 @@ v1 config fields the v2 struct drops (per-field human sign-off; see §E list bel
 | # | v1 source | v2 target(s) | key transforms |
 |---|---|---|---|
 | 1 | (audit identities) | **user_idp_references** | distinct `created_by` strings + `migration` actor → `uuid=GenerateDeterministicUUIDv7(idp_id, epoch)`; `ON CONFLICT(idp_id)` |
-| 2 | organizations | organizations | `name`→display_name; handle carry 255→40; +`idp_organization_ref_uuid`=uuid (PLACEHOLDER_IDP); audit rewrite |
+| 2 | organizations | organizations | `name`→display_name; handle carried VERBATIM (widen col→255, shrink-gate to 40); +`idp_organization_ref_uuid`=uuid (PLACEHOLDER_IDP); audit rewrite |
 | 3 | projects | projects | **generate** handle from name; `name`→display_name |
 | 4 | applications | applications | handle carry; `name`→display_name; project_uuid now nullable |
 | 5 | artifacts (all 6 kinds) | artifacts | →(uuid,type,org); `kind`→`type` verbatim; carry handle/name/version/created_at/updated_at DOWN into per-type row |
 | 6 | rest_apis ⋈ artifacts | rest_apis | transport col→blob; JSONB→BYTEA; lifecycle_status carried |
-| 7 | llm_provider_templates | llm_provider_templates | handle 255→40; `name`→display_name; config TEXT→BYTEA; +group_id=handle, version=v1.0, managed_by=organization, is_latest=1, enabled=1, openapi_spec=NULL |
+| 7 | llm_provider_templates | llm_provider_templates | handle carried verbatim; `name`→display_name; config TEXT→BYTEA; +group_id=handle, version=v1.0, managed_by=organization, is_latest=1, enabled=1, openapi_spec=NULL |
 | 8 | llm_providers ⋈ artifacts | llm_providers | JSONB→BYTEA; openapi_spec/model_list TEXT→BYTEA; **status DROPPED** |
 | 9 | llm_proxies ⋈ artifacts | llm_proxies | JSONB→BYTEA; openapi_spec TEXT→BYTEA; **status DROPPED** |
 | 10 | mcp_proxies ⋈ artifacts | mcp_proxies | JSONB→BYTEA; **status DROPPED** |

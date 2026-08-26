@@ -18,6 +18,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/wso2/api-platform/platform-api/internal/utils"
 )
 
@@ -73,4 +76,27 @@ func (h *handleGen) generate(table, org, v1uuid, source string) (string, error) 
 	scope[hv] = true
 	h.run.putHandle(table, v1uuid, hv)
 	return hv, nil
+}
+
+// carry returns the v1 handle VERBATIM for a table that CARRIES it (organizations,
+// applications, rest_apis, llm_provider_templates, llm_providers, llm_proxies,
+// mcp_proxies, websub_apis, webbroker_apis). Unlike generate it does NOT
+// slug/truncate/collision-suffix: v1 already enforced a valid, org-unique handle
+// (v1 utils.ValidateHandle), so preserving it verbatim is collision-free and keeps
+// handle-based external references stable across the migration (both v1 and v2
+// resolve GET /…/{id} by handle). The value is recorded in the checkpoint for
+// resume-idempotency. A handle longer than the v2-native 40-char cap is preserved
+// as-is and relies on the migration-window column width (VARCHAR(255)); the caller
+// flags it so the post-migration shrink-to-40 gate can be reasoned about.
+func (h *handleGen) carry(table, org, v1uuid, v1handle string) (string, error) {
+	if hv, ok := h.run.getHandle(table, v1uuid); ok {
+		h.set(table, org)[hv] = true
+		return hv, nil
+	}
+	if strings.TrimSpace(v1handle) == "" {
+		return "", fmt.Errorf("carried handle is empty for %s (v1uuid=%s)", table, v1uuid)
+	}
+	h.set(table, org)[v1handle] = true
+	h.run.putHandle(table, v1uuid, v1handle)
+	return v1handle, nil
 }

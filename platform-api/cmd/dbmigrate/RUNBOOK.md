@@ -41,6 +41,27 @@ docker run -d --name mig-v2 -e POSTGRES_PASSWORD=admin -e POSTGRES_DB=dbv2 \
 (Alternatively use the `platform-api-v1` / `platform-api-v2` compose stacks, which seed the v2
 core + plugin schema for you.)
 
+### Handle width (REQUIRED before the backfill)
+
+v2 declares `handle` as `VARCHAR(40)` and its code caps *new* handles at 40. v1 handles are
+validated slugs up to **63** chars, and the migrator **preserves carried handles VERBATIM**
+(no truncation) so external references stay stable — both v1 and v2 resolve `GET /…/{id}` by
+handle, so a shortened handle would 404 a client that stored it. To hold a handle longer than
+40 during the backfill, widen the carried-handle columns to `VARCHAR(255)` (matching v1)
+**before** steps 5–6:
+
+Apply the widen DDL (the 9 carried-handle columns) — `cmd/dbmigrate/ddl/01-widen-handle-to-255.sql`:
+
+```sh
+docker exec -i mig-v2 psql -U postgres -d dbv2 < cmd/dbmigrate/ddl/01-widen-handle-to-255.sql
+```
+
+Widening is metadata-only in Postgres (instant, no table rewrite; `UNIQUE(org, handle)` indexes
+are unaffected). The generated-handle tables (`projects`, `subscription_plans`, `gateways`,
+`api_keys`) keep `VARCHAR(40)` — their handles are derived from names and are always ≤40. The
+committed `schema.postgres.sql` stays at `VARCHAR(40)` (v2-native); this widening is a
+migration-window maneuver, reverted by the conformance gate in **step 8**.
+
 ## 3. Determine the source timezone (dbv1)
 
 v1 stores audit timestamps as **naive `TIMESTAMP`** (no zone). The migrator reinterprets each
@@ -100,7 +121,9 @@ Review, in `$OUT`:
 - `migration-report-prod-dryrun.json` → `dropped_config_fields` (§E): **any field that carries
   data is a STOP** — remap before the live run.
 - `quarantine-prod-dryrun.jsonl` → decide each row (fix source, or sign off as loss).
-- `flags-prod-dryrun.jsonl` → every truncation / placeholder / synthesized value.
+- `flags-prod-dryrun.jsonl` → every placeholder / synthesized value, and every carried handle
+  that exceeds the v2-native 40 cap (`HANDLE_EXCEEDS_NATIVE_CAP`) — this is the exact set that
+  will block the step 8 shrink gate.
 
 The dry run needs no key; add `-skip-decrypt-check` if `APIP_MIGRATION_ENCRYPTION_KEY` is unset.
 
@@ -130,6 +153,35 @@ Writes `verify-report-prod.json`. The gate passes only when every table reconcil
 v2 or listed in `quarantine-signoff.jsonl` ({source_table, source_key} per line).
 
 No `APIP_CP_ENCRYPTION_KEY` is needed (the WebSub HMAC table stays empty, §K.3).
+
+## 8. Conformance gate — shrink `handle` back to 40 (post-verify)
+
+After verify passes, attempt to restore the v2-native width. This `ALTER` is the **gate** that
+surfaces any handle exceeding 40 — Postgres fails the shrink loudly if any value is too long:
+
+```sh
+# Succeeds iff EVERY carried handle fits 40; else ERROR: value too long for type character varying(40).
+# 02-shrink-handle-to-40.sql wraps the ALTERs in a transaction so a failure rolls back cleanly.
+docker exec -i mig-v2 psql -U postgres -d dbv2 < cmd/dbmigrate/ddl/02-shrink-handle-to-40.sql
+```
+
+- **Passes** → the DB is byte-consistent with a native v2 (all handles ≤40). Done.
+- **Fails** → at least one handle exceeds 40. Enumerate them (also flagged
+  `HANDLE_EXCEEDS_NATIVE_CAP` in `flags-<id>.jsonl`):
+
+  ```sh
+  docker exec -i mig-v2 psql -U postgres -d dbv2 < cmd/dbmigrate/ddl/handle-over-40-report.sql
+  ```
+
+  Then choose: **(a) keep the column wide** (leave at 255, or settle on 63 = v1's real cap) —
+  v2 tolerates >40 handles at runtime (create/update validate 40, but `GET …/{handle}` has no
+  length check), so everything keeps resolving; or **(b) rename the offending artifacts** to ≤40
+  in v1 and re-run migrate (idempotent), then re-attempt the shrink. Do **not** truncate
+  in-place — that breaks the handle-based external references this preservation protects.
+
+**Dual-write note:** while the live dual-writer is enabled it also preserves handles verbatim,
+so keep the column at `VARCHAR(255)` for the whole dual-write window; only run this shrink gate
+at/after cutover.
 
 ## Flags of note
 

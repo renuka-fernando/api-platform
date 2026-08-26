@@ -43,6 +43,12 @@ const (
 	FlagPlaceholderIDP      = "PLACEHOLDER_IDP"
 	FlagSynthesized         = "SYNTHESIZED"
 	FlagPlaintextCredential = "PLAINTEXT_CREDENTIAL"
+	// FlagHandleExceedsNativeCap marks a carried handle preserved verbatim whose
+	// length exceeds the v2-native 40-char cap. Informational: these rows are the
+	// ones that will block the post-migration `ALTER … handle TYPE VARCHAR(40)`
+	// conformance gate (see RUNBOOK "Handle width"); the migration-window column
+	// must be VARCHAR(255) to store them.
+	FlagHandleExceedsNativeCap = "HANDLE_EXCEEDS_NATIVE_CAP"
 )
 
 // Drop feature labels (intentional §H drops).

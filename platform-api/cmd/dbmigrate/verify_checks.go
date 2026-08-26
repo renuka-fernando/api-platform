@@ -561,7 +561,7 @@ func (vr *verifier) layerD_integrity() {
 // ---- Layer E: generated / placeholder / default correctness ----
 
 func (vr *verifier) layerE_generated() {
-	// Carried handles: v2.handle == slug(v1 handle) for the common (non-suffixed) case.
+	// Carried handles: v2.handle == v1 handle, preserved VERBATIM (no slug/truncate).
 	vr.checkCarriedHandles("organizations", "organizations")
 	vr.checkCarriedHandles("applications", "applications")
 	vr.checkCarriedHandles("llm_provider_templates", "llm_provider_templates")
@@ -604,7 +604,7 @@ func (vr *verifier) checkCarriedHandles(v1table, v2table string) {
 		return
 	}
 	defer rows.Close()
-	mismatch, suffixed := 0, 0
+	mismatch := 0
 	for rows.Next() {
 		var uuid, h string
 		_ = rows.Scan(&uuid, &h)
@@ -612,22 +612,18 @@ func (vr *verifier) checkCarriedHandles(v1table, v2table string) {
 		if !ok {
 			continue
 		}
-		if h != slug(src) {
-			// A collision suffix or degenerate-short pad is expected/allowed; only a
-			// wholesale divergence from the slug prefix is a real problem.
-			if len(h) >= 5 && len(slug(src)) >= 3 && h[:min2(len(slug(src)), len(h))] != slug(src)[:min2(len(slug(src)), len(h))] {
-				mismatch++
-			} else {
-				suffixed++
-			}
+		if h != src {
+			// Carried handles are preserved verbatim (v1 already enforced a valid,
+			// org-unique handle), so v2.handle must equal v1.handle exactly.
+			mismatch++
 		}
 	}
 	st := statusPass
 	if mismatch > 0 {
 		st = statusFail
 	}
-	vr.add(Check{Layer: "E", Name: "carried handle == slug(v1) in " + v2table, Status: st,
-		Detail: fmt.Sprintf("%d divergent, %d collision/degenerate-suffixed (tolerated)", mismatch, suffixed)})
+	vr.add(Check{Layer: "E", Name: "carried handle == v1 (verbatim) in " + v2table, Status: st,
+		Detail: fmt.Sprintf("%d divergent from v1 handle", mismatch)})
 }
 
 // ---- Layer F: drop reconciliation + quarantine sign-off gate ----

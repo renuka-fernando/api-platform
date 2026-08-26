@@ -373,17 +373,24 @@ func checkTokenDecryption(v1 *database.DB, key []byte, sample int, logger *slog.
 	return nil
 }
 
-// carriedHandle generates+persists the handle for a table that CARRIES the v1
-// handle (source = v1 handle), flagging TRUNCATED when the 255→40 narrowing bites.
+// carriedHandle returns the v1 handle VERBATIM for a table that CARRIES it. v1
+// already guarantees a valid, org-unique slug, so preserving it (no re-slug, no
+// truncate, no collision suffix) keeps handle-based external references stable —
+// both v1 and v2 resolve GET /…/{id} by handle, so a truncated/altered handle
+// would 404 a client that stored it. A handle longer than the v2-native 40-char
+// cap is preserved and flagged HANDLE_EXCEEDS_NATIVE_CAP; the v2 handle column
+// must be widened to VARCHAR(255) for the migration window (see RUNBOOK "Handle
+// width"), and the post-migration `ALTER … TYPE VARCHAR(40)` is the conformance
+// gate that surfaces any such handle.
 func (mc *migCtx) carriedHandle(table, org, v1uuid, v1handle string) (string, error) {
-	h, err := mc.h.generate(table, org, v1uuid, v1handle)
+	h, err := mc.h.carry(table, org, v1uuid, v1handle)
 	if err != nil {
 		return "", err
 	}
-	if _, cut := truncateStr(v1handle, 40); cut || slug(v1handle) != h {
-		mc.run.flag(table, v1uuid, FlagTruncated,
+	if len(v1handle) > 40 {
+		mc.run.flag(table, v1uuid, FlagHandleExceedsNativeCap,
 			map[string]any{"handle": v1handle, "len": len(v1handle)},
-			map[string]any{"handle": h})
+			map[string]any{"note": "preserved verbatim; exceeds v2-native 40 cap; blocks ALTER handle→VARCHAR(40)"})
 	}
 	return h, nil
 }
