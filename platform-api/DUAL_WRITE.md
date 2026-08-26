@@ -130,9 +130,13 @@ SELECTs the batch iterator uses, then feeds them to `migrationcore` — rather t
 domain model. This sidesteps every model/stored mismatch (the encrypted+hashed subscription token, the
 bundled LLM-template config, the `"{}"` gateway-properties default, the manifest that is not on the Gateway
 model) and guarantees the live path produces **byte-for-byte what a fresh batch of the final v1 state would**
-— so `dbmigrate verify` converges. Handles for handle-less entities (projects, gateways, plans, api-keys) are
-generated with the product's deterministic slug; a rare slug **collision** would get a random suffix in the
-batch and cannot be reproduced exactly — treat that as the one narrow non-convergence edge.
+— so `dbmigrate verify` converges. **Carried-handle entities** (organizations, applications, rest_apis, llm_*,
+mcp, websub, webbroker) preserve the v1 handle **verbatim** (no slug/truncate) — matching the batch — so
+handle-based external references stay stable; this requires the v2 `handle` column widened to `VARCHAR(255)`
+for the whole dual-write window (see the migration RUNBOOK "Handle width" + step 8 shrink gate; only shrink at
+cutover). Handle-less entities (projects, gateways, plans, api-keys) are generated with the product's
+deterministic slug; a rare slug **collision** would get a random suffix in the batch and cannot be reproduced
+exactly — treat that as the one narrow non-convergence edge.
 
 ## Cutover choreography
 

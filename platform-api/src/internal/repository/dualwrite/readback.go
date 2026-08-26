@@ -38,16 +38,18 @@ import (
 
 // The read functions scan the RAW v1 columns straight into the migrationcore XV1Row
 // structs (sql.Null* fields), so the v1→v2 mapping + null conversion live in ONE place
-// (migrationcore). Handle-bearing entities return the resolved v2 handle (migrationcore.Slug —
-// the live path's reproduction of the batch's carriedHandle/generate in the no-collision case)
-// alongside the row.
+// (migrationcore). CARRIED-handle entities (organizations, applications, rest_apis, llm_*,
+// mcp, websub, webbroker) return the v1 handle VERBATIM — preserved, matching the batch's
+// carriedHandle; this keeps handle-based external references stable across the migration
+// (both v1 and v2 resolve GET /…/{id} by handle). GENERATED-handle entities (projects,
+// subscription_plans, gateways, api_keys) return migrationcore.Slug(name).
 
 // ---- organizations ----
 
-// readOrganizationRow reads the raw v1 organizations row and returns the resolved
-// v2 handle (Slug — the live path's reproduction of the batch's carriedHandle in
-// the no-collision case) alongside a faithful v1 row. The name→display_name and
-// null-conversion mapping now lives in migrationcore.UpsertOrganizationV1.
+// readOrganizationRow reads the raw v1 organizations row and returns the v1 handle
+// VERBATIM (carried — matches the batch's carriedHandle) alongside a faithful v1
+// row. The name→display_name and null-conversion mapping now lives in
+// migrationcore.UpsertOrganizationV1.
 func readOrganizationRow(v1 *database.DB, uuid string) (string, migrationcore.OrganizationV1Row, error) {
 	var handle, name, region string
 	var createdAt, updatedAt sql.NullTime
@@ -57,7 +59,7 @@ func readOrganizationRow(v1 *database.DB, uuid string) (string, migrationcore.Or
 	if err != nil {
 		return "", migrationcore.OrganizationV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.OrganizationV1Row{
+	return handle, migrationcore.OrganizationV1Row{
 		UUID: uuid, Name: name, Region: region,
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
@@ -94,7 +96,7 @@ func readApplicationRow(v1 *database.DB, uuid string) (string, migrationcore.App
 	if err != nil {
 		return "", migrationcore.ApplicationV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.ApplicationV1Row{
+	return handle, migrationcore.ApplicationV1Row{
 		UUID: uuid, ProjectUUID: projectUUID, Org: org, Name: name, Type: typ,
 		Description: description, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
 	}, nil
@@ -116,7 +118,7 @@ func readRestAPIRow(v1 *database.DB, uuid string) (string, migrationcore.RestAPI
 	if err != nil {
 		return "", migrationcore.RestAPIV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.RestAPIV1Row{
+	return handle, migrationcore.RestAPIV1Row{
 		UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
 		Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
 		CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
@@ -137,7 +139,7 @@ func readLLMTemplateRow(v1 *database.DB, uuid string) (string, migrationcore.LLM
 	if err != nil {
 		return "", migrationcore.LLMTemplateV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.LLMTemplateV1Row{
+	return handle, migrationcore.LLMTemplateV1Row{
 		UUID: uuid, Org: org, Name: name, Description: description,
 		Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
 	}, nil
@@ -159,7 +161,7 @@ func readLLMProviderRow(v1 *database.DB, uuid string) (string, migrationcore.LLM
 	if err != nil {
 		return "", migrationcore.LLMProviderV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.LLMProviderV1Row{
+	return handle, migrationcore.LLMProviderV1Row{
 		UUID: uuid, Name: name, Version: version, Org: org, TemplateUUID: templateUUID,
 		Description: description, OpenAPISpec: openapiSpec, ModelList: modelList, Status: status,
 		Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
@@ -182,7 +184,7 @@ func readLLMProxyRow(v1 *database.DB, uuid string) (string, migrationcore.LLMPro
 	if err != nil {
 		return "", migrationcore.LLMProxyV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.LLMProxyV1Row{
+	return handle, migrationcore.LLMProxyV1Row{
 		UUID: uuid, Name: name, Version: version, ProjectUUID: projectUUID, Org: org, ProviderUUID: providerUUID,
 		Description: description, OpenAPISpec: openapiSpec, Status: status,
 		Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
@@ -204,7 +206,7 @@ func readMCPProxyRow(v1 *database.DB, uuid string) (string, migrationcore.MCPPro
 	if err != nil {
 		return "", migrationcore.MCPProxyV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.MCPProxyV1Row{
+	return handle, migrationcore.MCPProxyV1Row{
 		UUID: uuid, Name: name, Version: version, Org: org,
 		ProjectUUID: projectUUID, Description: description, Status: status,
 		Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
@@ -227,7 +229,7 @@ func readWebSubRow(v1 *database.DB, uuid string) (string, migrationcore.WebSubV1
 	if err != nil {
 		return "", migrationcore.WebSubV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.WebSubV1Row{
+	return handle, migrationcore.WebSubV1Row{
 		UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
 		Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
 		CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
@@ -250,7 +252,7 @@ func readWebBrokerRow(v1 *database.DB, uuid string) (string, migrationcore.WebBr
 	if err != nil {
 		return "", migrationcore.WebBrokerV1Row{}, err
 	}
-	return migrationcore.Slug(handle), migrationcore.WebBrokerV1Row{
+	return handle, migrationcore.WebBrokerV1Row{
 		UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
 		Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
 		CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdBy,
