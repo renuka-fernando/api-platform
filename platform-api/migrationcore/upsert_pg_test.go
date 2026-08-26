@@ -68,10 +68,11 @@ func TestUpsertUpdateVsInsertOnly(t *testing.T) {
 		return n
 	}
 
-	row := OrganizationRow{UUID: uuid, Handle: "affordance-org", DisplayName: "Acme", Region: "us"}
+	const handle = "affordance-org"
+	row := OrganizationV1Row{UUID: uuid, Name: "Acme", Region: "us"}
 
 	// (1) upsert INSERT.
-	if err := UpsertOrganization(db, row, baseOpts(), NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, handle, row, baseOpts(), NopReporter{}); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 	if got := getName(); got != "Acme" {
@@ -79,10 +80,10 @@ func TestUpsertUpdateVsInsertOnly(t *testing.T) {
 	}
 
 	// (2) upsert UPDATE (InsertOnly=false → ON CONFLICT DO UPDATE).
-	row.DisplayName = "AcmeUpdated"
+	row.Name = "AcmeUpdated"
 	opts := baseOpts()
 	opts.InsertOnly = false
-	if err := UpsertOrganization(db, row, opts, NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, handle, row, opts, NopReporter{}); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	if got := getName(); got != "AcmeUpdated" {
@@ -90,9 +91,9 @@ func TestUpsertUpdateVsInsertOnly(t *testing.T) {
 	}
 
 	// (3) InsertOnly=true → DO NOTHING (no change).
-	row.DisplayName = "ShouldNotStick"
+	row.Name = "ShouldNotStick"
 	opts.InsertOnly = true
-	if err := UpsertOrganization(db, row, opts, NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, handle, row, opts, NopReporter{}); err != nil {
 		t.Fatalf("insert-only: %v", err)
 	}
 	if got := getName(); got != "AcmeUpdated" {
@@ -169,7 +170,7 @@ func TestDryRunNoWrite(t *testing.T) {
 
 	opts := baseOpts()
 	opts.DryRun = true
-	if err := UpsertOrganization(db, OrganizationRow{UUID: uuid, Handle: "dry", DisplayName: "Dry", Region: "us"}, opts, NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, "dry", OrganizationV1Row{UUID: uuid, Name: "Dry", Region: "us"}, opts, NopReporter{}); err != nil {
 		t.Fatalf("dry-run upsert: %v", err)
 	}
 	var cnt int
@@ -187,36 +188,54 @@ func TestDryRunNoWrite(t *testing.T) {
 func TestUpsertPreservesCreationAuditOnUpdate(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
-	const uuid = "test-org-audit-8002"
-	_, _ = db.Exec("DELETE FROM organizations WHERE uuid = $1", uuid)
-	defer db.Exec("DELETE FROM organizations WHERE uuid = $1", uuid)
+	const org = "test-org-audit-8002"
+	const proj = "test-proj-audit-8002"
+	const app = "test-app-audit-8002"
+	_, _ = db.Exec("DELETE FROM applications WHERE uuid = $1", app)
+	_, _ = db.Exec("DELETE FROM projects WHERE uuid = $1", proj)
+	_, _ = db.Exec("DELETE FROM organizations WHERE uuid = $1", org)
+	defer func() {
+		db.Exec("DELETE FROM applications WHERE uuid = $1", app)
+		db.Exec("DELETE FROM projects WHERE uuid = $1", proj)
+		db.Exec("DELETE FROM organizations WHERE uuid = $1", org)
+	}()
 
 	t1 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	t2 := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
 	opts := baseOpts()
 	opts.InsertOnly = false
 
+	// organizations/projects have no created_by column, so application (which does) is
+	// the vehicle for the §8.2 created-audit-immutability check. Seed the FK parents.
+	if err := UpsertOrganizationV1(db, "audit-org-8002", OrganizationV1Row{UUID: org, Name: "AuditOrg", Region: "us"}, opts, NopReporter{}); err != nil {
+		t.Fatalf("seed org: %v", err)
+	}
+	if err := UpsertProjectV1(db, "audit-proj-8002", ProjectV1Row{UUID: proj, Name: "AuditProj", Org: org}, opts, NopReporter{}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+
 	// (1) create with actor "alice" at t1.
-	row := OrganizationRow{UUID: uuid, Handle: "audit-org-8002", DisplayName: "Acme", Region: "us",
-		CreatedAt: &t1, UpdatedAt: &t1, CreatedBy: "alice"}
-	if err := UpsertOrganization(db, row, opts, NopReporter{}); err != nil {
+	row := ApplicationV1Row{UUID: app, ProjectUUID: proj, Org: org, Name: "Acme", Type: "standard",
+		CreatedAt: sql.NullTime{Time: t1, Valid: true}, UpdatedAt: sql.NullTime{Time: t1, Valid: true},
+		CreatedBy: sql.NullString{String: "alice", Valid: true}}
+	if err := UpsertApplicationV1(db, "audit-app-8002", row, opts, NopReporter{}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	wantCreatedBy := DeterministicUUID("alice", testEpoch)
 
 	// (2) update with actor "bob" at t2 — created_at/created_by must NOT move (§8.2).
-	row.DisplayName = "AcmeUpdated"
-	row.CreatedAt = &t2
-	row.UpdatedAt = &t2
-	row.CreatedBy = "bob"
-	if err := UpsertOrganization(db, row, opts, NopReporter{}); err != nil {
+	row.Name = "AcmeUpdated"
+	row.CreatedAt = sql.NullTime{Time: t2, Valid: true}
+	row.UpdatedAt = sql.NullTime{Time: t2, Valid: true}
+	row.CreatedBy = sql.NullString{String: "bob", Valid: true}
+	if err := UpsertApplicationV1(db, "audit-app-8002", row, opts, NopReporter{}); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
 	var displayName, createdBy, updatedBy string
 	var createdAt, updatedAt time.Time
 	if err := db.QueryRow(
-		"SELECT display_name, created_by, created_at, updated_by, updated_at FROM organizations WHERE uuid = $1", uuid,
+		"SELECT display_name, created_by, created_at, updated_by, updated_at FROM applications WHERE uuid = $1", app,
 	).Scan(&displayName, &createdBy, &createdAt, &updatedBy, &updatedAt); err != nil {
 		t.Fatalf("select: %v", err)
 	}
@@ -254,7 +273,7 @@ func TestUpsertGatewayReplacesEndpointOnVhostChange(t *testing.T) {
 
 	opts := baseOpts()
 	opts.InsertOnly = false
-	if err := UpsertOrganization(db, OrganizationRow{UUID: org, Handle: "gw-org-8003", DisplayName: "GwOrg", Region: "us"}, opts, NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, "gw-org-8003", OrganizationV1Row{UUID: org, Name: "GwOrg", Region: "us"}, opts, NopReporter{}); err != nil {
 		t.Fatalf("seed org: %v", err)
 	}
 
@@ -273,9 +292,9 @@ func TestUpsertGatewayReplacesEndpointOnVhostChange(t *testing.T) {
 		return u
 	}
 
-	base := GatewayRow{UUID: gw, Org: org, Handle: "gw-8003", DisplayName: "GW", Version: "1.0",
-		FuncType: "regular", Vhost: "v1.example.com", Properties: []byte("{}"), IsActive: true}
-	if err := UpsertGateway(db, base, opts, NopReporter{}); err != nil {
+	base := GatewayV1Row{UUID: gw, Org: org, DisplayName: "GW", Version: "1.0",
+		FuncType: "regular", Vhost: "v1.example.com", Properties: []byte("{}"), IsActive: sql.NullBool{Bool: true, Valid: true}}
+	if err := UpsertGatewayV1(db, "gw-8003", base, opts, NopReporter{}); err != nil {
 		t.Fatalf("create gateway: %v", err)
 	}
 	if n := countEndpoints(); n != 1 || getEndpoint() != "v1.example.com" {
@@ -284,7 +303,7 @@ func TestUpsertGatewayReplacesEndpointOnVhostChange(t *testing.T) {
 
 	// vhost change → the old endpoint must be replaced, not accumulated (§8.3).
 	base.Vhost = "v2.example.com"
-	if err := UpsertGateway(db, base, opts, NopReporter{}); err != nil {
+	if err := UpsertGatewayV1(db, "gw-8003", base, opts, NopReporter{}); err != nil {
 		t.Fatalf("update gateway: %v", err)
 	}
 	if n := countEndpoints(); n != 1 || getEndpoint() != "v2.example.com" {
@@ -309,7 +328,7 @@ func TestUpsertSubscriptionPlanReplacesLimitOnThrottleChange(t *testing.T) {
 
 	opts := baseOpts()
 	opts.InsertOnly = false
-	if err := UpsertOrganization(db, OrganizationRow{UUID: org, Handle: "plan-org-8003", DisplayName: "PlanOrg", Region: "us"}, opts, NopReporter{}); err != nil {
+	if err := UpsertOrganizationV1(db, "plan-org-8003", OrganizationV1Row{UUID: org, Name: "PlanOrg", Region: "us"}, opts, NopReporter{}); err != nil {
 		t.Fatalf("seed org: %v", err)
 	}
 
@@ -329,11 +348,9 @@ func TestUpsertSubscriptionPlanReplacesLimitOnThrottleChange(t *testing.T) {
 		return unit, count
 	}
 
-	minUnit := "min"
-	cnt100 := int64(100)
-	base := SubscriptionPlanRow{UUID: plan, Handle: "plan-8003", DisplayName: "Plan", Org: org, Status: "ACTIVE",
-		ThrottleUnit: &minUnit, ThrottleCount: &cnt100}
-	if err := UpsertSubscriptionPlan(db, base, opts, NopReporter{}); err != nil {
+	base := SubscriptionPlanV1Row{UUID: plan, PlanName: "Plan", Org: org, Status: "ACTIVE",
+		ThrottleUnit: sql.NullString{String: "min", Valid: true}, ThrottleCount: sql.NullInt64{Int64: 100, Valid: true}}
+	if err := UpsertSubscriptionPlanV1(db, "plan-8003", base, opts, NopReporter{}); err != nil {
 		t.Fatalf("create plan: %v", err)
 	}
 	if n := countLimits(); n != 1 {
@@ -345,11 +362,9 @@ func TestUpsertSubscriptionPlanReplacesLimitOnThrottleChange(t *testing.T) {
 
 	// throttle unit change (min→hour, which moves the natural key) → the old MINUTE
 	// limit must be replaced, not left behind (§8.3).
-	hourUnit := "hour"
-	cnt200 := int64(200)
-	base.ThrottleUnit = &hourUnit
-	base.ThrottleCount = &cnt200
-	if err := UpsertSubscriptionPlan(db, base, opts, NopReporter{}); err != nil {
+	base.ThrottleUnit = sql.NullString{String: "hour", Valid: true}
+	base.ThrottleCount = sql.NullInt64{Int64: 200, Valid: true}
+	if err := UpsertSubscriptionPlanV1(db, "plan-8003", base, opts, NopReporter{}); err != nil {
 		t.Fatalf("update plan: %v", err)
 	}
 	if n := countLimits(); n != 1 {

@@ -82,21 +82,10 @@ func (mc *migCtx) coreOpts() migrationcore.Options {
 	}
 }
 
-// nsp / ntp convert scanned nullable columns into the pointer form V1Row uses.
-func nsp(ns sql.NullString) *string {
-	if ns.Valid {
-		s := ns.String
-		return &s
-	}
-	return nil
-}
-func ntp(nt sql.NullTime) *time.Time {
-	if nt.Valid {
-		t := nt.Time
-		return &t
-	}
-	return nil
-}
+// nsp / ntp delegate to the shared migrationcore helpers so the null-column
+// conversion has ONE implementation across the batch and the live dual-write path.
+func nsp(ns sql.NullString) *string  { return migrationcore.NullStrPtr(ns) }
+func ntp(nt sql.NullTime) *time.Time { return migrationcore.NullTimePtr(nt) }
 
 // insert is a dry-run-guarded idempotent INSERT used only by the batch-only
 // optional tables (audit markers, artifact_subscription_plans) that migrationcore

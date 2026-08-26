@@ -91,9 +91,12 @@ func migrateOrganizations(mc *migCtx) error {
 		if !mc.want("organizations", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertOrganization(mc.v2, migrationcore.OrganizationRow{
-			UUID: uuid, Handle: h, DisplayName: name, Region: region,
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+		// h (resolved by carriedHandle above) is passed in; the v1 row carries the
+		// raw columns and the v1→v2 mapping (name→display_name, null conversion)
+		// now lives entirely in UpsertOrganizationV1.
+		if err := migrationcore.UpsertOrganizationV1(mc.v2, h, migrationcore.OrganizationV1Row{
+			UUID: uuid, Name: name, Region: region,
+			CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -137,9 +140,9 @@ func migrateProjects(mc *migCtx) error {
 		if !mc.want("projects", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertProject(mc.v2, migrationcore.ProjectRow{
-			UUID: uuid, Handle: h, DisplayName: name, Org: org, Description: nsp(description),
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+		if err := migrationcore.UpsertProjectV1(mc.v2, h, migrationcore.ProjectV1Row{
+			UUID: uuid, Name: name, Org: org, Description: description,
+			CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -187,9 +190,9 @@ func migrateApplications(mc *migCtx) error {
 		if !mc.want("applications", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertApplication(mc.v2, migrationcore.ApplicationRow{
-			UUID: uuid, Handle: h, ProjectUUID: projectUUID, Org: org, DisplayName: name, Type: typ,
-			Description: nsp(description), CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertApplicationV1(mc.v2, h, migrationcore.ApplicationV1Row{
+			UUID: uuid, ProjectUUID: projectUUID, Org: org, Name: name, Type: typ,
+			Description: description, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -241,10 +244,10 @@ func migrateRestAPIs(mc *migCtx) error {
 		if !mc.want("rest_apis", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertRestAPI(mc.v2, migrationcore.RestAPIRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, Org: org, ProjectUUID: projectUUID,
-			Description: nsp(description), Lifecycle: nsp(lifecycle), Transport: nsp(transport), Configuration: config,
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertRestAPIV1(mc.v2, h, migrationcore.RestAPIV1Row{
+			UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
+			Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
+			CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -296,9 +299,9 @@ func migrateLLMProviderTemplates(mc *migCtx) error {
 		if !mc.want("llm_provider_templates", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertLLMProviderTemplate(mc.v2, migrationcore.LLMTemplateRow{
-			UUID: uuid, Org: org, Handle: h, DisplayName: name, Description: nsp(description),
-			Configuration: []byte(config), CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertLLMProviderTemplateV1(mc.v2, h, migrationcore.LLMTemplateV1Row{
+			UUID: uuid, Org: org, Name: name, Description: description,
+			Configuration: []byte(config), CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -353,10 +356,10 @@ func migrateLLMProviders(mc *migCtx) error {
 		if !mc.want("llm_providers", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertLLMProvider(mc.v2, migrationcore.LLMProviderRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, Org: org, TemplateUUID: templateUUID,
-			Description: nsp(description), OpenAPISpec: nsp(openapiSpec), ModelList: nsp(modelList), Status: nsp(status),
-			Configuration: config, CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertLLMProviderV1(mc.v2, h, migrationcore.LLMProviderV1Row{
+			UUID: uuid, Name: name, Version: version, Org: org, TemplateUUID: templateUUID,
+			Description: description, OpenAPISpec: openapiSpec, ModelList: modelList, Status: status,
+			Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -419,10 +422,10 @@ func migrateLLMProxies(mc *migCtx) error {
 		if !mc.want("llm_proxies", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertLLMProxy(mc.v2, migrationcore.LLMProxyRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, ProjectUUID: projectUUID, Org: org, ProviderUUID: providerUUID,
-			Description: nsp(description), OpenAPISpec: nsp(openapiSpec), Status: nsp(status),
-			Configuration: config, CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertLLMProxyV1(mc.v2, h, migrationcore.LLMProxyV1Row{
+			UUID: uuid, Name: name, Version: version, ProjectUUID: projectUUID, Org: org, ProviderUUID: providerUUID,
+			Description: description, OpenAPISpec: openapiSpec, Status: status,
+			Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -481,10 +484,10 @@ func migrateMCPProxies(mc *migCtx) error {
 		if !mc.want("mcp_proxies", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertMCPProxy(mc.v2, migrationcore.MCPProxyRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, Org: org,
-			ProjectUUID: nsp(projectUUID), Description: nsp(description), Status: nsp(status),
-			Configuration: config, CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertMCPProxyV1(mc.v2, h, migrationcore.MCPProxyV1Row{
+			UUID: uuid, Name: name, Version: version, Org: org,
+			ProjectUUID: projectUUID, Description: description, Status: status,
+			Configuration: config, CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -541,10 +544,10 @@ func migrateWebSubAPIs(mc *migCtx) error {
 		if !mc.want("websub_apis", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertWebSubAPI(mc.v2, migrationcore.WebSubRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, Org: org, ProjectUUID: projectUUID,
-			Description: nsp(description), Lifecycle: nsp(lifecycle), Transport: nsp(transport), Configuration: config,
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertWebSubAPIV1(mc.v2, h, migrationcore.WebSubV1Row{
+			UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
+			Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
+			CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -602,10 +605,10 @@ func migrateWebBrokerAPIs(mc *migCtx) error {
 		if !mc.want("webbroker_apis", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertWebBrokerAPI(mc.v2, migrationcore.WebBrokerRow{
-			UUID: uuid, Handle: h, DisplayName: name, Version: version, Org: org, ProjectUUID: projectUUID,
-			Description: nsp(description), Lifecycle: nsp(lifecycle), Transport: nsp(transport), Configuration: config,
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertWebBrokerAPIV1(mc.v2, h, migrationcore.WebBrokerV1Row{
+			UUID: uuid, Name: name, Version: version, Org: org, ProjectUUID: projectUUID,
+			Description: description, Lifecycle: lifecycle, Transport: transport, Configuration: config,
+			CreatedAt: createdAt, UpdatedAt: updatedAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			if blobSkipped(err) {
 				continue
@@ -657,23 +660,16 @@ func migrateSubscriptionPlans(mc *migCtx) error {
 			continue
 		}
 		mc.run.flag("subscription_plans", uuid, FlagSynthesized, nil, map[string]any{"handle": h, "note": "generated from plan_name"})
-		row := migrationcore.SubscriptionPlanRow{
-			UUID: uuid, Handle: h, DisplayName: planName, Org: org, Status: status,
-			BillingPlan: nsp(billingPlan), ThrottleUnit: nsp(throttleUnit),
-			ExpiryTime: ntp(expiry), CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
-		}
-		if stopOnQuota.Valid {
-			b := stopOnQuota.Bool
-			row.StopOnQuota = &b
-		}
-		if throttleCount.Valid {
-			c := throttleCount.Int64
-			row.ThrottleCount = &c
+		row := migrationcore.SubscriptionPlanV1Row{
+			UUID: uuid, PlanName: planName, Org: org, Status: status,
+			BillingPlan: billingPlan, ThrottleUnit: throttleUnit,
+			StopOnQuota: stopOnQuota, ThrottleCount: throttleCount,
+			ExpiryTime: expiry, CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}
 		if !mc.want("subscription_plans", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertSubscriptionPlan(mc.v2, row, mc.coreOpts(), mc.run); err != nil {
+		if err := migrationcore.UpsertSubscriptionPlanV1(mc.v2, h, row, mc.coreOpts(), mc.run); err != nil {
 			var unmapped migrationcore.ErrUnmappedThrottleUnit
 			if errors.As(err, &unmapped) {
 				return fmt.Errorf("fail-fast: subscription_plan %s has %w", uuid, err)
@@ -749,9 +745,9 @@ func migrateSubscriptions(mc *migCtx) error {
 			mc.subAppSeen[akey] = true
 		}
 		mc.subHashSeen[hkey] = true
-		if err := migrationcore.UpsertSubscription(mc.v2, migrationcore.SubscriptionRow{
+		if err := migrationcore.UpsertSubscriptionV1(mc.v2, migrationcore.SubscriptionV1Row{
 			UUID: uuid, ArtifactUUID: apiUUID, SubscriberID: subscriberID, Token: token, Hash: hash, Org: org, Status: status,
-			ApplicationID: nsp(applicationID), PlanUUID: nsp(planUUID), CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+			ApplicationID: applicationID, PlanUUID: planUUID, CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -799,11 +795,11 @@ func migrateGateways(mc *migCtx) error {
 		if !mc.want("gateways", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertGateway(mc.v2, migrationcore.GatewayRow{
-			UUID: uuid, Org: org, Handle: h, DisplayName: displayName, Version: version, FuncType: funcType, Vhost: vhost,
-			Description: nsp(description), Properties: properties, Manifest: manifest,
-			IsCritical: isCritical.Bool, IsActive: isActive.Bool,
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+		if err := migrationcore.UpsertGatewayV1(mc.v2, h, migrationcore.GatewayV1Row{
+			UUID: uuid, Org: org, DisplayName: displayName, Version: version, FuncType: funcType, Vhost: vhost,
+			Description: description, Properties: properties, Manifest: manifest,
+			IsCritical: isCritical, IsActive: isActive,
+			CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -860,8 +856,8 @@ func migrateArtifactGatewayMappings(mc *migCtx) error {
 		if !mc.want("artifact_gateway_mappings", org+"|"+artifactUUID+"|"+resourceUUID) {
 			continue
 		}
-		if err := migrationcore.UpsertArtifactGatewayMapping(mc.v2, migrationcore.ArtifactGatewayMappingRow{
-			ArtifactUUID: artifactUUID, Org: org, GatewayUUID: resourceUUID, CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+		if err := migrationcore.UpsertArtifactGatewayMappingV1(mc.v2, migrationcore.ArtifactGatewayMappingV1Row{
+			ArtifactUUID: artifactUUID, Org: org, GatewayUUID: resourceUUID, CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -900,9 +896,9 @@ func migrateGatewayCustomPolicies(mc *migCtx) error {
 		if !mc.want("gateway_custom_policies", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertGatewayCustomPolicy(mc.v2, migrationcore.GatewayCustomPolicyRow{
-			UUID: uuid, Org: org, Name: name, Version: version, DisplayName: nsp(displayName), Description: nsp(description),
-			PolicyDefinition: policyDef, CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt),
+		if err := migrationcore.UpsertGatewayCustomPolicyV1(mc.v2, migrationcore.GatewayCustomPolicyV1Row{
+			UUID: uuid, Org: org, Name: name, Version: version, DisplayName: displayName, Description: description,
+			PolicyDefinition: policyDef, CreatedAt: createdAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -942,7 +938,7 @@ func migrateGatewayCustomPolicyUsages(mc *migCtx) error {
 		if !mc.want("gateway_custom_policy_usages", policyUUID+"|"+apiUUID) {
 			continue
 		}
-		if err := migrationcore.UpsertPolicyUsage(mc.v2, migrationcore.PolicyUsageRow{PolicyUUID: policyUUID, ArtifactUUID: apiUUID}, mc.coreOpts(), mc.run); err != nil {
+		if err := migrationcore.UpsertPolicyUsageV1(mc.v2, migrationcore.PolicyUsageV1Row{PolicyUUID: policyUUID, ArtifactUUID: apiUUID}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
 		n++
@@ -976,9 +972,9 @@ func migrateGatewayTokens(mc *migCtx) error {
 		if !mc.want("gateway_tokens", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertGatewayToken(mc.v2, migrationcore.GatewayTokenRow{
+		if err := migrationcore.UpsertGatewayTokenV1(mc.v2, migrationcore.GatewayTokenV1Row{
 			UUID: uuid, GatewayUUID: gatewayUUID, TokenHash: tokenHash, Salt: salt, Status: status,
-			CreatedAt: ntp(createdAt), RevokedAt: ntp(revokedAt),
+			CreatedAt: createdAt, RevokedAt: revokedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1039,9 +1035,9 @@ func migrateDeployments(mc *migCtx) error {
 		if !mc.want("deployments", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertDeployment(mc.v2, migrationcore.DeploymentRow{
-			UUID: uuid, DisplayName: name, ArtifactUUID: artifactUUID, Org: org, GatewayUUID: gatewayUUID,
-			BaseDeploymentUUID: base, Metadata: nsp(metadata), Content: content, CreatedAt: ntp(createdAt),
+		if err := migrationcore.UpsertDeploymentV1(mc.v2, migrationcore.DeploymentV1Row{
+			UUID: uuid, Name: name, ArtifactUUID: artifactUUID, Org: org, GatewayUUID: gatewayUUID,
+			BaseDeploymentUUID: base, Metadata: metadata, Content: content, CreatedAt: createdAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1091,9 +1087,9 @@ func migrateDeploymentStatus(mc *migCtx) error {
 		if !mc.want("deployment_status", org+"|"+artifactUUID+"|"+gatewayUUID) {
 			continue
 		}
-		if err := migrationcore.UpsertDeploymentStatus(mc.v2, migrationcore.DeploymentStatusRow{
+		if err := migrationcore.UpsertDeploymentStatusV1(mc.v2, migrationcore.DeploymentStatusV1Row{
 			ArtifactUUID: artifactUUID, Org: org, GatewayUUID: gatewayUUID, DeploymentUUID: deploymentUUID, Status: status,
-			StatusDesired: nsp(statusDesired), StatusReason: nsp(statusReason), PerformedAt: ntp(performedAt), UpdatedAt: ntp(updatedAt),
+			StatusDesired: statusDesired, StatusReason: statusReason, PerformedAt: performedAt, UpdatedAt: updatedAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1139,10 +1135,10 @@ func migrateAPIKeys(mc *migCtx) error {
 		if !mc.want("api_keys", uuid) {
 			continue
 		}
-		if err := migrationcore.UpsertAPIKey(mc.v2, migrationcore.APIKeyRow{
-			UUID: uuid, ArtifactUUID: artifactUUID, Handle: h, DisplayName: name, MaskedKey: maskedKey,
-			APIKeyHashes: apiKeyHashes, Status: status, AllowedTargets: allowedTargets, Issuer: nsp(issuer),
-			CreatedAt: ntp(createdAt), UpdatedAt: ntp(updatedAt), ExpiresAt: ntp(expiresAt), CreatedBy: strv(createdByRaw),
+		if err := migrationcore.UpsertAPIKeyV1(mc.v2, h, migrationcore.APIKeyV1Row{
+			UUID: uuid, ArtifactUUID: artifactUUID, Name: name, MaskedKey: maskedKey,
+			APIKeyHashes: apiKeyHashes, Status: status, AllowedTargets: allowedTargets, Issuer: issuer,
+			CreatedAt: createdAt, UpdatedAt: updatedAt, ExpiresAt: expiresAt, CreatedBy: createdByRaw,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1184,8 +1180,8 @@ func migrateApplicationAPIKeyMappings(mc *migCtx) error {
 		if !mc.want("application_api_key_mappings", appUUID+"|"+apiKeyID) {
 			continue
 		}
-		if err := migrationcore.UpsertApplicationAPIKeyMapping(mc.v2, migrationcore.ApplicationAPIKeyMappingRow{
-			ApplicationUUID: appUUID, APIKeyID: apiKeyID, CreatedAt: ntp(createdAt),
+		if err := migrationcore.UpsertApplicationAPIKeyMappingV1(mc.v2, migrationcore.ApplicationAPIKeyMappingV1Row{
+			ApplicationUUID: appUUID, APIKeyID: apiKeyID, CreatedAt: createdAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1226,8 +1222,8 @@ func migrateApplicationArtifactMappings(mc *migCtx) error {
 		if !mc.want("application_artifact_mappings", appUUID+"|"+artifactUUID) {
 			continue
 		}
-		if err := migrationcore.UpsertApplicationArtifactMapping(mc.v2, migrationcore.ApplicationArtifactMappingRow{
-			ApplicationUUID: appUUID, ArtifactUUID: artifactUUID, CreatedAt: ntp(createdAt),
+		if err := migrationcore.UpsertApplicationArtifactMappingV1(mc.v2, migrationcore.ApplicationArtifactMappingV1Row{
+			ApplicationUUID: appUUID, ArtifactUUID: artifactUUID, CreatedAt: createdAt,
 		}, mc.coreOpts(), mc.run); err != nil {
 			return err
 		}
@@ -1354,13 +1350,9 @@ func dropPublicationMappings(mc *migCtx) error {
 	return rows.Err()
 }
 
-// strv returns a NullString's value or "" (raw actor for the core's audit resolution).
-func strv(ns sql.NullString) string {
-	if ns.Valid {
-		return ns.String
-	}
-	return ""
-}
+// strv delegates to the shared migrationcore helper (raw actor for the core's
+// audit resolution) — single implementation across batch and live paths.
+func strv(ns sql.NullString) string { return migrationcore.NullStr(ns) }
 
 // printReportSummary prints a compact human summary of a completed run.
 func printReportSummary(r *Report) {

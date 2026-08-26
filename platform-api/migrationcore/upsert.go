@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/wso2/api-platform/platform-api/internal/constants"
 	"github.com/wso2/api-platform/platform-api/internal/model"
@@ -44,94 +43,106 @@ func insertArtifact(ex Execer, opts Options, uuid, kind, org string) error {
 
 // ---- organizations ----
 
-// OrganizationRow mirrors the v1 organizations columns needed for the v2 write.
-// Handle is pre-resolved by the caller (batch: persist-and-replay; live: slug+uuid).
-type OrganizationRow struct {
-	UUID, Handle, DisplayName, Region string
-	CreatedAt, UpdatedAt              *time.Time
-	CreatedBy                         string // raw v1 actor ("" ⇒ migration actor)
+// OrganizationV1Row is a faithful mirror of the v1 `organizations` table row
+// (scan targets). It carries the raw v1 columns only — the v1→v2 mapping
+// (name→display_name, null conversion, the idp placeholder, audit) lives in the
+// transform below, so there is ONE place that mapping can be got wrong.
+//
+// The v1 organizations table has no created_by column, so this row carries none;
+// the transform resolves created_by to the migration actor (audit with "").
+//
+// handle is the one genuinely caller-specific value (batch: carriedHandle —
+// collision-safe + checkpointed; live: Slug), so it is passed to the transform
+// separately rather than folded in.
+type OrganizationV1Row struct {
+	UUID, Name, Region   string
+	CreatedAt, UpdatedAt sql.NullTime
 }
 
-func UpsertOrganization(ex Execer, r OrganizationRow, opts Options, rep Reporter) error {
+// UpsertOrganizationV1 converts one v1 organizations row into its v2 footprint.
+// handle is the resolved v2 handle supplied by the caller.
+func UpsertOrganizationV1(ex Execer, handle string, r OrganizationV1Row, opts Options, rep Reporter) error {
 	// idp_organization_ref_uuid = org uuid (deterministic placeholder).
 	rep.Flag("organizations", r.UUID, FlagPlaceholderIDP, nil,
 		map[string]any{"idp_organization_ref_uuid": r.UUID})
-	createdBy, err := audit(ex, opts, rep, "organizations", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "organizations", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "organizations",
 		[]string{"uuid", "handle", "display_name", "region", "idp_organization_ref_uuid",
 			"data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Handle, r.DisplayName, r.Region, r.UUID, DataVersion, createdBy,
-			tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, handle, r.Name, r.Region, r.UUID, DataVersion, createdBy,
+			tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- projects ----
 
-type ProjectRow struct {
-	UUID, Handle, DisplayName, Org string
-	Description                    *string
-	CreatedAt, UpdatedAt           *time.Time
-	CreatedBy                      string
+// ProjectV1Row mirrors the v1 `projects` row. v1 projects has no handle column
+// (the handle is generated from name by the caller) and no created_by column
+// (the transform resolves it to the migration actor).
+type ProjectV1Row struct {
+	UUID, Name, Org      string
+	Description          sql.NullString
+	CreatedAt, UpdatedAt sql.NullTime
 }
 
-func UpsertProject(ex Execer, r ProjectRow, opts Options, rep Reporter) error {
-	createdBy, err := audit(ex, opts, rep, "projects", r.UUID, r.CreatedBy)
+func UpsertProjectV1(ex Execer, handle string, r ProjectV1Row, opts Options, rep Reporter) error {
+	createdBy, err := audit(ex, opts, rep, "projects", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "projects",
 		[]string{"uuid", "handle", "display_name", "organization_uuid", "description",
 			"data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Handle, r.DisplayName, r.Org, sarg(r.Description), DataVersion, createdBy,
-			tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, handle, r.Name, r.Org, sarg(NullStrPtr(r.Description)), DataVersion, createdBy,
+			tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- applications ----
 
-type ApplicationRow struct {
-	UUID, Handle, ProjectUUID, Org, DisplayName, Type string
-	Description                                        *string
-	CreatedAt, UpdatedAt                               *time.Time
-	CreatedBy                                          string
+type ApplicationV1Row struct {
+	UUID, ProjectUUID, Org, Name, Type string
+	Description                        sql.NullString
+	CreatedAt, UpdatedAt               sql.NullTime
+	CreatedBy                          sql.NullString
 }
 
-func UpsertApplication(ex Execer, r ApplicationRow, opts Options, rep Reporter) error {
-	createdBy, err := audit(ex, opts, rep, "applications", r.UUID, r.CreatedBy)
+func UpsertApplicationV1(ex Execer, handle string, r ApplicationV1Row, opts Options, rep Reporter) error {
+	createdBy, err := audit(ex, opts, rep, "applications", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "applications",
 		[]string{"uuid", "handle", "project_uuid", "organization_uuid", "display_name", "description",
 			"type", "data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Handle, r.ProjectUUID, r.Org, r.DisplayName, sarg(r.Description), r.Type,
-			DataVersion, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, handle, r.ProjectUUID, r.Org, r.Name, sarg(NullStrPtr(r.Description)), r.Type,
+			DataVersion, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- rest_apis (RestApi) ----
 
-type RestAPIRow struct {
-	UUID, Handle, DisplayName, Version, Org, ProjectUUID string
-	Description, Lifecycle, Transport                    *string
-	Configuration                                        []byte // v1 JSONB
-	CreatedAt, UpdatedAt                                 *time.Time
-	CreatedBy                                            string
+type RestAPIV1Row struct {
+	UUID, Name, Version, Org, ProjectUUID string
+	Description, Lifecycle, Transport     sql.NullString
+	Configuration                         []byte // v1 JSONB
+	CreatedAt, UpdatedAt                  sql.NullTime
+	CreatedBy                             sql.NullString
 }
 
-func UpsertRestAPI(ex Execer, r RestAPIRow, opts Options, rep Reporter) error {
-	blob, _, unknown, err := ReshapeRestAPIConfig(r.Configuration, deref(r.Transport))
+func UpsertRestAPIV1(ex Execer, handle string, r RestAPIV1Row, opts Options, rep Reporter) error {
+	blob, _, unknown, err := ReshapeRestAPIConfig(r.Configuration, NullStr(r.Transport))
 	if err != nil {
 		rep.Quarantine("rest_apis", r.UUID, ReasonBlobUnparseable, err.Error(),
 			map[string]any{"uuid": r.UUID})
 		return ErrBlobUnparseable
 	}
 	rep.DroppedFields("RestAPIConfig", unknown)
-	lc := lifecycleOr(r.Lifecycle)
-	createdBy, err := audit(ex, opts, rep, "rest_apis", r.UUID, r.CreatedBy)
+	lc := lifecycleOr(NullStrPtr(r.Lifecycle))
+	createdBy, err := audit(ex, opts, rep, "rest_apis", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -142,27 +153,27 @@ func UpsertRestAPI(ex Execer, r RestAPIRow, opts Options, rep Reporter) error {
 		[]string{"uuid", "organization_uuid", "handle", "display_name", "version", "project_uuid",
 			"description", "lifecycle_status", "configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Handle, r.DisplayName, r.Version, r.ProjectUUID, sarg(r.Description), lc, blob,
-			DataVersion, OriginCP, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, handle, r.Name, r.Version, r.ProjectUUID, sarg(NullStrPtr(r.Description)), lc, blob,
+			DataVersion, OriginCP, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- llm_provider_templates ----
 
-type LLMTemplateRow struct {
-	UUID, Org, Handle, DisplayName string
-	Description                    *string
-	Configuration                 []byte // v1 TEXT
-	CreatedAt, UpdatedAt           *time.Time
-	CreatedBy                      string
+type LLMTemplateV1Row struct {
+	UUID, Org, Name      string
+	Description          sql.NullString
+	Configuration        []byte // v1 TEXT
+	CreatedAt, UpdatedAt sql.NullTime
+	CreatedBy            sql.NullString
 }
 
-func UpsertLLMProviderTemplate(ex Execer, r LLMTemplateRow, opts Options, rep Reporter) error {
-	groupID := r.Handle // group_id = the template's v1 handle (matches v2 create path)
+func UpsertLLMProviderTemplateV1(ex Execer, handle string, r LLMTemplateV1Row, opts Options, rep Reporter) error {
+	groupID := handle // group_id = the template's v1 handle (matches v2 create path)
 	rep.Flag("llm_provider_templates", r.UUID, FlagSynthesized, nil, map[string]any{
 		"group_id": groupID, "version": "v1.0", "managed_by": constants.TemplateManagedByOrganization,
 		"is_latest": 1, "enabled": 1, "openapi_spec": nil})
-	createdBy, err := audit(ex, opts, rep, "llm_provider_templates", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "llm_provider_templates", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -170,23 +181,23 @@ func UpsertLLMProviderTemplate(ex Execer, r LLMTemplateRow, opts Options, rep Re
 		[]string{"uuid", "organization_uuid", "handle", "group_id", "display_name", "managed_by",
 			"version", "description", "configuration", "openapi_spec", "is_latest", "enabled",
 			"data_version", "origin", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Handle, groupID, r.DisplayName, constants.TemplateManagedByOrganization,
-			"v1.0", sarg(r.Description), r.Configuration, nil, 1, 1,
-			DataVersion, OriginCP, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, handle, groupID, r.Name, constants.TemplateManagedByOrganization,
+			"v1.0", sarg(NullStrPtr(r.Description)), r.Configuration, nil, 1, 1,
+			DataVersion, OriginCP, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- llm_providers (LlmProvider) ----
 
-type LLMProviderRow struct {
-	UUID, Handle, DisplayName, Version, Org, TemplateUUID string
-	Description, OpenAPISpec, ModelList, Status           *string
-	Configuration                                         []byte
-	CreatedAt, UpdatedAt                                  *time.Time
-	CreatedBy                                             string
+type LLMProviderV1Row struct {
+	UUID, Name, Version, Org, TemplateUUID     string
+	Description, OpenAPISpec, ModelList, Status sql.NullString
+	Configuration                              []byte
+	CreatedAt, UpdatedAt                       sql.NullTime
+	CreatedBy                                  sql.NullString
 }
 
-func UpsertLLMProvider(ex Execer, r LLMProviderRow, opts Options, rep Reporter) error {
+func UpsertLLMProviderV1(ex Execer, handle string, r LLMProviderV1Row, opts Options, rep Reporter) error {
 	var cfg model.LLMProviderConfig
 	blob, unknown, err := RemarshalConfig(r.Configuration, &cfg)
 	if err != nil {
@@ -195,10 +206,10 @@ func UpsertLLMProvider(ex Execer, r LLMProviderRow, opts Options, rep Reporter) 
 	}
 	rep.DroppedFields("LLMProviderConfig", unknown)
 	flagPlaintextCredential(rep, "llm_providers", r.UUID, cfg.Security)
-	if r.Status != nil && *r.Status != "" {
-		rep.Dropped("field", "llm_providers", r.UUID, DropLLMProviderStatus, *r.Status)
+	if r.Status.Valid && r.Status.String != "" {
+		rep.Dropped("field", "llm_providers", r.UUID, DropLLMProviderStatus, r.Status.String)
 	}
-	createdBy, err := audit(ex, opts, rep, "llm_providers", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "llm_providers", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -209,23 +220,23 @@ func UpsertLLMProvider(ex Execer, r LLMProviderRow, opts Options, rep Reporter) 
 		[]string{"uuid", "handle", "display_name", "version", "description", "template_uuid",
 			"openapi_spec", "model_list", "configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at", "organization_uuid"},
-		[]any{r.UUID, r.Handle, r.DisplayName, r.Version, sarg(r.Description), r.TemplateUUID,
-			bytesOrNilP(r.OpenAPISpec), bytesOrNilP(r.ModelList), blob, DataVersion, OriginCP,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts), r.Org},
+		[]any{r.UUID, handle, r.Name, r.Version, sarg(NullStrPtr(r.Description)), r.TemplateUUID,
+			bytesOrNilP(NullStrPtr(r.OpenAPISpec)), bytesOrNilP(NullStrPtr(r.ModelList)), blob, DataVersion, OriginCP,
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts), r.Org},
 		[]string{"uuid"})
 }
 
 // ---- llm_proxies (LlmProxy) ----
 
-type LLMProxyRow struct {
-	UUID, Handle, DisplayName, Version, ProjectUUID, Org, ProviderUUID string
-	Description, OpenAPISpec, Status                                   *string
-	Configuration                                                     []byte
-	CreatedAt, UpdatedAt                                              *time.Time
-	CreatedBy                                                         string
+type LLMProxyV1Row struct {
+	UUID, Name, Version, ProjectUUID, Org, ProviderUUID string
+	Description, OpenAPISpec, Status                    sql.NullString
+	Configuration                                       []byte
+	CreatedAt, UpdatedAt                                sql.NullTime
+	CreatedBy                                           sql.NullString
 }
 
-func UpsertLLMProxy(ex Execer, r LLMProxyRow, opts Options, rep Reporter) error {
+func UpsertLLMProxyV1(ex Execer, handle string, r LLMProxyV1Row, opts Options, rep Reporter) error {
 	var cfg model.LLMProxyConfig
 	blob, unknown, err := RemarshalConfig(r.Configuration, &cfg)
 	if err != nil {
@@ -234,10 +245,10 @@ func UpsertLLMProxy(ex Execer, r LLMProxyRow, opts Options, rep Reporter) error 
 	}
 	rep.DroppedFields("LLMProxyConfig", unknown)
 	flagPlaintextCredential(rep, "llm_proxies", r.UUID, cfg.Security)
-	if r.Status != nil && *r.Status != "" {
-		rep.Dropped("field", "llm_proxies", r.UUID, DropLLMProxyStatus, *r.Status)
+	if r.Status.Valid && r.Status.String != "" {
+		rep.Dropped("field", "llm_proxies", r.UUID, DropLLMProxyStatus, r.Status.String)
 	}
-	createdBy, err := audit(ex, opts, rep, "llm_proxies", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "llm_proxies", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -248,23 +259,23 @@ func UpsertLLMProxy(ex Execer, r LLMProxyRow, opts Options, rep Reporter) error 
 		[]string{"uuid", "handle", "display_name", "version", "project_uuid", "description", "provider_uuid",
 			"openapi_spec", "configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at", "organization_uuid"},
-		[]any{r.UUID, r.Handle, r.DisplayName, r.Version, r.ProjectUUID, sarg(r.Description), r.ProviderUUID,
-			bytesOrNilP(r.OpenAPISpec), blob, DataVersion, OriginCP,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts), r.Org},
+		[]any{r.UUID, handle, r.Name, r.Version, r.ProjectUUID, sarg(NullStrPtr(r.Description)), r.ProviderUUID,
+			bytesOrNilP(NullStrPtr(r.OpenAPISpec)), blob, DataVersion, OriginCP,
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts), r.Org},
 		[]string{"uuid"})
 }
 
 // ---- mcp_proxies (Mcp) ----
 
-type MCPProxyRow struct {
-	UUID, Handle, DisplayName, Version, Org string
-	ProjectUUID, Description, Status        *string
-	Configuration                          []byte
-	CreatedAt, UpdatedAt                    *time.Time
-	CreatedBy                              string
+type MCPProxyV1Row struct {
+	UUID, Name, Version, Org         string
+	ProjectUUID, Description, Status sql.NullString
+	Configuration                    []byte
+	CreatedAt, UpdatedAt             sql.NullTime
+	CreatedBy                        sql.NullString
 }
 
-func UpsertMCPProxy(ex Execer, r MCPProxyRow, opts Options, rep Reporter) error {
+func UpsertMCPProxyV1(ex Execer, handle string, r MCPProxyV1Row, opts Options, rep Reporter) error {
 	var cfg model.MCPProxyConfiguration
 	blob, unknown, err := RemarshalConfig(r.Configuration, &cfg)
 	if err != nil {
@@ -272,10 +283,10 @@ func UpsertMCPProxy(ex Execer, r MCPProxyRow, opts Options, rep Reporter) error 
 		return ErrBlobUnparseable
 	}
 	rep.DroppedFields("MCPProxyConfiguration", unknown)
-	if r.Status != nil && *r.Status != "" {
-		rep.Dropped("field", "mcp_proxies", r.UUID, DropMCPStatus, *r.Status)
+	if r.Status.Valid && r.Status.String != "" {
+		rep.Dropped("field", "mcp_proxies", r.UUID, DropMCPStatus, r.Status.String)
 	}
-	createdBy, err := audit(ex, opts, rep, "mcp_proxies", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "mcp_proxies", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -286,24 +297,24 @@ func UpsertMCPProxy(ex Execer, r MCPProxyRow, opts Options, rep Reporter) error 
 		[]string{"uuid", "handle", "display_name", "version", "project_uuid", "description",
 			"configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at", "organization_uuid"},
-		[]any{r.UUID, r.Handle, r.DisplayName, r.Version, sarg(r.ProjectUUID), sarg(r.Description),
+		[]any{r.UUID, handle, r.Name, r.Version, sarg(NullStrPtr(r.ProjectUUID)), sarg(NullStrPtr(r.Description)),
 			blob, DataVersion, OriginCP,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts), r.Org},
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts), r.Org},
 		[]string{"uuid"})
 }
 
 // ---- websub_apis (WebSubApi, plugin table) ----
 
-type WebSubRow struct {
-	UUID, Handle, DisplayName, Version, Org, ProjectUUID string
-	Description, Lifecycle, Transport                    *string
-	Configuration                                        []byte
-	CreatedAt, UpdatedAt                                 *time.Time
-	CreatedBy                                            string
+type WebSubV1Row struct {
+	UUID, Name, Version, Org, ProjectUUID string
+	Description, Lifecycle, Transport     sql.NullString
+	Configuration                         []byte
+	CreatedAt, UpdatedAt                  sql.NullTime
+	CreatedBy                             sql.NullString
 }
 
-func UpsertWebSubAPI(ex Execer, r WebSubRow, opts Options, rep Reporter) error {
-	blob, _, unknown, notes, err := ReshapeWebSubConfig(r.Configuration, deref(r.Transport))
+func UpsertWebSubAPIV1(ex Execer, handle string, r WebSubV1Row, opts Options, rep Reporter) error {
+	blob, _, unknown, notes, err := ReshapeWebSubConfig(r.Configuration, NullStr(r.Transport))
 	if err != nil {
 		rep.Quarantine("websub_apis", r.UUID, ReasonBlobUnparseable, err.Error(), map[string]any{"uuid": r.UUID})
 		return ErrBlobUnparseable
@@ -312,8 +323,8 @@ func UpsertWebSubAPI(ex Execer, r WebSubRow, opts Options, rep Reporter) error {
 	if len(notes) > 0 {
 		rep.Flag("websub_apis", r.UUID, FlagSynthesized, nil, map[string]any{"structural_reshape": notes})
 	}
-	lc := lifecycleOr(r.Lifecycle)
-	createdBy, err := audit(ex, opts, rep, "websub_apis", r.UUID, r.CreatedBy)
+	lc := lifecycleOr(NullStrPtr(r.Lifecycle))
+	createdBy, err := audit(ex, opts, rep, "websub_apis", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -324,30 +335,30 @@ func UpsertWebSubAPI(ex Execer, r WebSubRow, opts Options, rep Reporter) error {
 		[]string{"uuid", "organization_uuid", "handle", "display_name", "version", "project_uuid",
 			"description", "lifecycle_status", "configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Handle, r.DisplayName, r.Version, r.ProjectUUID, sarg(r.Description), lc, blob,
-			DataVersion, OriginCP, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, handle, r.Name, r.Version, r.ProjectUUID, sarg(NullStrPtr(r.Description)), lc, blob,
+			DataVersion, OriginCP, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- webbroker_apis (WebBrokerApi, plugin table) ----
 
-type WebBrokerRow struct {
-	UUID, Handle, DisplayName, Version, Org, ProjectUUID string
-	Description, Lifecycle, Transport                    *string
-	Configuration                                        []byte
-	CreatedAt, UpdatedAt                                 *time.Time
-	CreatedBy                                            string
+type WebBrokerV1Row struct {
+	UUID, Name, Version, Org, ProjectUUID string
+	Description, Lifecycle, Transport     sql.NullString
+	Configuration                         []byte
+	CreatedAt, UpdatedAt                  sql.NullTime
+	CreatedBy                             sql.NullString
 }
 
-func UpsertWebBrokerAPI(ex Execer, r WebBrokerRow, opts Options, rep Reporter) error {
-	blob, _, unknown, err := ReshapeWebBrokerConfig(r.Configuration, deref(r.Transport))
+func UpsertWebBrokerAPIV1(ex Execer, handle string, r WebBrokerV1Row, opts Options, rep Reporter) error {
+	blob, _, unknown, err := ReshapeWebBrokerConfig(r.Configuration, NullStr(r.Transport))
 	if err != nil {
 		rep.Quarantine("webbroker_apis", r.UUID, ReasonBlobUnparseable, err.Error(), map[string]any{"uuid": r.UUID})
 		return ErrBlobUnparseable
 	}
 	rep.DroppedFields("WebBrokerAPIConfiguration", unknown)
-	lc := lifecycleOr(r.Lifecycle)
-	createdBy, err := audit(ex, opts, rep, "webbroker_apis", r.UUID, r.CreatedBy)
+	lc := lifecycleOr(NullStrPtr(r.Lifecycle))
+	createdBy, err := audit(ex, opts, rep, "webbroker_apis", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -358,20 +369,21 @@ func UpsertWebBrokerAPI(ex Execer, r WebBrokerRow, opts Options, rep Reporter) e
 		[]string{"uuid", "organization_uuid", "handle", "display_name", "version", "project_uuid",
 			"description", "lifecycle_status", "configuration", "data_version", "origin",
 			"created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Handle, r.DisplayName, r.Version, r.ProjectUUID, sarg(r.Description), lc, blob,
-			DataVersion, OriginCP, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, handle, r.Name, r.Version, r.ProjectUUID, sarg(NullStrPtr(r.Description)), lc, blob,
+			DataVersion, OriginCP, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- subscription_plans (+ subscription_plan_limits) ----
 
-type SubscriptionPlanRow struct {
-	UUID, Handle, DisplayName, Org, Status string
-	BillingPlan, ThrottleUnit              *string
-	StopOnQuota                            *bool
-	ThrottleCount                          *int64
-	ExpiryTime, CreatedAt, UpdatedAt       *time.Time
-	CreatedBy                              string
+// SubscriptionPlanV1Row mirrors the v1 `subscription_plans` row. v1 has no handle
+// column (generated from plan_name by the caller) and no created_by column.
+type SubscriptionPlanV1Row struct {
+	UUID, PlanName, Org, Status      string
+	BillingPlan, ThrottleUnit        sql.NullString
+	StopOnQuota                      sql.NullBool
+	ThrottleCount                    sql.NullInt64
+	ExpiryTime, CreatedAt, UpdatedAt sql.NullTime
 }
 
 // ErrUnmappedThrottleUnit is returned when a v1 throttle unit has no v2 mapping.
@@ -381,19 +393,19 @@ func (e ErrUnmappedThrottleUnit) Error() string {
 	return "unmapped throttle_limit_unit " + e.Unit
 }
 
-func UpsertSubscriptionPlan(ex Execer, r SubscriptionPlanRow, opts Options, rep Reporter) error {
-	if r.BillingPlan != nil && *r.BillingPlan != "" {
-		rep.Dropped("field", "subscription_plans", r.UUID, DropBillingPlan, *r.BillingPlan)
+func UpsertSubscriptionPlanV1(ex Execer, handle string, r SubscriptionPlanV1Row, opts Options, rep Reporter) error {
+	if r.BillingPlan.Valid && r.BillingPlan.String != "" {
+		rep.Dropped("field", "subscription_plans", r.UUID, DropBillingPlan, r.BillingPlan.String)
 	}
-	createdBy, err := audit(ex, opts, rep, "subscription_plans", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "subscription_plans", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	if err := upsert(ex, opts, "subscription_plans",
 		[]string{"uuid", "handle", "display_name", "expiry_time", "organization_uuid", "status",
 			"data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Handle, r.DisplayName, tsArg(r.ExpiryTime, opts), r.Org, r.Status, DataVersion,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, handle, r.PlanName, tsArg(NullTimePtr(r.ExpiryTime), opts), r.Org, r.Status, DataVersion,
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"}); err != nil {
 		return err
 	}
@@ -403,24 +415,24 @@ func UpsertSubscriptionPlan(ex Execer, r SubscriptionPlanRow, opts Options, rep 
 	// the old limit behind) or the throttle may have been cleared: upsert the desired
 	// limit, then delete any superseded limit rows so the v2 child state matches the v1
 	// plan. Batch is InsertOnly, so the replacement deletes are skipped → byte-identical.
-	if r.ThrottleCount != nil && r.ThrottleUnit != nil && *r.ThrottleUnit != "" {
-		timeUnit, ok := CaseConvertThrottleUnit(*r.ThrottleUnit)
+	if r.ThrottleCount.Valid && r.ThrottleUnit.Valid && r.ThrottleUnit.String != "" {
+		timeUnit, ok := CaseConvertThrottleUnit(r.ThrottleUnit.String)
 		if !ok {
-			return ErrUnmappedThrottleUnit{Unit: *r.ThrottleUnit}
+			return ErrUnmappedThrottleUnit{Unit: r.ThrottleUnit.String}
 		}
 		limitTS := opts.Epoch
-		if r.CreatedAt != nil {
-			limitTS = ReinterpretTZ(*r.CreatedAt, opts.loc())
+		if r.CreatedAt.Valid {
+			limitTS = ReinterpretTZ(r.CreatedAt.Time, opts.loc())
 		}
 		limitUUID := DeterministicUUID(r.UUID+"|"+constants.LimitTypeRequestCount+"|"+timeUnit, limitTS)
 		stop := 1
-		if r.StopOnQuota != nil {
-			stop = BoolToSmallint(*r.StopOnQuota)
+		if r.StopOnQuota.Valid {
+			stop = BoolToSmallint(r.StopOnQuota.Bool)
 		}
 		if err := upsert(ex, opts, "subscription_plan_limits",
 			[]string{"uuid", "subscription_plan_uuid", "limit_type", "time_unit", "time_amount",
 				"limit_count", "limit_count_unit", "stop_on_quota_reach"},
-			[]any{limitUUID, r.UUID, constants.LimitTypeRequestCount, timeUnit, 1, *r.ThrottleCount, nil, stop},
+			[]any{limitUUID, r.UUID, constants.LimitTypeRequestCount, timeUnit, 1, r.ThrottleCount.Int64, nil, stop},
 			[]string{"subscription_plan_uuid", "limit_type", "time_amount", "time_unit"}); err != nil {
 			return err
 		}
@@ -456,15 +468,16 @@ func CaseConvertThrottleUnit(u string) (string, bool) {
 
 // ---- subscriptions ----
 
-type SubscriptionRow struct {
+// SubscriptionV1Row mirrors the v1 `subscriptions` row (raw encrypted token +
+// hash). No handle, no created_by column.
+type SubscriptionV1Row struct {
 	UUID, ArtifactUUID, SubscriberID, Token, Hash, Org, Status string
-	ApplicationID, PlanUUID                                    *string
-	CreatedAt, UpdatedAt                                       *time.Time
-	CreatedBy                                                  string
+	ApplicationID, PlanUUID                                    sql.NullString
+	CreatedAt, UpdatedAt                                       sql.NullTime
 }
 
-func UpsertSubscription(ex Execer, r SubscriptionRow, opts Options, rep Reporter) error {
-	createdBy, err := audit(ex, opts, rep, "subscriptions", r.UUID, r.CreatedBy)
+func UpsertSubscriptionV1(ex Execer, r SubscriptionV1Row, opts Options, rep Reporter) error {
+	createdBy, err := audit(ex, opts, rep, "subscriptions", r.UUID, "")
 	if err != nil {
 		return err
 	}
@@ -472,28 +485,30 @@ func UpsertSubscription(ex Execer, r SubscriptionRow, opts Options, rep Reporter
 		[]string{"uuid", "artifact_uuid", "subscriber_id", "application_id", "subscription_token",
 			"subscription_token_hash", "subscription_plan_uuid", "organization_uuid", "status",
 			"data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.ArtifactUUID, r.SubscriberID, sarg(r.ApplicationID), r.Token, r.Hash, sarg(r.PlanUUID), r.Org, r.Status,
-			DataVersion, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.ArtifactUUID, r.SubscriberID, sarg(NullStrPtr(r.ApplicationID)), r.Token, r.Hash, sarg(NullStrPtr(r.PlanUUID)), r.Org, r.Status,
+			DataVersion, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- gateways (+ gateway_endpoints) ----
 
-type GatewayRow struct {
-	UUID, Org, Handle, DisplayName, Version, FuncType, Vhost string
-	Description                                              *string
-	Properties, Manifest                                    []byte
-	IsCritical, IsActive                                     bool
-	CreatedAt, UpdatedAt                                     *time.Time
-	CreatedBy                                               string
+// GatewayV1Row mirrors the v1 `gateways` row. v1 has BOTH a `name` column (the
+// handle source, resolved to the v2 handle by the caller and passed in) and a real
+// `display_name` column (kept here). No created_by column.
+type GatewayV1Row struct {
+	UUID, Org, DisplayName, Version, FuncType, Vhost string
+	Description                                      sql.NullString
+	Properties, Manifest                            []byte
+	IsCritical, IsActive                            sql.NullBool
+	CreatedAt, UpdatedAt                            sql.NullTime
 }
 
-func UpsertGateway(ex Execer, r GatewayRow, opts Options, rep Reporter) error {
+func UpsertGatewayV1(ex Execer, handle string, r GatewayV1Row, opts Options, rep Reporter) error {
 	ver, cut := TruncateStr(r.Version, 30)
 	if cut {
 		rep.Flag("gateways", r.UUID, FlagTruncated, map[string]any{"version": r.Version}, map[string]any{"version": ver})
 	}
-	createdBy, err := audit(ex, opts, rep, "gateways", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "gateways", r.UUID, "")
 	if err != nil {
 		return err
 	}
@@ -501,9 +516,9 @@ func UpsertGateway(ex Execer, r GatewayRow, opts Options, rep Reporter) error {
 		[]string{"uuid", "organization_uuid", "handle", "display_name", "description", "version",
 			"gateway_functionality_type", "properties", "manifest", "is_active", "is_critical",
 			"data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Handle, r.DisplayName, sarg(r.Description), ver, r.FuncType, r.Properties, r.Manifest,
-			BoolToSmallint(r.IsActive), BoolToSmallint(r.IsCritical),
-			DataVersion, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, handle, r.DisplayName, sarg(NullStrPtr(r.Description)), ver, r.FuncType, r.Properties, r.Manifest,
+			BoolToSmallint(r.IsActive.Bool), BoolToSmallint(r.IsCritical.Bool),
+			DataVersion, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"}); err != nil {
 		return err
 	}
@@ -552,62 +567,62 @@ func UpsertGatewayEndpoint(ex Execer, gatewayUUID, url string, opts Options) err
 
 // ---- artifact_gateway_mappings ----
 
-type ArtifactGatewayMappingRow struct {
+type ArtifactGatewayMappingV1Row struct {
 	ArtifactUUID, Org, GatewayUUID string
-	CreatedAt, UpdatedAt           *time.Time
-	CreatedBy                      string
+	CreatedAt, UpdatedAt           sql.NullTime
 }
 
-func UpsertArtifactGatewayMapping(ex Execer, r ArtifactGatewayMappingRow, opts Options, rep Reporter) error {
+func UpsertArtifactGatewayMappingV1(ex Execer, r ArtifactGatewayMappingV1Row, opts Options, rep Reporter) error {
 	key := r.ArtifactUUID + "|" + r.GatewayUUID
-	createdBy, err := audit(ex, opts, rep, "artifact_gateway_mappings", key, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "artifact_gateway_mappings", key, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "artifact_gateway_mappings",
 		[]string{"artifact_uuid", "organization_uuid", "gateway_uuid", "metadata",
 			"created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.ArtifactUUID, r.Org, r.GatewayUUID, nil, createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.ArtifactUUID, r.Org, r.GatewayUUID, nil, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"organization_uuid", "artifact_uuid", "gateway_uuid"})
 }
 
 // ---- gateway_custom_policies ----
 
-type GatewayCustomPolicyRow struct {
+// GatewayCustomPolicyV1Row mirrors the v1 `gateway_custom_policies` row. This table
+// keys on (name, version), not a handle; no created_by column.
+type GatewayCustomPolicyV1Row struct {
 	UUID, Org, Name, Version string
-	DisplayName, Description  *string
-	PolicyDefinition          []byte
-	CreatedAt, UpdatedAt      *time.Time
-	CreatedBy                 string
+	DisplayName, Description sql.NullString
+	PolicyDefinition         []byte
+	CreatedAt, UpdatedAt     sql.NullTime
 }
 
-func UpsertGatewayCustomPolicy(ex Execer, r GatewayCustomPolicyRow, opts Options, rep Reporter) error {
+func UpsertGatewayCustomPolicyV1(ex Execer, r GatewayCustomPolicyV1Row, opts Options, rep Reporter) error {
 	var descVal any
-	if r.Description != nil {
-		d, cut := TruncateStr(*r.Description, 1023)
+	if r.Description.Valid {
+		d, cut := TruncateStr(r.Description.String, 1023)
 		if cut {
 			rep.Flag("gateway_custom_policies", r.UUID, FlagTruncated,
-				map[string]any{"description_len": len(*r.Description)}, map[string]any{"description_len": len(d)})
+				map[string]any{"description_len": len(r.Description.String)}, map[string]any{"description_len": len(d)})
 		}
 		descVal = d
 	}
-	createdBy, err := audit(ex, opts, rep, "gateway_custom_policies", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "gateway_custom_policies", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "gateway_custom_policies",
 		[]string{"uuid", "organization_uuid", "name", "display_name", "version", "description",
 			"policy_definition", "data_version", "created_by", "created_at", "updated_by", "updated_at"},
-		[]any{r.UUID, r.Org, r.Name, sarg(r.DisplayName), r.Version, descVal, r.PolicyDefinition, DataVersion,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts)},
+		[]any{r.UUID, r.Org, r.Name, sarg(NullStrPtr(r.DisplayName)), r.Version, descVal, r.PolicyDefinition, DataVersion,
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- gateway_custom_policy_usages ----
 
-type PolicyUsageRow struct{ PolicyUUID, ArtifactUUID string }
+type PolicyUsageV1Row struct{ PolicyUUID, ArtifactUUID string }
 
-func UpsertPolicyUsage(ex Execer, r PolicyUsageRow, opts Options, rep Reporter) error {
+func UpsertPolicyUsageV1(ex Execer, r PolicyUsageV1Row, opts Options, rep Reporter) error {
 	return upsert(ex, opts, "gateway_custom_policy_usages",
 		[]string{"policy_uuid", "artifact_uuid"}, []any{r.PolicyUUID, r.ArtifactUUID},
 		[]string{"policy_uuid", "artifact_uuid"})
@@ -615,19 +630,18 @@ func UpsertPolicyUsage(ex Execer, r PolicyUsageRow, opts Options, rep Reporter) 
 
 // ---- gateway_tokens ----
 
-type GatewayTokenRow struct {
+type GatewayTokenV1Row struct {
 	UUID, GatewayUUID, TokenHash, Salt, Status string
-	CreatedAt, RevokedAt                       *time.Time
-	CreatedBy                                  string
+	CreatedAt, RevokedAt                       sql.NullTime
 }
 
-func UpsertGatewayToken(ex Execer, r GatewayTokenRow, opts Options, rep Reporter) error {
-	createdBy, err := audit(ex, opts, rep, "gateway_tokens", r.UUID, r.CreatedBy)
+func UpsertGatewayTokenV1(ex Execer, r GatewayTokenV1Row, opts Options, rep Reporter) error {
+	createdBy, err := audit(ex, opts, rep, "gateway_tokens", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	var revokedBy any
-	if r.RevokedAt != nil {
+	if r.RevokedAt.Valid {
 		actor, _, e := ResolveIdentity(ex, MigrationActorIDPID, opts)
 		if e != nil {
 			return e
@@ -638,71 +652,77 @@ func UpsertGatewayToken(ex Execer, r GatewayTokenRow, opts Options, rep Reporter
 		[]string{"uuid", "gateway_uuid", "token_hash", "salt", "status", "data_version",
 			"created_by", "created_at", "revoked_by", "revoked_at"},
 		[]any{r.UUID, r.GatewayUUID, r.TokenHash, r.Salt, r.Status, DataVersion,
-			createdBy, tsArg(r.CreatedAt, opts), revokedBy, tsArg(r.RevokedAt, opts)},
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), revokedBy, tsArg(NullTimePtr(r.RevokedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- deployments ----
 
-type DeploymentRow struct {
-	UUID, DisplayName, ArtifactUUID, Org, GatewayUUID string
-	BaseDeploymentUUID, Metadata                      *string
-	Content                                           []byte
-	CreatedAt                                         *time.Time
-	CreatedBy                                         string
+// DeploymentV1Row mirrors the v1 `deployments` row. No created_by column.
+// BaseDeploymentUUID is the caller-resolved base link (the batch drops it when the
+// predecessor was not migrated), not a raw column, so it stays *string.
+type DeploymentV1Row struct {
+	UUID, Name, ArtifactUUID, Org, GatewayUUID string
+	BaseDeploymentUUID                         *string
+	Metadata                                   sql.NullString
+	Content                                    []byte
+	CreatedAt                                  sql.NullTime
 }
 
-func UpsertDeployment(ex Execer, r DeploymentRow, opts Options, rep Reporter) error {
-	createdBy, err := audit(ex, opts, rep, "deployments", r.UUID, r.CreatedBy)
+func UpsertDeploymentV1(ex Execer, r DeploymentV1Row, opts Options, rep Reporter) error {
+	createdBy, err := audit(ex, opts, rep, "deployments", r.UUID, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "deployments",
 		[]string{"uuid", "display_name", "artifact_uuid", "organization_uuid", "gateway_uuid",
 			"base_deployment_uuid", "content", "metadata", "data_version", "created_by", "created_at"},
-		[]any{r.UUID, r.DisplayName, r.ArtifactUUID, r.Org, r.GatewayUUID, sarg(r.BaseDeploymentUUID),
-			r.Content, bytesOrNilP(r.Metadata), DataVersion, createdBy, tsArg(r.CreatedAt, opts)},
+		[]any{r.UUID, r.Name, r.ArtifactUUID, r.Org, r.GatewayUUID, sarg(r.BaseDeploymentUUID),
+			r.Content, bytesOrNilP(NullStrPtr(r.Metadata)), DataVersion, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts)},
 		[]string{"uuid"})
 }
 
 // ---- deployment_status ----
 
-type DeploymentStatusRow struct {
+// DeploymentStatusV1Row mirrors the v1 `deployment_status` row. No performed_by
+// column (resolved to the migration actor).
+type DeploymentStatusV1Row struct {
 	ArtifactUUID, Org, GatewayUUID, DeploymentUUID, Status string
-	StatusDesired, StatusReason                            *string
-	PerformedAt, UpdatedAt                                 *time.Time
-	PerformedBy                                            string
+	StatusDesired, StatusReason                            sql.NullString
+	PerformedAt, UpdatedAt                                 sql.NullTime
 }
 
-func UpsertDeploymentStatus(ex Execer, r DeploymentStatusRow, opts Options, rep Reporter) error {
+func UpsertDeploymentStatusV1(ex Execer, r DeploymentStatusV1Row, opts Options, rep Reporter) error {
 	key := r.ArtifactUUID + "|" + r.Org + "|" + r.GatewayUUID
-	performedBy, err := audit(ex, opts, rep, "deployment_status", key, r.PerformedBy)
+	performedBy, err := audit(ex, opts, rep, "deployment_status", key, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "deployment_status",
 		[]string{"artifact_uuid", "organization_uuid", "gateway_uuid", "deployment_uuid", "status",
 			"status_desired", "performed_at", "performed_by", "status_reason", "updated_at"},
-		[]any{r.ArtifactUUID, r.Org, r.GatewayUUID, r.DeploymentUUID, r.Status, sarg(r.StatusDesired),
-			tsArg(r.PerformedAt, opts), performedBy, sarg(r.StatusReason), tsArg(r.UpdatedAt, opts)},
+		[]any{r.ArtifactUUID, r.Org, r.GatewayUUID, r.DeploymentUUID, r.Status, sarg(NullStrPtr(r.StatusDesired)),
+			tsArg(NullTimePtr(r.PerformedAt), opts), performedBy, sarg(NullStrPtr(r.StatusReason)), tsArg(NullTimePtr(r.UpdatedAt), opts)},
 		[]string{"organization_uuid", "artifact_uuid", "gateway_uuid"})
 }
 
 // ---- api_keys ----
 
-type APIKeyRow struct {
-	UUID, ArtifactUUID, Handle, DisplayName, MaskedKey, APIKeyHashes, Status, AllowedTargets string
-	Issuer                                                                                   *string
-	CreatedAt, UpdatedAt, ExpiresAt                                                          *time.Time
-	CreatedBy                                                                                string
+// APIKeyV1Row mirrors the v1 `api_keys` row. The handle is generated from name by
+// the caller and passed in; Name feeds v2 display_name.
+type APIKeyV1Row struct {
+	UUID, ArtifactUUID, Name, MaskedKey, APIKeyHashes, Status, AllowedTargets string
+	Issuer                                                                    sql.NullString
+	CreatedAt, UpdatedAt, ExpiresAt                                           sql.NullTime
+	CreatedBy                                                                 sql.NullString
 }
 
-func UpsertAPIKey(ex Execer, r APIKeyRow, opts Options, rep Reporter) error {
+func UpsertAPIKeyV1(ex Execer, handle string, r APIKeyV1Row, opts Options, rep Reporter) error {
 	var issuerVal any
-	if r.Issuer != nil {
-		iv, cut := TruncateStr(*r.Issuer, 255)
+	if r.Issuer.Valid {
+		iv, cut := TruncateStr(r.Issuer.String, 255)
 		if cut {
-			rep.Flag("api_keys", r.UUID, FlagTruncated, map[string]any{"issuer_len": len(*r.Issuer)}, map[string]any{"issuer_len": len(iv)})
+			rep.Flag("api_keys", r.UUID, FlagTruncated, map[string]any{"issuer_len": len(r.Issuer.String)}, map[string]any{"issuer_len": len(iv)})
 		}
 		issuerVal = iv
 	}
@@ -710,7 +730,7 @@ func UpsertAPIKey(ex Execer, r APIKeyRow, opts Options, rep Reporter) error {
 	if cut {
 		rep.Flag("api_keys", r.UUID, FlagTruncated, map[string]any{"allowed_targets_len": len(r.AllowedTargets)}, map[string]any{"allowed_targets_len": len(at)})
 	}
-	createdBy, err := audit(ex, opts, rep, "api_keys", r.UUID, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "api_keys", r.UUID, NullStr(r.CreatedBy))
 	if err != nil {
 		return err
 	}
@@ -718,59 +738,50 @@ func UpsertAPIKey(ex Execer, r APIKeyRow, opts Options, rep Reporter) error {
 		[]string{"uuid", "artifact_uuid", "handle", "display_name", "masked_api_key", "api_key_hashes",
 			"status", "data_version", "created_by", "created_at", "updated_by", "updated_at",
 			"expires_at", "issuer", "allowed_targets"},
-		[]any{r.UUID, r.ArtifactUUID, r.Handle, r.DisplayName, r.MaskedKey, []byte(r.APIKeyHashes), r.Status, DataVersion,
-			createdBy, tsArg(r.CreatedAt, opts), createdBy, tsArg(r.UpdatedAt, opts), tsArg(r.ExpiresAt, opts), issuerVal, at},
+		[]any{r.UUID, r.ArtifactUUID, handle, r.Name, r.MaskedKey, []byte(r.APIKeyHashes), r.Status, DataVersion,
+			createdBy, tsArg(NullTimePtr(r.CreatedAt), opts), createdBy, tsArg(NullTimePtr(r.UpdatedAt), opts), tsArg(NullTimePtr(r.ExpiresAt), opts), issuerVal, at},
 		[]string{"uuid"})
 }
 
 // ---- application_api_key_mappings ----
 
-type ApplicationAPIKeyMappingRow struct {
+type ApplicationAPIKeyMappingV1Row struct {
 	ApplicationUUID, APIKeyID string
-	CreatedAt                 *time.Time
-	CreatedBy                 string
+	CreatedAt                 sql.NullTime
 }
 
-func UpsertApplicationAPIKeyMapping(ex Execer, r ApplicationAPIKeyMappingRow, opts Options, rep Reporter) error {
+func UpsertApplicationAPIKeyMappingV1(ex Execer, r ApplicationAPIKeyMappingV1Row, opts Options, rep Reporter) error {
 	key := r.ApplicationUUID + "|" + r.APIKeyID
-	createdBy, err := audit(ex, opts, rep, "application_api_key_mappings", key, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "application_api_key_mappings", key, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "application_api_key_mappings",
 		[]string{"application_uuid", "api_key_id", "created_by", "created_at"},
-		[]any{r.ApplicationUUID, r.APIKeyID, createdBy, tsArg(r.CreatedAt, opts)},
+		[]any{r.ApplicationUUID, r.APIKeyID, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts)},
 		[]string{"application_uuid", "api_key_id"})
 }
 
 // ---- application_artifact_mappings ----
 
-type ApplicationArtifactMappingRow struct {
+type ApplicationArtifactMappingV1Row struct {
 	ApplicationUUID, ArtifactUUID string
-	CreatedAt                     *time.Time
-	CreatedBy                     string
+	CreatedAt                     sql.NullTime
 }
 
-func UpsertApplicationArtifactMapping(ex Execer, r ApplicationArtifactMappingRow, opts Options, rep Reporter) error {
+func UpsertApplicationArtifactMappingV1(ex Execer, r ApplicationArtifactMappingV1Row, opts Options, rep Reporter) error {
 	key := r.ApplicationUUID + "|" + r.ArtifactUUID
-	createdBy, err := audit(ex, opts, rep, "application_artifact_mappings", key, r.CreatedBy)
+	createdBy, err := audit(ex, opts, rep, "application_artifact_mappings", key, "")
 	if err != nil {
 		return err
 	}
 	return upsert(ex, opts, "application_artifact_mappings",
 		[]string{"application_uuid", "artifact_uuid", "created_by", "created_at"},
-		[]any{r.ApplicationUUID, r.ArtifactUUID, createdBy, tsArg(r.CreatedAt, opts)},
+		[]any{r.ApplicationUUID, r.ArtifactUUID, createdBy, tsArg(NullTimePtr(r.CreatedAt), opts)},
 		[]string{"application_uuid", "artifact_uuid"})
 }
 
 // ---- shared helpers ----
-
-func deref(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
 
 func lifecycleOr(p *string) string {
 	if p != nil && *p != "" {
