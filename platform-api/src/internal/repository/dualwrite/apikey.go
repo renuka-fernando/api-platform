@@ -40,11 +40,11 @@ func NewAPIKeyRepo(inner repository.APIKeyRepository, sink *Sink) repository.API
 // the partial mutators (Update, Revoke), so DO UPDATE never clobbers untouched v2 columns.
 func (d *apiKeyRepo) upsertAPIKey(uuid string) {
 	d.sink.mirrorResolvedUpsert("api_key", "api_keys", uuid, "", func(ex migrationcore.Execer) error {
-		row, err := readAPIKeyRow(d.sink.v1, uuid)
+		handle, row, err := readAPIKeyRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertAPIKey(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertAPIKeyV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 }
 

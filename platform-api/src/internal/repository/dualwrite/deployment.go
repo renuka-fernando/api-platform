@@ -45,7 +45,7 @@ func (d *deploymentRepo) mirrorDeploymentStatus(artifactUUID, orgUUID, gatewayID
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertDeploymentStatus(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertDeploymentStatusV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 }
 
@@ -81,7 +81,7 @@ func (d *deploymentRepo) CreateWithLimitEnforcement(deployment *model.Deployment
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertDeployment(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertDeploymentV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	d.mirrorDeploymentStatus(art, org, gw)
 	return nil

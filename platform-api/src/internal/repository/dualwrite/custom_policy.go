@@ -43,7 +43,7 @@ func (d *customPolicyRepo) upsertCustomPolicy(uuid, org string) {
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertGatewayCustomPolicy(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertGatewayCustomPolicyV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 }
 
@@ -97,7 +97,7 @@ func (d *customPolicyRepo) InsertCustomPolicyUsage(policyUUID, apiUUID string) e
 		return err
 	}
 	d.sink.mirrorUpsert("policy_usage", "gateway_custom_policy_usages", policyUUID+"|"+apiUUID, "", func(ex migrationcore.Execer) error {
-		return migrationcore.UpsertPolicyUsage(ex, migrationcore.PolicyUsageRow{PolicyUUID: policyUUID, ArtifactUUID: apiUUID}, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertPolicyUsageV1(ex, migrationcore.PolicyUsageV1Row{PolicyUUID: policyUUID, ArtifactUUID: apiUUID}, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

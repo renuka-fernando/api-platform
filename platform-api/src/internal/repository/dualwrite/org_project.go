@@ -45,11 +45,11 @@ func (d *orgRepo) CreateOrganization(org *model.Organization) error {
 		return err
 	}
 	d.sink.mirrorUpsert("organization", "organizations", org.ID, org.ID, func(ex migrationcore.Execer) error {
-		row, err := readOrganizationRow(d.sink.v1, org.ID)
+		handle, row, err := readOrganizationRow(d.sink.v1, org.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertOrganization(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertOrganizationV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -59,11 +59,11 @@ func (d *orgRepo) UpdateOrganization(org *model.Organization) error {
 		return err
 	}
 	d.sink.mirrorUpsert("organization", "organizations", org.ID, org.ID, func(ex migrationcore.Execer) error {
-		row, err := readOrganizationRow(d.sink.v1, org.ID)
+		handle, row, err := readOrganizationRow(d.sink.v1, org.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertOrganization(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertOrganizationV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -95,11 +95,11 @@ func (d *projectRepo) CreateProject(project *model.Project) error {
 		return err
 	}
 	d.sink.mirrorUpsert("project", "projects", project.ID, project.OrganizationID, func(ex migrationcore.Execer) error {
-		row, err := readProjectRow(d.sink.v1, project.ID)
+		handle, row, err := readProjectRow(d.sink.v1, project.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertProject(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertProjectV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -109,11 +109,11 @@ func (d *projectRepo) UpdateProject(project *model.Project) error {
 		return err
 	}
 	d.sink.mirrorUpsert("project", "projects", project.ID, project.OrganizationID, func(ex migrationcore.Execer) error {
-		row, err := readProjectRow(d.sink.v1, project.ID)
+		handle, row, err := readProjectRow(d.sink.v1, project.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertProject(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertProjectV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

@@ -42,11 +42,11 @@ func NewGatewayRepo(inner repository.GatewayRepository, sink *Sink) repository.G
 // §8.3: UpsertGateway replaces a superseded gateway_endpoints row when the vhost changed.
 func (d *gatewayRepo) upsertGateway(gatewayID, org string) {
 	d.sink.mirrorUpsert("gateway", "gateways", gatewayID, org, func(ex migrationcore.Execer) error {
-		row, err := readGatewayRow(d.sink.v1, gatewayID)
+		handle, row, err := readGatewayRow(d.sink.v1, gatewayID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertGateway(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertGatewayV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 }
 
@@ -103,7 +103,7 @@ func (d *gatewayRepo) CreateToken(token *model.GatewayToken) error {
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertGatewayToken(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertGatewayTokenV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -119,7 +119,7 @@ func (d *gatewayRepo) RevokeToken(tokenID string) error {
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertGatewayToken(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertGatewayTokenV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

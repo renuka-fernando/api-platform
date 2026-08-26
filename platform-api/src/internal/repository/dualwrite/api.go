@@ -46,11 +46,11 @@ func (d *apiRepo) CreateAPI(api *model.API) error {
 	}
 	// One UpsertRestAPI writes the whole v2 footprint (artifacts + rest_apis).
 	d.sink.mirrorUpsert("rest_api", "rest_apis", api.ID, api.OrganizationID, func(ex migrationcore.Execer) error {
-		row, err := readRestAPIRow(d.sink.v1, api.ID)
+		handle, row, err := readRestAPIRow(d.sink.v1, api.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertRestAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertRestAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -60,11 +60,11 @@ func (d *apiRepo) UpdateAPI(api *model.API) error {
 		return err
 	}
 	d.sink.mirrorUpsert("rest_api", "rest_apis", api.ID, api.OrganizationID, func(ex migrationcore.Execer) error {
-		row, err := readRestAPIRow(d.sink.v1, api.ID)
+		handle, row, err := readRestAPIRow(d.sink.v1, api.ID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertRestAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertRestAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -93,7 +93,7 @@ func (d *apiRepo) CreateAPIAssociation(association *model.APIAssociation) error 
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertArtifactGatewayMapping(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertArtifactGatewayMappingV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -110,7 +110,7 @@ func (d *apiRepo) UpdateAPIAssociation(apiUUID, resourceID, associationType, org
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertArtifactGatewayMapping(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertArtifactGatewayMappingV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

@@ -47,7 +47,7 @@ func (d *subscriptionRepo) Create(sub *model.Subscription) error {
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertSubscription(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertSubscriptionV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -61,7 +61,7 @@ func (d *subscriptionRepo) Update(sub *model.Subscription) error {
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertSubscription(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertSubscriptionV1(ex, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -93,11 +93,11 @@ func (d *subscriptionPlanRepo) Create(plan *model.SubscriptionPlan) error {
 		return err
 	}
 	d.sink.mirrorUpsert("subscription_plan", "subscription_plans", plan.UUID, plan.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readSubscriptionPlanRow(d.sink.v1, plan.UUID)
+		handle, row, err := readSubscriptionPlanRow(d.sink.v1, plan.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertSubscriptionPlan(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertSubscriptionPlanV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -109,11 +109,11 @@ func (d *subscriptionPlanRepo) Update(plan *model.SubscriptionPlan) error {
 	// §8.3: a throttle-unit change moves the limit's natural key; UpsertSubscriptionPlan
 	// replaces the superseded subscription_plan_limits row under InsertOnly:false.
 	d.sink.mirrorUpsert("subscription_plan", "subscription_plans", plan.UUID, plan.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readSubscriptionPlanRow(d.sink.v1, plan.UUID)
+		handle, row, err := readSubscriptionPlanRow(d.sink.v1, plan.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertSubscriptionPlan(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertSubscriptionPlanV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

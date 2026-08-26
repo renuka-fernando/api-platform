@@ -48,11 +48,11 @@ func (d *llmTemplateRepo) Create(t *model.LLMProviderTemplate) error {
 		return err
 	}
 	d.sink.mirrorUpsert("llm_provider_template", "llm_provider_templates", t.UUID, t.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMTemplateRow(d.sink.v1, t.UUID)
+		handle, row, err := readLLMTemplateRow(d.sink.v1, t.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProviderTemplate(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProviderTemplateV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -63,11 +63,11 @@ func (d *llmTemplateRepo) Update(t *model.LLMProviderTemplate) error {
 	}
 	uuid, _ := resolveTemplateUUID(d.sink.v1, t.ID, t.OrganizationUUID)
 	d.sink.mirrorResolvedUpsert("llm_provider_template", "llm_provider_templates", uuid, t.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMTemplateRow(d.sink.v1, uuid)
+		handle, row, err := readLLMTemplateRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProviderTemplate(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProviderTemplateV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -100,11 +100,11 @@ func (d *llmProviderRepo) Create(p *model.LLMProvider) error {
 		return err
 	}
 	d.sink.mirrorUpsert("llm_provider", "llm_providers", p.UUID, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMProviderRow(d.sink.v1, p.UUID)
+		handle, row, err := readLLMProviderRow(d.sink.v1, p.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProvider(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProviderV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -115,11 +115,11 @@ func (d *llmProviderRepo) Update(p *model.LLMProvider) error {
 	}
 	uuid, _ := resolveArtifactUUID(d.sink.v1, p.ID, p.OrganizationUUID, constants.LLMProvider)
 	d.sink.mirrorResolvedUpsert("llm_provider", "llm_providers", uuid, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMProviderRow(d.sink.v1, uuid)
+		handle, row, err := readLLMProviderRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProvider(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProviderV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -152,11 +152,11 @@ func (d *llmProxyRepo) Create(p *model.LLMProxy) error {
 		return err
 	}
 	d.sink.mirrorUpsert("llm_proxy", "llm_proxies", p.UUID, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMProxyRow(d.sink.v1, p.UUID)
+		handle, row, err := readLLMProxyRow(d.sink.v1, p.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProxy(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProxyV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -167,11 +167,11 @@ func (d *llmProxyRepo) Update(p *model.LLMProxy) error {
 	}
 	uuid, _ := resolveArtifactUUID(d.sink.v1, p.ID, p.OrganizationUUID, constants.LLMProxy)
 	d.sink.mirrorResolvedUpsert("llm_proxy", "llm_proxies", uuid, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readLLMProxyRow(d.sink.v1, uuid)
+		handle, row, err := readLLMProxyRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertLLMProxy(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertLLMProxyV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -204,11 +204,11 @@ func (d *mcpProxyRepo) Create(p *model.MCPProxy) error {
 		return err
 	}
 	d.sink.mirrorUpsert("mcp_proxy", "mcp_proxies", p.UUID, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readMCPProxyRow(d.sink.v1, p.UUID)
+		handle, row, err := readMCPProxyRow(d.sink.v1, p.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertMCPProxy(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertMCPProxyV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -219,11 +219,11 @@ func (d *mcpProxyRepo) Update(p *model.MCPProxy) error {
 	}
 	uuid, _ := resolveArtifactUUID(d.sink.v1, p.Handle, p.OrganizationUUID, constants.MCPProxy)
 	d.sink.mirrorResolvedUpsert("mcp_proxy", "mcp_proxies", uuid, p.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readMCPProxyRow(d.sink.v1, uuid)
+		handle, row, err := readMCPProxyRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertMCPProxy(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertMCPProxyV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -258,11 +258,11 @@ func (d *webSubAPIRepo) Create(api *model.WebSubAPI) error {
 		return err
 	}
 	d.sink.mirrorUpsert("websub_api", "websub_apis", api.UUID, api.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readWebSubRow(d.sink.v1, api.UUID)
+		handle, row, err := readWebSubRow(d.sink.v1, api.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertWebSubAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertWebSubAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -273,11 +273,11 @@ func (d *webSubAPIRepo) Update(api *model.WebSubAPI) error {
 	}
 	uuid, _ := resolveArtifactUUID(d.sink.v1, api.Handle, api.OrganizationUUID, constants.WebSubApi)
 	d.sink.mirrorResolvedUpsert("websub_api", "websub_apis", uuid, api.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readWebSubRow(d.sink.v1, uuid)
+		handle, row, err := readWebSubRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertWebSubAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertWebSubAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -310,11 +310,11 @@ func (d *webBrokerAPIRepo) Create(api *model.WebBrokerAPI) error {
 		return err
 	}
 	d.sink.mirrorUpsert("webbroker_api", "webbroker_apis", api.UUID, api.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readWebBrokerRow(d.sink.v1, api.UUID)
+		handle, row, err := readWebBrokerRow(d.sink.v1, api.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertWebBrokerAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertWebBrokerAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -325,11 +325,11 @@ func (d *webBrokerAPIRepo) Update(api *model.WebBrokerAPI) error {
 	}
 	uuid, _ := resolveArtifactUUID(d.sink.v1, api.Handle, api.OrganizationUUID, constants.WebBrokerApi)
 	d.sink.mirrorResolvedUpsert("webbroker_api", "webbroker_apis", uuid, api.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readWebBrokerRow(d.sink.v1, uuid)
+		handle, row, err := readWebBrokerRow(d.sink.v1, uuid)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertWebBrokerAPI(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertWebBrokerAPIV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }

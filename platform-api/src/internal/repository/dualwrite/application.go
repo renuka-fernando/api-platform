@@ -41,11 +41,11 @@ func (d *applicationRepo) CreateApplication(app *model.Application) error {
 		return err
 	}
 	d.sink.mirrorUpsert("application", "applications", app.UUID, app.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readApplicationRow(d.sink.v1, app.UUID)
+		handle, row, err := readApplicationRow(d.sink.v1, app.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertApplication(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertApplicationV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -55,11 +55,11 @@ func (d *applicationRepo) UpdateApplication(app *model.Application) error {
 		return err
 	}
 	d.sink.mirrorUpsert("application", "applications", app.UUID, app.OrganizationUUID, func(ex migrationcore.Execer) error {
-		row, err := readApplicationRow(d.sink.v1, app.UUID)
+		handle, row, err := readApplicationRow(d.sink.v1, app.UUID)
 		if err != nil {
 			return err
 		}
-		return migrationcore.UpsertApplication(ex, row, d.sink.opts, d.sink.reporter)
+		return migrationcore.UpsertApplicationV1(ex, handle, row, d.sink.opts, d.sink.reporter)
 	})
 	return nil
 }
@@ -87,7 +87,7 @@ func (d *applicationRepo) AddApplicationAPIKeys(applicationUUID string, apiKeyID
 			if err != nil {
 				return err
 			}
-			return migrationcore.UpsertApplicationAPIKeyMapping(ex, row, d.sink.opts, d.sink.reporter)
+			return migrationcore.UpsertApplicationAPIKeyMappingV1(ex, row, d.sink.opts, d.sink.reporter)
 		})
 	}
 	return nil
@@ -104,7 +104,7 @@ func (d *applicationRepo) AddApplicationAssociations(applicationUUID string, tar
 			if err != nil {
 				return err
 			}
-			return migrationcore.UpsertApplicationArtifactMapping(ex, row, d.sink.opts, d.sink.reporter)
+			return migrationcore.UpsertApplicationArtifactMappingV1(ex, row, d.sink.opts, d.sink.reporter)
 		})
 	}
 	return nil
